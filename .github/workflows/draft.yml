@@ -1,0 +1,79 @@
+name: 실시간 이슈 글 임시저장
+
+on:
+  schedule:
+    # GitHub cron 은 UTC 기준입니다. 한국시간(KST) = UTC + 9시간.
+    - cron: "0 23 * * *"   # 08:00 KST — 출근길 검색량이 오르는 시간
+    - cron: "0 4 * * *"    # 13:00 KST — 점심 시간대
+    - cron: "0 11 * * *"   # 20:00 KST — 저녁 시간대
+  workflow_dispatch:       # Actions 탭에서 수동 실행
+    inputs:
+      count:
+        description: "작성할 글 개수"
+        required: false
+        default: "2"
+      dry_run:
+        description: "키워드만 확인 (글 작성 안 함)"
+        type: boolean
+        default: false
+
+# 이전 실행이 안 끝났으면 겹쳐 돌지 않게 합니다.
+concurrency:
+  group: draft-posts
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # data/history.json 을 다시 커밋하기 위해 필요
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 글 작성 후 Blogger 임시저장
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          PYTHONUTF8: "1"
+        run: |
+          ARGS="--count ${{ github.event.inputs.count || 2 }}"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python -m src.main $ARGS
+
+      - name: 실행 결과를 요약에 남기기
+        if: always()
+        run: |
+          if [ -f data/last_run.md ]; then
+            cat data/last_run.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "보고서가 생성되지 않았습니다." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: 작성 이력 커밋
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "변경 사항 없음."
+          else
+            git commit -m "chore: 작성 이력 갱신 ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+            git push
+          fi

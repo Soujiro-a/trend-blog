@@ -1,0 +1,20 @@
+# 시크릿 — 절대 커밋하지 마세요
+.env
+
+# 로컬 테스트 결과물
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 편집기 / 도구 로컬 설정
+.claude/settings.local.json
+
+# 세션을 옮길 때 생긴 구버전 사본 (필요 없으면 폴더째 지워도 됩니다)
+/trend-blog/
+
+# data/history.json 과 data/last_run.md 는 일부러 커밋합니다.
+# 중복 작성 방지 이력과 실행 보고서라서 저장소에 남아 있어야 합니다.
