@@ -102,6 +102,9 @@ def aggregate(
 
     candidates: list[Candidate] = []
 
+    # 헤드라인 토큰은 후보마다 다시 계산할 필요가 없어 한 번만 만들어 둡니다.
+    headline_tokens = [(h, tokenize(h.keyword)) for h in headline_items]
+
     # 1) 비슷한 키워드끼리 묶기
     for item in sorted(keyword_items, key=lambda i: i.rank):
         match = next(
@@ -119,7 +122,9 @@ def aggregate(
         match.seen.append(Variant(item.keyword, item.source, item.rank))
         # 같은 소스가 두 번 들어오면 더 높은(작은) 순위를 남깁니다.
         prev = match.sources.get(item.source)
-        match.sources[item.source] = min(prev, item.rank) if prev else item.rank
+        match.sources[item.source] = (
+            min(prev, item.rank) if prev is not None else item.rank
+        )
         match.news.extend(item.news)
 
     # 2) 점수 계산
@@ -131,19 +136,18 @@ def aggregate(
         # 여러 소스에 동시에 뜬 이슈일수록 가산
         base *= 1.0 + bonus * (len(c.sources) - 1)
 
-        # 3) 헤드라인 보강
-        ktokens = tokenize(c.keyword) | set().union(
-            *(tokenize(v) for v in c.variants)
-        )
-        for h in headline_items:
-            htokens = tokenize(h.keyword)
-            if not ktokens:
-                continue
-            containment = len(ktokens & htokens) / len(ktokens)
-            if containment >= _HEADLINE_CONTAINMENT:
-                base += weights.get(h.source, 0.0) * 0.5
-                if h.keyword not in c.headline_hits:
-                    c.headline_hits.append(h.keyword)
+        # 3) 헤드라인 보강 — 실제 기사로 뒷받침되는 키워드에 가산점
+        ktokens: set[str] = set()
+        for v in [c.keyword, *c.variants]:
+            ktokens |= tokenize(v)
+
+        if ktokens:
+            for h, htokens in headline_tokens:
+                containment = len(ktokens & htokens) / len(ktokens)
+                if containment >= _HEADLINE_CONTAINMENT:
+                    base += weights.get(h.source, 0.0) * 0.5
+                    if h.keyword not in c.headline_hits:
+                        c.headline_hits.append(h.keyword)
 
         c.score = round(base, 4)
 

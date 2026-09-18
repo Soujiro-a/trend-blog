@@ -58,11 +58,38 @@ def normalize(keyword: str) -> str:
     return " ".join(sorted(tokenize(keyword)))
 
 
+# 토큰이 정확히 같지 않고 한쪽이 다른 쪽에 포함될 때 주는 점수.
+# '사후강평' 과 '사후강평회의' 같은 한국어 합성어를 같은 말로 보기 위한 것입니다.
+_PARTIAL_CREDIT = 0.7
+
+
+def _best_match(token: str, others: set[str]) -> float:
+    """한 토큰이 상대 토큰 집합과 얼마나 맞는지 (0.0 ~ 1.0)."""
+    if token in others:
+        return 1.0
+    for other in others:
+        if len(token) < 2 or len(other) < 2:
+            continue
+        shorter, longer = sorted((token, other), key=len)
+        # 짧은 쪽이 긴 쪽에 통째로 들어있고, 길이 차이가 두 배 이내일 때만 인정.
+        # ('한' 이 '한국' 에 들어간다고 같은 말로 보면 안 되므로)
+        if shorter in longer and len(shorter) * 2 >= len(longer):
+            return _PARTIAL_CREDIT
+    return 0.0
+
+
 def similarity(a: str, b: str) -> float:
-    """두 키워드의 토큰 자카드 유사도 (0.0 ~ 1.0)."""
+    """두 키워드가 같은 이슈를 가리키는 정도 (0.0 ~ 1.0).
+
+    단순 자카드 유사도를 쓰면 한국어에서 같은 사건이 갈라집니다.
+    '을지연습 사후강평' 과 '2026년 을지연습 사후강평회의' 는 토큰이 정확히
+    겹치는 게 '을지연습' 하나뿐이라 0.25 밖에 안 나옵니다. 그러면 같은 사건으로
+    글을 두 번 쓰게 되므로, 부분 일치에도 점수를 줍니다.
+    """
     ta, tb = tokenize(a), tokenize(b)
     if not ta or not tb:
         return 0.0
-    inter = len(ta & tb)
-    union = len(ta | tb)
-    return inter / union if union else 0.0
+
+    # 양쪽에서 각각 상대를 얼마나 설명하는지 재고 평균 냅니다(대칭성 확보).
+    matched = sum(_best_match(t, tb) for t in ta) + sum(_best_match(t, ta) for t in tb)
+    return matched / (len(ta) + len(tb))

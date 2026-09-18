@@ -131,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     # 3) 리서치 → 작성 → 임시저장
     publisher = publishers.get(target_name)
     written = 0
+    errors = 0  # 진짜 실패(API 오류 등). 필터·모델 판단으로 건너뛴 건 여기 안 셉니다.
     total_cost = 0.0
     report.append("## 작성 결과")
 
@@ -156,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             log.exception("[%s] 작성 실패: %s", candidate.keyword, exc)
             report.append(f"- ❌ {candidate.keyword} — 작성 실패: {exc}")
+            errors += 1
             continue
 
         try:
@@ -163,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             log.exception("[%s] 발행 실패: %s", candidate.keyword, exc)
             report.append(f"- ❌ {article.title} — 발행 실패: {exc}")
+            errors += 1
             continue
 
         history = state.record(
@@ -187,14 +190,21 @@ def main(argv: list[str] | None = None) -> int:
             f"비용 약 ${article.cost_usd:.3f}"
         )
 
-    report += [
-        "",
-        f"**임시저장 {written}건 / 예상 비용 약 ${total_cost:.2f}**",
-    ]
+    summary = f"**임시저장 {written}건 / 예상 비용 약 ${total_cost:.2f}**"
+    if errors:
+        summary += f" · 실패 {errors}건"
+    report += ["", summary]
     _write_report(report)
 
-    log.info("끝. 임시저장 %d건, 예상 비용 약 $%.2f", written, total_cost)
-    return 0 if written else 2
+    log.info("끝. 임시저장 %d건, 실패 %d건, 예상 비용 약 $%.2f", written, errors, total_cost)
+
+    # 종료 코드는 "사람이 봐야 하는 문제인가"만 알립니다.
+    # 후보가 전부 필터에 걸려 한 건도 못 쓴 것은 정상 동작이므로 성공으로 끝냅니다.
+    # (여기서 실패를 반환하면 GitHub Actions 가 빨간 ✗ 와 실패 메일을 보내
+    #  정작 진짜 고장났을 때 알아채지 못하게 됩니다.)
+    if written == 0 and errors:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

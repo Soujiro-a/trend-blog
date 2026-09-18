@@ -259,10 +259,14 @@ writer:
 ```bash
 cp .env.example .env     # 값 채우기 (Windows: copy .env.example .env)
 
+# 로직 테스트 — 네트워크도 API 키도 필요 없음 (몇 초)
+# config.yaml 을 고친 뒤에는 이걸 먼저 돌려보세요
+python scripts/test_logic.py
+
 # Blogger 인증만 확인 (글 안 씀, 비용 0원)
 python scripts/check_blogger.py
 
-# API 키 없이 파이프라인 전체 점검
+# 실제 사이트까지 붙여서 파이프라인 전체 점검 (API 키 불필요)
 python scripts/selftest.py
 
 # 오늘 어떤 키워드가 뽑히는지만 확인 (비용 0원)
@@ -333,7 +337,10 @@ src/
     local.py                로컬 HTML 저장 (테스트용)
 scripts/
   get_blogger_token.py      최초 1회 인증
-  selftest.py               API 키 없이 파이프라인 점검
+  copy_secret.py            .env 값을 화면에 안 띄우고 클립보드로 복사
+  check_blogger.py          Blogger 연결만 확인 (비용 0원)
+  test_logic.py             네트워크 없이 도는 로직 테스트
+  selftest.py               실제 사이트까지 붙여서 파이프라인 점검
 data/
   history.json              작성 이력 (커밋됨)
   last_run.md               마지막 실행 보고서

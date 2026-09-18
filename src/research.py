@@ -27,11 +27,14 @@ def gather(cfg: dict, candidate: Candidate) -> list[NewsRef]:
     """구글 트렌드가 준 기사 + 키워드 검색 결과를 합칩니다."""
     limit = cfg["research"]["articles_per_keyword"]
 
+    # variants 에는 대표 키워드도 들어 있어서 그대로 돌리면 같은 검색을 두 번 합니다.
+    terms = list(dict.fromkeys([candidate.keyword, *candidate.variants]))
+
     refs: list[NewsRef] = list(candidate.news)
-    for variant in [candidate.keyword, *candidate.variants]:
+    for term in terms:
         if len(refs) >= limit * 2:
             break
-        refs.extend(google_news.search(variant, limit=limit))
+        refs.extend(google_news.search(term, limit=limit))
 
     # 제목 기준 중복 제거
     seen: set[str] = set()
@@ -61,29 +64,36 @@ def to_context(cfg: dict, candidate: Candidate, refs: list[NewsRef]) -> str:
         lines.append("- 관련 주요 헤드라인:")
         lines.extend(f"  - {h}" for h in candidate.headline_hits[:5])
 
-    lines += ["", "## 참고 기사", ""]
-    for i, r in enumerate(refs, start=1):
-        lines.append(f"{i}. {r.title}")
-        if r.source:
-            lines.append(f"   - 매체: {r.source}")
-        if r.published:
-            lines.append(f"   - 보도: {r.published}")
-        if r.linkable:
-            lines.append(f"   - 링크(걸어도 됨): {r.url}")
-        else:
-            lines.append("   - 링크 없음 → 텍스트로만 인용할 것")
-        if r.snippet:
-            lines.append(f"   - 요약: {r.snippet}")
-        lines.append("")
-
+    # '더 읽기' 링크는 프롬프트가 반드시 쓰도록 요구하는 값이라 머리말에 둡니다.
+    # 기사 목록 뒤에 두면 글자수 제한에 잘려나가고, 그러면 모델이 없는 주소를
+    # 지어낼 위험이 있습니다.
     lines += [
+        "",
         "## 독자용 '더 읽기' 링크 (항상 이 주소를 쓸 것)",
         "",
         more_news_url(candidate.keyword),
-        "",
     ]
+    header = "\n".join(lines)
 
-    text = "\n".join(lines)
-    if len(text) > max_chars:
-        text = text[:max_chars] + "\n…(생략)"
-    return text
+    article_lines = ["", "## 참고 기사", ""]
+    for i, r in enumerate(refs, start=1):
+        article_lines.append(f"{i}. {r.title}")
+        if r.source:
+            article_lines.append(f"   - 매체: {r.source}")
+        if r.published:
+            article_lines.append(f"   - 보도: {r.published}")
+        if r.linkable:
+            article_lines.append(f"   - 링크(걸어도 됨): {r.url}")
+        else:
+            article_lines.append("   - 링크 없음 → 텍스트로만 인용할 것")
+        if r.snippet:
+            article_lines.append(f"   - 요약: {r.snippet}")
+        article_lines.append("")
+
+    # 글자수를 넘기면 기사 목록만 줄입니다. 머리말은 그대로 둡니다.
+    body = "\n".join(article_lines)
+    budget = max_chars - len(header)
+    if len(body) > budget:
+        body = body[: max(0, budget)] + "\n…(생략)"
+
+    return header + body

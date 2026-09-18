@@ -7,6 +7,7 @@ OAuth refresh token 으로 액세스 토큰을 받아 Blogger API v3 에 글을 
 from __future__ import annotations
 
 import logging
+import time
 
 from .. import net
 from ..config import env
@@ -18,7 +19,22 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 API_BASE = "https://www.googleapis.com/blogger/v3"
 
 
+# 한 번 실행에서 글을 여러 개 올리므로 토큰을 재사용합니다.
+# (만료 시각, 토큰) — 만료 60초 전에 미리 갱신합니다.
+_token_cache: tuple[float, str] | None = None
+
+
 def _access_token() -> str:
+    global _token_cache
+    if _token_cache and time.monotonic() < _token_cache[0]:
+        return _token_cache[1]
+
+    token, expires_in = _fetch_token()
+    _token_cache = (time.monotonic() + max(0, expires_in - 60), token)
+    return token
+
+
+def _fetch_token() -> tuple[str, int]:
     resp = net.session().post(
         TOKEN_URL,
         data={
@@ -35,7 +51,8 @@ def _access_token() -> str:
             "refresh token 이 만료됐을 수 있습니다. "
             "scripts/get_blogger_token.py 를 다시 실행하세요."
         )
-    return resp.json()["access_token"]
+    payload = resp.json()
+    return payload["access_token"], int(payload.get("expires_in", 3600))
 
 
 def publish(cfg: dict, article: Article) -> dict:
