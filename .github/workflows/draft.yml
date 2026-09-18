@@ -3,15 +3,16 @@ name: 실시간 이슈 글 임시저장
 on:
   schedule:
     # GitHub cron 은 UTC 기준입니다. 한국시간(KST) = UTC + 9시간.
-    - cron: "0 23 * * *"   # 08:00 KST — 출근길 검색량이 오르는 시간
-    - cron: "0 4 * * *"    # 13:00 KST — 점심 시간대
-    - cron: "0 11 * * *"   # 20:00 KST — 저녁 시간대
+    # 21:00 UTC = 다음날 06:00 KST — 아침에 초안이 준비돼 있게.
+    # GitHub 예약 실행은 부하에 따라 5~20분 늦게 뜨는 게 정상이라,
+    # 정확히 6시에 맞추려면 이 값을 조금 앞당기세요(예: "40 20 * * *" → 05:40 KST).
+    - cron: "0 21 * * *"
   workflow_dispatch:       # Actions 탭에서 수동 실행
     inputs:
       count:
-        description: "작성할 글 개수"
+        description: "작성할 글 개수 (비워두면 config.yaml 의 posts_per_run 사용)"
         required: false
-        default: "2"
+        default: ""
       dry_run:
         description: "키워드만 확인 (글 작성 안 함)"
         type: boolean
@@ -50,10 +51,16 @@ jobs:
           BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
           PYTHONUTF8: "1"
         run: |
-          ARGS="--count ${{ github.event.inputs.count || 2 }}"
+          # 개수는 config.yaml 의 posts_per_run 을 기본으로 씁니다.
+          # 수동 실행에서 값을 넣었을 때만 --count 로 덮어씁니다.
+          ARGS=""
+          if [ -n "${{ github.event.inputs.count }}" ]; then
+            ARGS="$ARGS --count ${{ github.event.inputs.count }}"
+          fi
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"
           fi
+          echo "실행: python -m src.main $ARGS"
           python -m src.main $ARGS
 
       - name: 실행 결과를 요약에 남기기
