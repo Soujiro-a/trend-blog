@@ -327,6 +327,121 @@ def test_config_shape(cfg: dict) -> None:
     check("검수 모델 비용표에 있음", cfg["review"]["model"] in writer.PRICES)
 
 
+def test_fleet(cfg: dict) -> None:
+    section("함대: 설정·슬롯")
+    import tempfile
+    from datetime import datetime, timezone, timedelta
+    from pathlib import Path
+    from src import fleet as fm
+
+    kst = timezone(timedelta(hours=9))
+    fleet = fm.load_fleet()
+    check("blogs.yaml 로딩·검증", len(fleet.blogs) >= 1 and fleet.step == 10)
+    nxt = fm.next_free_slot(fleet)
+    taken = [b.slot_minutes for b in fleet.blogs]
+    h, m = nxt.split(":")
+    check("다음 빈 슬롯은 기존과 10분 이상 차이", all(abs(int(h) * 60 + int(m) - t) >= 10 for t in taken), nxt)
+
+    # 슬롯 간격 위반 감지
+    bad = fm.Fleet(fleet.settings, fleet.accounts, [
+        fm.Blog(id="a", name="a", blog_id="1", slot="04:30"),
+        fm.Blog(id="b", name="b", blog_id="2", slot="04:35"),
+    ])
+    try:
+        fm.validate(bad)
+        check("슬롯 간격 5분은 거부", False)
+    except ValueError:
+        check("슬롯 간격 5분은 거부", True)
+
+    # 100개까지 슬롯 배정이 하루 안에 들어가는지
+    many = fm.Fleet({**fleet.settings}, fleet.accounts, [])
+    for i in range(100):
+        slot = fm.next_free_slot(many)
+        many.blogs.append(fm.Blog(id=f"b{i}", name=f"b{i}", blog_id=str(i), slot=slot))
+    fm.validate(many)
+    check("블로그 100개 슬롯 배정 (04:30~)", many.blogs[-1].slot == "21:00", many.blogs[-1].slot)
+
+    section("함대: 실행 대상 계산")
+    with tempfile.TemporaryDirectory() as tmp:
+        # 데이터 폴더를 임시로 바꿔 runs.json 이 실제 데이터에 안 남게 합니다
+        orig = fm.DATA_DIR
+        fm.DATA_DIR = Path(tmp)
+        try:
+            f2 = fm.Fleet({**fleet.settings, "catch_up": True}, fleet.accounts, [
+                fm.Blog(id="x", name="x", blog_id="1", slot="04:30"),
+                fm.Blog(id="y", name="y", blog_id="2", slot="09:00"),
+                fm.Blog(id="z", name="z", blog_id="3", slot="12:00", enabled=False),
+            ])
+            now = datetime(2026, 9, 20, 9, 3, tzinfo=kst)
+            due = [b.id for b in fm.due_blogs(f2, now)]
+            check("지난 슬롯은 밀려도 전부 대상 (catch-up)", due == ["x", "y"], f"{due}")
+            fm.mark_ran(f2.blogs[0], "trend", True, "ok", now)
+            due2 = [b.id for b in fm.due_blogs(f2, now)]
+            check("오늘 돈 블로그는 제외", due2 == ["y"], f"{due2}")
+            check("꺼진 블로그는 제외", "z" not in due2)
+            f3 = fm.Fleet({**f2.settings, "catch_up": False}, f2.accounts, f2.blogs)
+            due3 = [b.id for b in fm.due_blogs(f3, datetime(2026, 9, 20, 9, 3, tzinfo=kst))]
+            due3b = [b.id for b in fm.due_blogs(f3, datetime(2026, 9, 20, 9, 30, tzinfo=kst))]
+            check("catch-up 끄면 현재 10분 창만", due3 == ["y"] and due3b == [], f"{due3} {due3b}")
+        finally:
+            fm.DATA_DIR = orig
+
+    section("함대: 설정 덮어쓰기·주제 필터·선점")
+    blog = fm.Blog(id="eco", name="경제", blog_id="9", include_patterns=["금리", "환율"],
+                   exclude_patterns=["로또번호"], labels=["경제"], overrides={"run": {"posts_per_run": 2}})
+    merged = fm.apply_config(cfg, fleet, blog)
+    check("overrides 적용", merged["run"]["posts_per_run"] == 2)
+    check("fleet.defaults 적용", merged["publish"]["max_live_per_run"] == 3)
+    check("블로그 라벨 적용", merged["publish"]["default_labels"] == ["경제"])
+    check("exclude_patterns → block_keywords", "로또번호" in merged["filters"]["block_keywords"])
+    check("원본 cfg 불변", cfg["run"]["posts_per_run"] == 4)
+
+    cands = [mk_candidate("기준금리 인하 전망"), mk_candidate("축구 국가대표 명단")]
+    kept, dropped = fm.filter_niche(blog, cands)
+    check("include_patterns 로 주제 제한", [c.keyword for c in kept] == ["기준금리 인하 전망"] and len(dropped) == 1)
+
+    now = datetime(2026, 9, 20, 10, 0, tzinfo=kst)
+    claims = fm.claim({}, fm.Blog(id="other", name="o", blog_id="8"), "기준금리 인하", now)
+    kept2, skipped = fm.filter_claimed(fleet, cfg, blog, cands, claims, now)
+    check("다른 블로그가 선점한 유사 키워드 제외", len(kept2) == 1 and skipped and "other" in skipped[0][1])
+    kept3, _ = fm.filter_claimed(fleet, cfg, fm.Blog(id="other", name="o", blog_id="8"), cands, claims, now)
+    check("자기 선점은 제외 안 함", len(kept3) == 2)
+    shared = fm.Fleet({**fleet.settings, "share_topics": True}, fleet.accounts, fleet.blogs)
+    kept4, _ = fm.filter_claimed(shared, cfg, blog, cands, claims, now)
+    check("share_topics: true 면 선점 무시", len(kept4) == 2)
+    fm.claim(claims, blog, "옛 키워드", now - timedelta(days=40))   # 40일 전 선점 기록
+    pruned = fm.claim(claims, blog, "오늘 키워드", now)                # 오늘 선점하면서 오래된 날짜 정리
+    check("30일 지난 선점은 정리", all((now.date() - datetime.strptime(d, "%Y-%m-%d").date()).days <= 30 for d in pruned))
+
+    section("함대: 관리 에이전트 규칙")
+    from src import manager
+    metrics = [
+        {"id": "ok", "enabled": True, "paused_by": None, "posts_per_run": 4, "runs_7d": 7, "live_7d": 10, "consecutive_failures": 0},
+        {"id": "dead", "enabled": True, "paused_by": None, "posts_per_run": 4, "runs_7d": 7, "live_7d": 0, "consecutive_failures": 3},
+        {"id": "manual", "enabled": False, "paused_by": "manual", "posts_per_run": 4, "runs_7d": 0, "live_7d": 0, "consecutive_failures": 0},
+    ]
+    proposed = [
+        {"blog": "ok", "action": "pause", "value": None, "reason": "그냥"},
+        {"blog": "dead", "action": "pause", "value": None, "reason": "연속 실패"},
+        {"blog": "manual", "action": "resume", "value": None, "reason": "켜자"},
+        {"blog": "ok", "action": "set_posts_per_run", "value": 2, "reason": "두 칸"},
+        {"blog": "ok", "action": "set_posts_per_run", "value": 3, "reason": "한 칸"},
+        {"blog": "ghost", "action": "pause", "value": None, "reason": "?"},
+        {"blog": "ok", "action": "note", "value": None, "reason": "메모"},
+    ]
+    actions, rejected = manager._validate_actions(proposed, metrics)
+    got = {(a["blog"], a["action"], a.get("value")) for a in actions}
+    check("근거 없는 pause 거부", ("ok", "pause", None) not in got)
+    check("연속 실패 pause 허용", ("dead", "pause", None) in got)
+    check("수동 중지 블로그 resume 거부", ("manual", "resume", None) not in got)
+    check("글 수 두 칸 변경 거부, 한 칸 허용", ("ok", "set_posts_per_run", 2) not in got and ("ok", "set_posts_per_run", 3) in got)
+    check("없는 블로그 거부", not any(a["blog"] == "ghost" for a in actions))
+    check("note 는 항상 통과", ("ok", "note", None) in got)
+    check("거부 사유 기록", len(rejected) == 4, f"{len(rejected)}")
+    rule = manager._rule_based(metrics)
+    check("규칙 기반 폴백: 연속 3회 실패 → pause", rule and rule[0]["blog"] == "dead")
+
+
 def main() -> int:
     cfg = load_config()
     test_tokenize()
@@ -341,6 +456,7 @@ def main() -> int:
     test_coupang(cfg)
     test_evergreen_parse(cfg)
     test_config_shape(cfg)
+    test_fleet(cfg)
 
     print("\n" + "=" * 50)
     if failures:

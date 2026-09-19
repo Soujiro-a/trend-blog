@@ -312,17 +312,59 @@ def build(days: int = 7) -> str:
     history = state.load()
 
     body: list[str] = []
-    hist_lines, alerts = section_history(history, days)
     wp_lines, wp_alerts = section_wordpress(days)
-    alerts += wp_alerts
 
     token = ""
     site = ""
     try:
         token = blogger._access_token()
-        site = _blog_url(token)
     except Exception as exc:
-        alerts.append(f"Blogger 인증 실패 — {exc}")
+        token = ""
+        auth_error = f"Blogger 인증 실패 — {exc}"
+    else:
+        auth_error = ""
+
+    # 함대(fleet/blogs.yaml)가 있으면 블로그별로, 없으면 루트 이력 한 덩어리로.
+    try:
+        from src import fleet as fleet_mod
+        fleet = fleet_mod.load_fleet()
+        blogs = fleet.blogs
+    except Exception as exc:  # noqa: BLE001
+        fleet, blogs = None, []
+        body.append(f"> 함대 설정을 읽지 못해 단일 블로그로 보고합니다: {exc}")
+
+    alerts: list[str] = []
+    if auth_error:
+        alerts.append(auth_error)
+    alerts += wp_alerts
+
+    if blogs:
+        hist_lines: list[str] = []
+        if fleet is not None:
+            hist_lines += ["## 함대 슬롯표", "", fleet_mod.schedule_table(fleet), ""]
+        for b in sorted(blogs, key=lambda b: b.slot_minutes):
+            bl, ba = section_history(state.load(b.history_path), days)
+            bl[0] = f"## {b.name} ({b.id}, 슬롯 {b.slot}) — 이번 주 작성"
+            hist_lines += bl
+            alerts += [f"[{b.id}] {a}" for a in ba]
+            if token:
+                try:
+                    fleet_mod.apply_env(fleet, b)
+                    url = net.get(f"{blogger.API_BASE}/blogs/{b.blog_id}", headers={"Authorization": f"Bearer {blogger._access_token()}"}).json().get("url", "")
+                except Exception:
+                    url = ""
+                if url:
+                    hist_lines += section_search_console(token, url, days, heading=f"### 검색 유입 — {url}")
+        if len(blogs) == 1 and token:
+            site = ""  # 아래 단일 블로그용 GSC 섹션은 위에서 이미 넣었으므로 건너뜀
+    else:
+        hist_lines, alerts_single = section_history(history, days)
+        alerts += alerts_single
+        if token:
+            try:
+                site = _blog_url(token)
+            except Exception:
+                site = ""
 
     head = [f"# 주간 보고 — {now.strftime('%Y-%m-%d')} (최근 {days}일)", ""]
     if alerts:
@@ -335,8 +377,9 @@ def build(days: int = 7) -> str:
 
     body += hist_lines
     if token:
-        body += section_blogger(token)
-        body += section_search_console(token, site, days)
+        if not blogs:
+            body += section_blogger(token)
+            body += section_search_console(token, site, days)
         body += section_adsense(token, days)
     body += wp_lines
     if token:
@@ -346,7 +389,7 @@ def build(days: int = 7) -> str:
     body += [
         "## 설정 요약",
         "",
-        f"- 하루 작성 {cfg['run']['posts_per_run']}건 · 공개 상한 {cfg['publish'].get('max_live_per_run')}건 · "
+        f"- 블로그 {len(blogs) or 1}개 · 블로그당 하루 작성 {cfg['run']['posts_per_run']}건 · 공개 상한 {cfg['publish'].get('max_live_per_run')}건 · "
         f"검수 기준 {cfg['review'].get('min_score')}점 · 작성 모델 {cfg['writer']['model']}",
         f"- 장수 글 주 {cfg['evergreen']['posts_per_run']}건 · 쿠팡 제휴 {'켜짐' if cfg['monetize']['coupang'].get('enabled') else '꺼짐'}"
         + ("" if env("COUPANG_ACCESS_KEY") else " (키 없음 → 비활성)"),

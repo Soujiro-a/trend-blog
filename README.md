@@ -180,6 +180,60 @@ GitHub 에서 **비공개(Private)** 저장소를 만들고 푸시합니다.
 
 ---
 
+## 2-1. 블로그 함대 — 같은 로직으로 블로그 100개까지
+
+한 저장소에서 여러 Blogger 블로그를 **같은 파이프라인, 다른 시각**에 운영합니다. 목록은
+[`fleet/blogs.yaml`](fleet/blogs.yaml) 하나에 있고, 블로그마다 이력·보고서가 `data/blogs/<id>/` 에 따로 쌓입니다.
+
+```
+ fleet.yml (10분마다)  ─▶  src/fleet_run.py  ─▶  "슬롯이 지났고 오늘 아직 안 돈" 블로그를 슬롯 순서대로
+                                                    └▶ src/main.py --blog <id>   (수집 → 작성 → 검수 → 공개)
+ manager.yml (매일 23:35) ─▶ src/manager.py   ─▶  블로그별 지표 → Sonnet 5 판단 → 중지/재개/글 수 조정 → 이슈
+```
+
+| 하고 싶은 일 | 명령 |
+|---|---|
+| 블로그 추가 (슬롯 자동 배정) | `python scripts/fleet_cli.py add --name "이름" --blog-id <Blogger ID> --niche "경제·재테크" --persona "..."` |
+| 계정의 블로그 전부 등록 | `python scripts/fleet_cli.py discover --add` |
+| 슬롯표 / 상태 | `python scripts/fleet_cli.py list` · `status` |
+| 켜기/끄기 | `python scripts/fleet_cli.py enable <id>` · `disable <id>` |
+| 지금 돌 차례 확인 | `python -m src.fleet_run --dry-run` |
+| 한 블로그 테스트 | `python -m src.fleet_run --blog <id> --target local --count 1` |
+| 관리 에이전트 판단 미리 보기 | `python -m src.manager --dry-run` |
+
+Claude Code 안에서는 **`fleet-manager` 에이전트**([.claude/agents/fleet-manager.md](.claude/agents/fleet-manager.md))에게
+"블로그 5개 추가해", "함대 상태 봐줘", "어느 블로그가 안 돌아?" 처럼 말하면 위 명령을 대신 실행하고 판단해 줍니다.
+
+### 시간 배정
+첫 슬롯 04:30 KST, 10분 간격으로 자동 배정됩니다(100개면 04:30 ~ 21:00). 실행기는 10분마다 깨어나
+"슬롯이 지났는데 오늘 아직 안 돈" 블로그를 **슬롯 순서대로 하나씩** 돌립니다. GitHub 예약이 밀려도
+(자주 밀립니다) 그날 안에는 반드시 처리되고, 밀린 블로그들도 각각 3~4분씩 순서대로 돌기 때문에 블로그 간
+간격은 유지됩니다.
+
+### 블로그가 많아질 때 꼭 알아야 할 세 가지
+
+1. **같은 글을 100번 찍으면 안 됩니다.** 기본값 `share_topics: false` 는 같은 날 다른 블로그가 쓴 키워드(유사
+   포함)를 건너뜁니다(`data/fleet/claims.json`). 그리고 블로그마다 `niche` / `persona` / `include_patterns` 를
+   **다르게** 채우세요 — 경제 블로그, 스포츠 블로그, 연예 블로그처럼 나누는 것이 구글 '대량 생성 콘텍츠'
+   판정을 피하는 가장 확실한 방법입니다. 관리 에이전트가 비슷한 제목이 여러 블로그에서 나오면 경고합니다.
+2. **비용은 블로그 수에 비례합니다.** 블로그 1개 = 하루 약 $1.1 (Fable 작성 4개 + Sonnet 검수). 100개면
+   **월 약 $3,300** 입니다. 블로그별 `overrides: {writer: {model: claude-sonnet-5}}` 로 두면 1/3 로 줍니다.
+   Anthropic Console 의 사용량 한도를 함대 규모에 맞게 올려두세요. 한도에 걸리면 그날 이후 블로그는 전부 실패합니다.
+3. **GitHub Actions 무료 한도(비공개 저장소 월 2,000분)는 블로그 10개 근처에서 넘습니다.** 블로그당 하루 약
+   4분 + 10분마다 도는 실행기 오버헤드 월 약 1,500분. 셋 중 하나를 고르세요:
+   - 저장소를 **공개(Public)** 로 전환 — Actions 무제한 (코드·이력만 공개되고 시크릿은 노출되지 않습니다)
+   - GitHub 유료 플랜/추가 분 구매
+   - PC 에서 돌리기 — `scripts/fleet_local.ps1` 을 Windows 작업 스케줄러에 10분 간격으로 등록 (PC 가 켜져 있어야 함)
+
+### 관리 에이전트가 하는 일
+매일 23:35 KST 에 블로그별 7일 지표(공개/보류/거부, 비용, 검수 평균, 연속 실패, Blogger 글 수, Search Console
+클릭)를 모아 Sonnet 5 에게 넘기고, **정해진 네 가지 행동**(중지 / 재개 / 하루 글 수 ±1 / 메모) 안에서만 결정을
+받습니다. 코드가 규칙(연속 3회 실패 → 중지, 글 수 1~4, 하루 최대 5건 변경, 사람이 끈 블로그는 안 건드림)으로
+다시 걸러 `data/fleet/manager_state.json` 에 적용합니다. 조치나 경고가 있으면 GitHub 이슈(`fleet` 라벨)가 열려
+메일이 옵니다. 모델 호출이 실패해도 규칙 기반 최소 조치는 적용됩니다.
+
+---
+
 ## 3. 왜 이렇게 만들었나 (정책과 위험)
 
 구글은 **"검색 순위만 노린 대량 생산 콘텐츠"** 를 정책 위반(scaled content abuse)으로 봅니다.

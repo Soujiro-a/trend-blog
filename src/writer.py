@@ -155,6 +155,7 @@ def write(
     date_str: str,
     client: anthropic.Anthropic | None = None,
     mode: str = "trend",
+    persona: str = "",
 ) -> Article:
     w = cfg["writer"]
     model = w["model"]
@@ -174,6 +175,9 @@ def write(
     system = SYSTEM.format(
         target_length=w["target_length"], date=date_str, footer_rule=footer_rule
     )
+    # 함대 모드: 블로그마다 다른 문체·관점. 같은 이슈를 여러 블로그가 써도 글이 달라지게 하는 장치입니다.
+    if persona.strip():
+        system += "\n\n## 이 블로그의 성격 (위 원칙 안에서 따르세요)\n" + persona.strip()
     user = template.format(date=date_str, context=context)
 
     # max_tokens 가 크고 사고(thinking) 시간이 길 수 있어 스트리밍으로 받습니다.

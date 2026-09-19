@@ -42,6 +42,38 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from pathlib import Path
+
+
+def _read_env(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def _update_env(path: Path, updates: dict[str, str]) -> None:
+    """키가 있으면 그 줄만 바꾸고, 없으면 끝에 추가합니다. 주석·다른 값은 그대로 둡니다."""
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    seen: set[str] = set()
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key = stripped.partition("=")[0].strip()
+        if key in updates:
+            lines[i] = f"{key}={updates[key]}"
+            seen.add(key)
+    for key, value in updates.items():
+        if key not in seen:
+            lines.append(f"{key}={value}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -116,8 +148,25 @@ def main() -> int:
         help="Search Console·애드센스 읽기 권한도 함께 받습니다 (주간 보고서에 유입·수익 표시). "
         "Google Cloud 에서 두 API 를 먼저 사용 설정하세요.",
     )
+    parser.add_argument(
+        "--from-env",
+        action="store_true",
+        help="CLIENT ID/SECRET 을 묻지 않고 .env 의 BLOGGER_CLIENT_ID / BLOGGER_CLIENT_SECRET 을 씁니다.",
+    )
+    parser.add_argument(
+        "--wait",
+        type=int,
+        default=300,
+        help="브라우저 승인을 기다릴 최대 초 (기본 300)",
+    )
+    parser.add_argument(
+        "--write-env",
+        action="store_true",
+        help="발급된 refresh token 을 화면에 찍지 않고 .env 의 BLOGGER_REFRESH_TOKEN 에 바로 저장합니다.",
+    )
     args = parser.parse_args()
     scope = " ".join([SCOPE, *EXTRA_SCOPES]) if args.full else SCOPE
+    env_path = Path(__file__).resolve().parent.parent / ".env"
 
     print("─" * 60)
     print("  시작 전 확인 — OAuth 앱이 '프로덕션'으로 게시돼 있어야 합니다.")
@@ -129,9 +178,15 @@ def main() -> int:
     print("─" * 60)
     print()
 
-    print("Google Cloud Console 에서 만든 OAuth 클라이언트 정보를 입력하세요.\n")
-    client_id = input("  CLIENT ID     : ").strip()
-    client_secret = input("  CLIENT SECRET : ").strip()
+    if args.from_env:
+        current = _read_env(env_path)
+        client_id = current.get("BLOGGER_CLIENT_ID", "")
+        client_secret = current.get("BLOGGER_CLIENT_SECRET", "")
+        print(f".env 의 클라이언트 정보 사용 (ID {client_id[:12]}…)\n")
+    else:
+        print("Google Cloud Console 에서 만든 OAuth 클라이언트 정보를 입력하세요.\n")
+        client_id = input("  CLIENT ID     : ").strip()
+        client_secret = input("  CLIENT SECRET : ").strip()
     if not client_id or not client_secret:
         print("\n두 값 모두 필요합니다.")
         return 1
@@ -168,7 +223,7 @@ def main() -> int:
     webbrowser.open(auth_url)
     print("승인을 기다리는 중...")
 
-    server_thread_timeout = 300
+    server_thread_timeout = max(30, args.wait)
     for _ in range(server_thread_timeout * 2):
         if _result:
             break
@@ -228,6 +283,19 @@ def main() -> int:
             blog_id = blogs[int(choice) - 1]["id"]
         except (ValueError, IndexError):
             print("  잘못된 선택입니다. blog id 는 직접 넣으세요.")
+
+    if args.write_env:
+        _update_env(env_path, {
+            "BLOGGER_CLIENT_ID": client_id,
+            "BLOGGER_CLIENT_SECRET": client_secret,
+            "BLOGGER_REFRESH_TOKEN": refresh_token,
+            **({"BLOGGER_BLOG_ID": blog_id} if blog_id and not _read_env(env_path).get("BLOGGER_BLOG_ID") else {}),
+        })
+        print("\n" + "=" * 64)
+        print(f".env 에 저장했습니다: BLOGGER_REFRESH_TOKEN 갱신 (권한: {'전체' if args.full else 'Blogger 만'})")
+        print("GitHub Secrets 도 같은 값으로 바꾸려면:  python scripts/copy_secret.py BLOGGER_REFRESH_TOKEN")
+        print("=" * 64)
+        return 0
 
     print("\n" + "=" * 64)
     print("아래 4개를 GitHub 저장소의 Settings > Secrets and variables > Actions")

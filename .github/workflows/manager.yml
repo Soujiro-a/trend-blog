@@ -1,0 +1,78 @@
+name: 함대 관리 에이전트
+
+on:
+  schedule:
+    # 매일 14:35 UTC = 23:35 KST. 마지막 슬롯(최대 21:00 KST)의 실행까지 끝난 뒤입니다.
+    - cron: "35 14 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "판단만 보고 적용하지 않음"
+        type: boolean
+        default: false
+
+concurrency:
+  group: fleet          # 함대 실행과 같은 파일(data/)을 건드리므로 같은 그룹
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 관리 에이전트 실행
+        id: manage
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          PYTHONUTF8: "1"
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
+          set +e
+          python -m src.manager $ARGS
+          code=$?
+          set -e
+          echo "exit=$code" >> "$GITHUB_OUTPUT"
+          cat data/fleet/manager_report.md >> "$GITHUB_STEP_SUMMARY"
+          # 2 = 사람이 볼 것이 있음 (정상 종료). 그 외 0 이 아니면 진짜 실패.
+          if [ "$code" != "0" ] && [ "$code" != "2" ]; then exit "$code"; fi
+
+      - name: 상태 커밋
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+          git add data/fleet/
+          if git diff --staged --quiet; then echo "변경 사항 없음."; else
+            git commit -m "chore: 함대 관리 상태 갱신 ($(date -u +'%Y-%m-%d') UTC)"
+            git push || (git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push)
+          fi
+
+      - name: 조치·경고가 있으면 이슈로 알림
+        if: steps.manage.outputs.exit == '2' && github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "fleet" --force --color 5319E7 >/dev/null 2>&1 || true
+          gh issue list --label fleet --state open --json number --jq '.[].number' \
+            | xargs -r -I{} gh issue close {} --comment "새 관리 보고로 대체" || true
+          gh issue create --title "함대 관리 $(date -u -d '+9 hours' +'%Y-%m-%d')" --body-file data/fleet/manager_report.md --label fleet

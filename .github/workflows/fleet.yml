@@ -1,0 +1,89 @@
+name: 블로그 함대 실행
+
+on:
+  schedule:
+    # 10분마다. 실행기는 '슬롯이 지났고 오늘 아직 안 돈' 블로그만 슬롯 순서대로 하나씩 돌립니다.
+    # GitHub 예약이 밀려도(자주 그럽니다) 그날 안에는 처리되고, 밀린 블로그들도 순서대로
+    # 각각 3~4분씩 돌기 때문에 블로그 간 간격은 유지됩니다.
+    # 정시(0분) 슬롯은 전 세계가 몰려 더 밀리므로 5분 어긋나게 둡니다.
+    - cron: "5,15,25,35,45,55 * * * *"
+  workflow_dispatch:
+    inputs:
+      blog:
+        description: "특정 블로그 id 만 실행 (비워두면 지금 돌 차례인 블로그)"
+        required: false
+        default: ""
+      all:
+        description: "켜진 블로그 전부 실행 (슬롯 무시)"
+        type: boolean
+        default: false
+      count:
+        description: "글 개수 덮어쓰기"
+        required: false
+        default: ""
+
+# 함대 실행이 겹치면 이력·선점 파일이 충돌합니다. 진행 중이면 새 실행은 대기(큐)합니다.
+concurrency:
+  group: fleet
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  fleet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55   # 밀린 블로그 여러 개를 한 번에 처리할 수 있게 넉넉히
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 함대 실행
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          # 계정을 더 쓰면 여기와 Secrets 에 BLOGGER_REFRESH_TOKEN_<계정> 을 추가합니다.
+          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+          COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
+          PYTHONUTF8: "1"
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.blog }}" ]; then ARGS="$ARGS --blog ${{ github.event.inputs.blog }}"; fi
+          if [ "${{ github.event.inputs.all }}" = "true" ]; then ARGS="$ARGS --all"; fi
+          if [ -n "${{ github.event.inputs.count }}" ]; then ARGS="$ARGS --count ${{ github.event.inputs.count }}"; fi
+          echo "실행: python -m src.fleet_run $ARGS"
+          python -m src.fleet_run $ARGS
+
+      - name: 실행 결과를 요약에 남기기
+        if: always()
+        run: |
+          if [ -f data/fleet/last_fleet_run.md ]; then
+            cat data/fleet/last_fleet_run.md >> "$GITHUB_STEP_SUMMARY"
+            for f in data/blogs/*/last_run.md; do
+              if [ -f "$f" ] && [ -n "$(find "$f" -mmin -50)" ]; then echo "" >> "$GITHUB_STEP_SUMMARY"; cat "$f" >> "$GITHUB_STEP_SUMMARY"; fi
+            done
+          fi
+
+      - name: 이력 커밋
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+          git add data/
+          if git diff --staged --quiet; then
+            echo "변경 사항 없음."
+          else
+            git commit -m "chore: 함대 이력 갱신 ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+            git push || (git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push)
+          fi

@@ -1,0 +1,49 @@
+# 블로그 함대(fleet) 설정 — 여러 Blogger 블로그를 같은 로직으로, 서로 다른 시간에 운영합니다.
+#
+# 블로그 추가는 이 파일을 직접 고쳐도 되고, 아래 명령이 슬롯을 자동으로 배정해 줍니다:
+#   python scripts/fleet_cli.py add --name "블로그 이름" --blog-id 1234567890
+#   python scripts/fleet_cli.py discover --add      # 계정의 모든 블로그를 한 번에 등록
+#   python scripts/fleet_cli.py list                # 현재 슬롯표
+#
+# 시크릿(refresh token 등)은 여기 두지 않습니다. 계정(accounts) 이름으로 환경변수를 찾습니다.
+# 함대 관리 에이전트(src/manager.py)가 내리는 결정은 data/fleet/manager_state.json 에 따로
+# 저장되고 실행 시 이 파일 위에 덧씌워집니다. 이 파일의 주석은 그대로 유지됩니다.
+
+fleet:
+  timezone: Asia/Seoul
+  slot_start: "04:30"       # 첫 블로그 슬롯. 새 블로그는 이 시각부터 slot_step 간격으로 배정됩니다.
+  slot_step_minutes: 10     # 블로그 간 최소 간격 (요구사항: 10분 이상)
+  # 하루 한 번, 슬롯 시각 이후 첫 실행 기회에 돕니다. GitHub 예약 실행이 밀려도 그날 안에는 반드시 처리되고,
+  # 여러 블로그가 밀렸으면 슬롯 순서대로 하나씩(각 3~4분) 처리되므로 간격은 유지됩니다.
+  catch_up: true
+  # false → 같은 날 다른 블로그가 이미 쓴 키워드(유사 포함)는 건너뜁니다.
+  # 100개 블로그가 같은 날 같은 이슈 4개를 쓰면 구글이 '콘텐츠 농장'으로 보기 때문에 기본 false.
+  share_topics: false
+  claim_days: 2             # 다른 블로그의 키워드 선점을 며칠간 존중할지
+  evergreen_weekday: 0      # 이 요일(0=월)에는 실시간 글 뒤에 장수 해설 글도 씁니다. -1 이면 끔.
+  defaults:                 # 블로그별 overrides 가 없을 때 config.yaml 위에 덧씌우는 값
+    run:
+      posts_per_run: 4
+    publish:
+      max_live_per_run: 3
+
+# 구글 계정. Blogger 는 계정당 블로그 100개까지라 한 계정이면 기본(default) 하나로 충분합니다.
+# 계정을 더 쓰면 이름을 추가하고, Secrets/.env 에 BLOGGER_REFRESH_TOKEN_<이름대문자> (필요하면
+# BLOGGER_CLIENT_ID_<이름대문자>, BLOGGER_CLIENT_SECRET_<이름대문자>) 를 넣습니다.
+accounts:
+  default: {}
+
+blogs:
+  - id: picktopic
+    name: 픽토픽
+    blog_id: "8560213590293003276"
+    account: default
+    slot: "04:30"
+    enabled: true
+    # 아래는 선택. 비우면 config.yaml 의 기본 로직 그대로입니다.
+    niche: ""             # 예: "경제·재테크" — 리서치 컨텍스트에 안내로만 들어갑니다
+    persona: ""           # writer 시스템 프롬프트에 덧붙일 문체·관점 (블로그마다 다르게 두는 것을 권장)
+    include_patterns: []  # 비어 있지 않으면 이 중 하나를 포함한 키워드만 씁니다 (예: [금리, 환율, 주가, ETF])
+    exclude_patterns: []  # 이 블로그에서만 추가로 거를 키워드
+    labels: [실시간이슈]
+    overrides: {}         # config.yaml 일부 덮어쓰기. 예: {run: {posts_per_run: 2}, writer: {model: claude-sonnet-5}}

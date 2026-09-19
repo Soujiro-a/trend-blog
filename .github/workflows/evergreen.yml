@@ -1,12 +1,14 @@
-name: 장수 해설 글 작성
+name: 장수 해설 글 작성 (수동)
 
+# 예약 실행은 fleet.yml 로 옮겼습니다. 함대 실행기가 fleet/blogs.yaml 의 evergreen_weekday(기본 월요일)에
+# 각 블로그의 실시간 글 뒤에 장수 글을 이어서 씁니다. 이 워크플로는 수동 테스트용입니다.
 on:
-  schedule:
-    # 매주 일요일 20:40 UTC = 월요일 05:40 KST.
-    # 실시간 글(04:30)과 겹치지 않게 1시간 뒤, 정시 슬롯은 피합니다.
-    - cron: "40 20 * * 0"
   workflow_dispatch:
     inputs:
+      blog:
+        description: "함대 블로그 id (비워두면 .env 의 BLOGGER_BLOG_ID 단일 블로그)"
+        required: false
+        default: ""
       count:
         description: "작성할 글 개수 (비워두면 config.yaml 의 evergreen.posts_per_run)"
         required: false
@@ -47,6 +49,9 @@ jobs:
           PYTHONUTF8: "1"
         run: |
           ARGS="--mode evergreen"
+          if [ -n "${{ github.event.inputs.blog }}" ]; then
+            ARGS="$ARGS --blog ${{ github.event.inputs.blog }}"
+          fi
           if [ -n "${{ github.event.inputs.count }}" ]; then
             ARGS="$ARGS --count ${{ github.event.inputs.count }}"
           fi

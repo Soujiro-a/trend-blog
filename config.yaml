@@ -176,6 +176,10 @@ monetize:
     max_products: 3
     heading: 관련 상품 살펴보기
 
+# 함대 관리 에이전트 (src/manager.py) — 블로그별 지표를 보고 중지/재개/글 수 조정을 판단합니다.
+manager:
+  model: claude-sonnet-5
+
 # 장수(evergreen) 글 — 주 1회 실행. 실시간 이슈의 배경 개념을 해설하는 글을 씁니다.
 # 실시간 글은 유입 수명이 1~3일이라, 이 글들이 광고 수익의 바닥을 만듭니다.
 evergreen:

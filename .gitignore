@@ -23,3 +23,9 @@ data/last_run.md
 
 # data/history.json 은 반대로 반드시 커밋해야 합니다.
 # 이게 없으면 매번 같은 키워드로 글을 다시 씁니다.
+
+# 함대(fleet) 실행 보고서 — last_run.md 와 같은 이유로 추적하지 않습니다.
+# data/blogs/*/history.json, runs.json, data/fleet/claims.json, manager_state.json 은 반드시 커밋됩니다.
+data/blogs/*/last_run.md
+data/fleet/last_fleet_run.md
+data/fleet/manager_report.md
