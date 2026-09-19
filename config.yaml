@@ -3,9 +3,8 @@
 
 run:
   # 한 번 실행할 때 작성할 글 개수.
-  # GitHub Actions 는 매일 06:00 KST 에 1회 실행하므로 이 값이 곧 하루 초안 수입니다.
-  # 4개를 만들어 그중 2~3개만 골라 공개하는 것을 전제로 합니다.
-  # (전부 공개하면 애드센스 '대량 생성 콘텐츠' 정책에 걸릴 수 있습니다)
+  # GitHub Actions 는 매일 04:30 KST 에 1회 실행하므로 이 값이 곧 하루 작성 수입니다.
+  # 4개를 쓰고 AI 검수를 통과한 것만 공개합니다 (공개 상한은 publish.max_live_per_run).
   posts_per_run: 4
   # 키워드 수집은 실패해도 되지만, 최소 이만큼은 모여야 진행합니다.
   min_keywords: 5
@@ -143,11 +142,44 @@ writer:
   footer_note: "{date}까지 공개된 보도를 기준으로 정리했습니다. 이후 상황이 달라질 수 있습니다."
   language: ko
 
+# AI 검수 — 사람이 초안을 읽고 '게시'를 누르던 일을 대신합니다.
+# 작성 모델과 별도 세션에서 참고 기사와 본문을 대조해 publish / hold / reject 를 판정합니다.
+review:
+  enabled: true
+  model: claude-sonnet-5     # 검수는 작성보다 쉬운 일이라 Sonnet 으로 충분합니다 (글당 약 $0.03)
+  effort: medium
+  max_tokens: 2000
+  # 이 점수 이상 + 판정 publish 여야 공개합니다. 낮추면 더 많이 공개되고 위험도 올라갑니다.
+  min_score: 80
+
 publish:
   # blogger | local
   # local 은 out/ 폴더에 HTML 파일로만 저장합니다(API 키 없이 테스트용).
   target: blogger
-  # Blogger 에 항상 임시저장(draft)으로 올립니다. true 를 유지하세요.
-  draft_only: true
+  # auto  → 검수 통과 글은 바로 공개, 나머지는 임시저장
+  # draft → 전부 임시저장 (예전 방식. 사람이 직접 공개)
+  mode: auto
+  # 하루에 자동 공개할 최대 글 수. 통과 글이 더 많으면 나머지는 임시저장으로 남깁니다.
+  # 구글은 하루 수십 개씩 올리는 대량 생성을 정책 위반으로 봅니다. 3을 넘기지 마세요.
+  max_live_per_run: 3
   default_labels:
     - 실시간이슈
+
+# 수익화. 애드센스는 Blogger 설정에서 켜면 템플릿이 알아서 광고를 넣으므로 여기 없습니다.
+monetize:
+  coupang:
+    # 검수관이 '구매 의도가 있는 주제'로 본 글에만 관련 상품 링크를 넣습니다.
+    # COUPANG_ACCESS_KEY / COUPANG_SECRET_KEY 가 없으면 자동으로 건너뜁니다.
+    enabled: true
+    max_products: 3
+    heading: 관련 상품 살펴보기
+
+# 장수(evergreen) 글 — 주 1회 실행. 실시간 이슈의 배경 개념을 해설하는 글을 씁니다.
+# 실시간 글은 유입 수명이 1~3일이라, 이 글들이 광고 수익의 바닥을 만듭니다.
+evergreen:
+  posts_per_run: 2
+  candidates: 6              # 모델이 제안할 주제 수 (그중 이력과 안 겹치는 것부터 씁니다)
+  lookback_days: 30
+  topic_model: claude-sonnet-5
+  default_labels:
+    - 알아두기

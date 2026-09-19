@@ -55,10 +55,17 @@ def _fetch_token() -> tuple[str, int]:
     return payload["access_token"], int(payload.get("expires_in", 3600))
 
 
-def publish(cfg: dict, article: Article) -> dict:
-    """글을 임시저장합니다. Blogger 가 돌려준 post 객체를 반환."""
+def publish(cfg: dict, article: Article, live: bool | None = None) -> dict:
+    """글을 올립니다. live=True 면 공개, False 면 임시저장. Blogger 의 post 객체를 반환.
+
+    live 를 넘기지 않으면 config 의 publish.mode 를 따릅니다
+    (auto → 공개, draft → 임시저장). 옛 설정 draft_only 도 인식합니다.
+    """
     blog_id = env("BLOGGER_BLOG_ID", required=True)
-    draft_only = cfg["publish"].get("draft_only", True)
+    if live is None:
+        pub = cfg["publish"]
+        live = pub.get("mode", "draft") == "auto" and not pub.get("draft_only", False)
+    draft_only = not live
     labels = list(dict.fromkeys([*cfg["publish"].get("default_labels", []), *article.labels]))
 
     body = {
@@ -82,8 +89,24 @@ def publish(cfg: dict, article: Article) -> dict:
         raise RuntimeError(f"Blogger 발행 실패 ({resp.status_code}): {resp.text[:500]}")
 
     post = resp.json()
-    log.info("임시저장 완료: %s (id=%s)", post.get("title"), post.get("id"))
+    log.info("%s 완료: %s (id=%s)", "공개" if live else "임시저장", post.get("title"), post.get("id"))
     return post
+
+
+def list_posts(status: str = "live", max_results: int = 50) -> list[dict]:
+    """관리자 시점으로 글 목록을 봅니다. 주간 보고서용. status: live | draft"""
+    blog_id = env("BLOGGER_BLOG_ID", required=True)
+    resp = net.get(
+        f"{API_BASE}/blogs/{blog_id}/posts",
+        params={
+            "status": status,
+            "maxResults": max_results,
+            "fetchBodies": "false",
+            "view": "ADMIN",
+        },
+        headers={"Authorization": f"Bearer {_access_token()}"},
+    )
+    return resp.json().get("items", [])
 
 
 def find_blog_id(access_token: str, blog_url: str) -> str:

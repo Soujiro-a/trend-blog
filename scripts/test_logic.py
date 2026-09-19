@@ -13,8 +13,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src import filters, research, state, trends, writer  # noqa: E402
+from src import evergreen, filters, research, reviewer, state, trends, writer  # noqa: E402
 from src.config import load_config  # noqa: E402
+from src.main import decide  # noqa: E402
+from src.monetize import coupang  # noqa: E402
 from src.trends import Candidate, Variant  # noqa: E402
 from src.trends.base import NewsRef, TrendItem, similarity, tokenize  # noqa: E402
 
@@ -231,6 +233,100 @@ def test_footer(cfg: dict) -> None:
     check("AI 고지 문구 없음", "AI" not in rendered)
 
 
+def test_reviewer_parse(cfg: dict) -> None:
+    section("검수 응답 파싱")
+    raw = (
+        '```json\n{"verdict": "publish", "score": 88, "issues": [], '
+        '"commercial_intent": true, "product_query": "갤럭시 S26 케이스", "evergreen": false}\n```'
+    )
+    rv = reviewer._parse(raw, "claude-sonnet-5")
+    check("코드 펜스 섞여도 파싱", rv.verdict == "publish" and rv.score == 88)
+    check("상품 검색어 추출", rv.product_query == "갤럭시 S26 케이스")
+    check("승인 판정", rv.approved(80) and not rv.approved(90))
+
+    rv2 = reviewer._parse('{"verdict": "WEIRD", "score": "abc", "issues": "하나"}', "m")
+    check("이상한 값은 hold 로", rv2.verdict == "hold" and rv2.score == 0 and rv2.issues == ["하나"])
+
+    rv3 = reviewer._parse('{"verdict": "reject", "score": 150}', "m")
+    check("점수 범위 고정", rv3.score == 100)
+
+    rv3.input_tokens, rv3.output_tokens = 10000, 500
+    check("검수 비용 계산", abs(rv3.cost_usd - (10000 * 2 + 500 * 10) / 1e6) < 1e-9)
+
+
+def test_decide(cfg: dict) -> None:
+    section("공개 판정")
+    auto = {**cfg, "publish": {**cfg["publish"], "mode": "auto", "max_live_per_run": 2},
+            "review": {**cfg["review"], "min_score": 80}}
+    ok = reviewer.Review(verdict="publish", score=85)
+    low = reviewer.Review(verdict="publish", score=70)
+    hold = reviewer.Review(verdict="hold", score=90)
+    bad = reviewer.Review(verdict="reject", score=10)
+
+    check("통과 → 공개", decide(auto, ok, 0, False) == "live")
+    check("점수 미달 → 임시저장", decide(auto, low, 0, False) == "draft")
+    check("hold → 임시저장", decide(auto, hold, 0, False) == "draft")
+    check("reject → 올리지 않음", decide(auto, bad, 0, False) == "reject")
+    check("하루 상한 초과 → 임시저장", decide(auto, ok, 2, False) == "draft")
+    check("--draft 강제", decide(auto, ok, 0, True) == "draft")
+    check("--draft 라도 reject 는 reject", decide(auto, bad, 0, True) == "reject")
+
+    draft_mode = {**auto, "publish": {**auto["publish"], "mode": "draft"}}
+    check("draft 모드 → 전부 임시저장", decide(draft_mode, ok, 0, False) == "draft")
+    legacy = {**auto, "publish": {**auto["publish"], "draft_only": True}}
+    check("옛 설정 draft_only 인식", decide(legacy, ok, 0, False) == "draft")
+    check("검수 꺼짐 + auto → 공개", decide(auto, None, 0, False) == "live")
+
+
+def test_coupang(cfg: dict) -> None:
+    section("쿠팡 상품 블록")
+    products = [
+        {"name": "테스트 <상품>", "price": 12900, "image": "https://img/x.jpg", "url": "https://link.coupang.com/a/1", "rocket": True},
+        {"name": "둘째", "price": 0, "image": "", "url": "https://link.coupang.com/a/2", "rocket": False},
+    ]
+    block = coupang.render(products, "관련 상품")
+    check("HTML 이스케이프", "&lt;상품&gt;" in block and "<상품>" not in block)
+    check("가격 포맷", "12,900원" in block and "가격 확인" in block)
+    check("sponsored 링크", 'rel="nofollow sponsored noopener"' in block)
+    check("법정 고지문 포함", coupang.DISCLOSURE in block)
+    check("빈 목록은 빈 문자열", coupang.render([], "x") == "")
+
+    body = "<p>도입</p><h2>핵심</h2><p>내용</p><h2>자주 묻는 질문</h2><p>Q</p><h2>참고한 자료</h2><ul></ul>"
+    out = coupang.insert(body, "<h2>관련 상품</h2>")
+    check("FAQ 앞에 삽입", out.index("관련 상품") < out.index("자주 묻는 질문"))
+    out2 = coupang.insert("<p>a</p><h2>참고한 자료</h2>", "BLOCK")
+    check("FAQ 없으면 참고 자료 앞", out2.index("BLOCK") < out2.index("참고한 자료"))
+    check("둘 다 없으면 맨 끝", coupang.insert("<p>a</p>", "BLOCK").endswith("BLOCK"))
+    check("빈 블록은 그대로", coupang.insert(body, "") == body)
+    check("키 없으면 미설정", coupang.configured() in (True, False))
+
+
+def test_evergreen_parse(cfg: dict) -> None:
+    section("장수 주제 파싱")
+    raw = '[{"topic": "레버리지 ETF 수수료 계산법", "why": "상시 검색", "search": "레버리지 ETF"}, {"topic": ""}]'
+    topics = evergreen._parse(raw)
+    check("빈 주제 제외", len(topics) == 1 and topics[0]["search"] == "레버리지 ETF")
+
+    history = state.record([], keyword="레버리지 ETF 수수료 계산법", title="t", mode="evergreen")
+    check("이력에 mode 기록", history[0]["mode"] == "evergreen" and history[0]["status"] == "draft")
+    check("이력에 비용·점수 필드", "cost_usd" in history[0] and "review_score" in history[0])
+
+    cfg_ev = {**cfg, "dedupe": {**cfg["dedupe"]}}
+    cand = trends.Candidate(keyword="레버리지 ETF 수수료 계산법")
+    fresh, skipped = state.filter_seen(cfg_ev, [cand], history)
+    check("장수 주제도 중복 방지", len(fresh) == 0 and len(skipped) == 1)
+
+
+def test_config_shape(cfg: dict) -> None:
+    section("설정 형식")
+    check("review 섹션", cfg["review"]["model"].startswith("claude-") and 0 < cfg["review"]["min_score"] <= 100)
+    check("publish.mode", cfg["publish"]["mode"] in ("auto", "draft"))
+    check("공개 상한 3 이하", 1 <= cfg["publish"]["max_live_per_run"] <= 3, "대량 생성 정책 위험")
+    check("evergreen 섹션", cfg["evergreen"]["posts_per_run"] >= 1)
+    check("monetize.coupang 섹션", isinstance(cfg["monetize"]["coupang"]["enabled"], bool))
+    check("검수 모델 비용표에 있음", cfg["review"]["model"] in writer.PRICES)
+
+
 def main() -> int:
     cfg = load_config()
     test_tokenize()
@@ -240,6 +336,11 @@ def main() -> int:
     test_context(cfg)
     test_writer_parse(cfg)
     test_footer(cfg)
+    test_reviewer_parse(cfg)
+    test_decide(cfg)
+    test_coupang(cfg)
+    test_evergreen_parse(cfg)
+    test_config_shape(cfg)
 
     print("\n" + "=" * 50)
     if failures:

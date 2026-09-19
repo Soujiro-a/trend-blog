@@ -46,6 +46,13 @@ import webbrowser
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPE = "https://www.googleapis.com/auth/blogger"
+# --full 옵션: 주간 보고서가 검색 유입과 광고 수익까지 읽을 수 있게 읽기 권한을 함께 받습니다.
+# Google Cloud 프로젝트에 'Google Search Console API' 와 'AdSense Management API' 도
+# 사용 설정돼 있어야 합니다 (라이브러리에서 검색 → 사용).
+EXTRA_SCOPES = [
+    "https://www.googleapis.com/auth/webmasters.readonly",
+    "https://www.googleapis.com/auth/adsense.readonly",
+]
 BLOGS_URL = "https://www.googleapis.com/blogger/v3/users/self/blogs"
 
 _result: dict[str, str] = {}
@@ -103,7 +110,14 @@ def main() -> int:
         "먼저 등록해야 합니다. 생략하면 빈 포트를 자동으로 고릅니다"
         "('데스크톱 앱' 유형에서만 동작).",
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Search Console·애드센스 읽기 권한도 함께 받습니다 (주간 보고서에 유입·수익 표시). "
+        "Google Cloud 에서 두 API 를 먼저 사용 설정하세요.",
+    )
     args = parser.parse_args()
+    scope = " ".join([SCOPE, *EXTRA_SCOPES]) if args.full else SCOPE
 
     print("─" * 60)
     print("  시작 전 확인 — OAuth 앱이 '프로덕션'으로 게시돼 있어야 합니다.")
@@ -134,7 +148,7 @@ def main() -> int:
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
-        "scope": SCOPE,
+        "scope": scope,
         "access_type": "offline",   # refresh token 을 받기 위해 필수
         "prompt": "consent",        # 이미 승인했어도 refresh token 을 다시 받기 위해
         "state": state,

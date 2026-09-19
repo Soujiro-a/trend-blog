@@ -1,0 +1,55 @@
+name: 주간 운영 보고
+
+on:
+  schedule:
+    # 매주 월요일 00:20 UTC = 월요일 09:20 KST. 장수 글(05:40 KST)까지 끝난 뒤입니다.
+    - cron: "20 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write     # 보고서를 이슈로 만들어 메일 알림을 받기 위해
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 보고서 생성
+        env:
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+          PYTHONUTF8: "1"
+        run: |
+          python scripts/weekly_report.py --out report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 이슈로 올리기 (메일 알림)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="주간 보고 $(date -u -d '+9 hours' +'%Y-%m-%d')"
+          if grep -q "확인이 필요한 항목" report.md; then
+            LABEL="needs-attention"
+          else
+            LABEL="report"
+          fi
+          gh label create "$LABEL" --force --color "$([ "$LABEL" = report ] && echo 0E8A16 || echo D93F0B)" >/dev/null 2>&1 || true
+          # 지난주 보고 이슈는 닫아서 열린 이슈가 쌓이지 않게 합니다.
+          gh issue list --label report --label needs-attention --state open --json number --jq '.[].number' \
+            | xargs -r -I{} gh issue close {} --comment "새 주간 보고로 대체" || true
+          gh issue create --title "$TITLE" --body-file report.md --label "$LABEL"

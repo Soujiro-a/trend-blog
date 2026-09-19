@@ -81,6 +81,17 @@ USER_TEMPLATE = """오늘은 {date} 입니다. 아래 실시간 인기 키워드
 이 키워드가 왜 지금 검색되는지부터 파악하고, 검색해서 들어온 독자가 궁금해할 내용을 \
 빠짐없이 정리해 주세요."""
 
+# 장수(evergreen) 글은 "지금 왜 뜨는가"가 아니라 "이게 무엇이고 어떻게 하는가"를 씁니다.
+# 한 달 뒤에 읽어도 어색하지 않도록 시점 표현을 피하게 합니다.
+USER_TEMPLATE_EVERGREEN = """오늘은 {date} 입니다. 아래 주제로 **오래 읽히는 해설 글**을 써 주세요.
+
+{context}
+
+이 글은 실시간 뉴스 정리가 아닙니다. 독자가 몇 달 뒤에 검색해 들어와도 그대로 유용해야 합니다.
+- 개념 정의 → 작동 방식/절차 → 장단점이나 주의점 → 독자가 실제로 할 수 있는 것, 순서로 씁니다.
+- "최근", "어제", "이번 주" 같은 시점 표현은 쓰지 않습니다. 날짜가 필요하면 연도까지 명시합니다.
+- 참고 기사는 배경 이해용입니다. 기사 내용 요약이 아니라 주제 자체를 설명하세요."""
+
 
 @dataclass
 class Article:
@@ -141,10 +152,12 @@ def write(
     refs: list[NewsRef],
     date_str: str,
     client: anthropic.Anthropic | None = None,
+    mode: str = "trend",
 ) -> Article:
     w = cfg["writer"]
     model = w["model"]
     client = client or anthropic.Anthropic()
+    template = USER_TEMPLATE_EVERGREEN if mode == "evergreen" else USER_TEMPLATE
 
     # 글 맨 아래 안내 문구. config 에서 비워두면 아무것도 붙이지 않습니다.
     note = (w.get("footer_note") or "").strip()
@@ -159,7 +172,7 @@ def write(
     system = SYSTEM.format(
         target_length=w["target_length"], date=date_str, footer_rule=footer_rule
     )
-    user = USER_TEMPLATE.format(date=date_str, context=context)
+    user = template.format(date=date_str, context=context)
 
     # max_tokens 가 크고 사고(thinking) 시간이 길 수 있어 스트리밍으로 받습니다.
     with client.messages.stream(

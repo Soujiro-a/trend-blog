@@ -1,0 +1,266 @@
+"""주간 운영·수익 보고서.
+
+사람이 주 1회 5분 동안 보던 것(GitHub Actions, 사용량, Search Console, 애드센스)을
+한 장의 마크다운으로 모아 줍니다. GitHub Actions 가 매주 이 결과로 이슈를 하나 만들어
+운영자는 메일 한 통만 읽으면 됩니다.
+
+    python scripts/weekly_report.py            # 화면 출력
+    python scripts/weekly_report.py --out x.md # 파일로 저장
+
+Search Console / 애드센스 수치는 Blogger 토큰에 해당 권한이 있을 때만 나옵니다
+(scripts/get_blogger_token.py 를 --full 옵션으로 다시 실행하면 권한이 추가됩니다).
+권한이 없으면 그 항목만 '권한 없음'으로 표시하고 나머지는 정상 출력합니다.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections import Counter
+from datetime import datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src import net, state  # noqa: E402
+from src.config import env, load_config  # noqa: E402
+from src.publishers import blogger  # noqa: E402
+from src.state import KST  # noqa: E402
+
+GSC_API = "https://searchconsole.googleapis.com/webmasters/v3/sites/{site}/searchAnalytics/query"
+ADSENSE_API = "https://adsense.googleapis.com/v2"
+
+# 이 값들을 넘으면 보고서 맨 위에 경고를 띄웁니다.
+ALERT_WEEKLY_COST_USD = 6.0     # 글 4개 × 7일 × $0.15 ≈ $4.2 가 정상 범위
+ALERT_MIN_LIVE_PER_WEEK = 5     # 이보다 적게 공개됐으면 필터/검수가 너무 빡빡하거나 실행이 멈춘 것
+ALERT_REJECT_RATIO = 0.5        # 검수 거부·보류 비율이 절반을 넘으면 작성 프롬프트나 소스를 봐야 함
+
+
+def _blog_url(token: str) -> str:
+    blog_id = env("BLOGGER_BLOG_ID", required=True)
+    resp = net.get(f"{blogger.API_BASE}/blogs/{blog_id}", headers={"Authorization": f"Bearer {token}"})
+    return resp.json().get("url", "")
+
+
+def section_history(history: list[dict], days: int) -> tuple[list[str], list[str]]:
+    lines = ["## 이번 주 작성", ""]
+    alerts: list[str] = []
+    recent = state.recent(history, days)
+    if not recent:
+        lines.append("- 이번 주 작성 이력이 없습니다. **예약 실행이 멈췄을 수 있습니다** (Actions 탭 확인).")
+        alerts.append("작성 이력 없음 — 예약 실행 중단 의심")
+        return lines, alerts
+
+    by_status = Counter(h.get("status", "?") for h in recent)
+    by_mode = Counter(h.get("mode", "trend") for h in recent)
+    cost = sum(float(h.get("cost_usd") or 0) for h in recent)
+    scores = [h["review_score"] for h in recent if h.get("review_score") is not None]
+    extras = Counter(e for h in recent for e in (h.get("extras") or []))
+
+    lines.append(f"| 항목 | 값 |")
+    lines.append(f"|---|---|")
+    lines.append(f"| 작성 | {len(recent)}건 (실시간 {by_mode.get('trend', 0)} · 장수 {by_mode.get('evergreen', 0)}) |")
+    lines.append(f"| 공개 | {by_status.get('live', 0)}건 |")
+    lines.append(f"| 임시저장(보류) | {by_status.get('draft', 0)}건 |")
+    lines.append(f"| 검수 거부 | {by_status.get('rejected', 0)}건 |")
+    if scores:
+        lines.append(f"| 검수 평균 점수 | {sum(scores) / len(scores):.0f}점 |")
+    if extras:
+        lines.append(f"| 제휴 링크 삽입 | {', '.join(f'{k} {v}건' for k, v in extras.items())} |")
+    lines.append(f"| Claude API 비용 | 약 ${cost:.2f} |")
+    lines.append("")
+
+    live = by_status.get("live", 0)
+    not_live = by_status.get("draft", 0) + by_status.get("rejected", 0)
+    if cost > ALERT_WEEKLY_COST_USD:
+        alerts.append(f"API 비용 ${cost:.2f} — 예상 범위(${ALERT_WEEKLY_COST_USD}) 초과")
+    if live < ALERT_MIN_LIVE_PER_WEEK:
+        alerts.append(f"공개 {live}건 — 주 {ALERT_MIN_LIVE_PER_WEEK}건 미만. 필터·검수 기준이나 실행 상태 확인")
+    if len(recent) and not_live / len(recent) > ALERT_REJECT_RATIO:
+        alerts.append(f"보류·거부 비율 {not_live / len(recent):.0%} — 작성 품질 또는 소재 문제")
+
+    published = [h for h in recent if h.get("status") == "live"]
+    if published:
+        lines.append("### 공개된 글")
+        for h in published:
+            url = h.get("url") or ""
+            lines.append(f"- [{h.get('title')}]({url})" if url else f"- {h.get('title')}")
+    held = [h for h in recent if h.get("status") == "draft"]
+    if held:
+        lines.append("")
+        lines.append("### 보류된 글 (임시저장함에 있음 · 안 봐도 됨)")
+        for h in held:
+            score = h.get("review_score")
+            lines.append(f"- {h.get('title')}" + (f" (검수 {score}점)" if score is not None else ""))
+    lines.append("")
+    return lines, alerts
+
+
+def section_blogger(token: str) -> list[str]:
+    lines = ["## 블로그 현황", ""]
+    try:
+        live = blogger.list_posts("live", max_results=500)
+        draft = blogger.list_posts("draft", max_results=500)
+    except Exception as exc:
+        return lines + [f"- Blogger 조회 실패: {exc}", ""]
+    lines.append(f"- 공개 글 {len(live)}개 · 임시저장 {len(draft)}개")
+    if len(live) < 20:
+        lines.append(f"- 애드센스 신청은 공개 글 20~30개부터 권장. 현재 {len(live)}개 → 약 {max(0, (20 - len(live)) // 3 + 1)}일 뒤")
+    if len(draft) > 15:
+        lines.append(f"- 임시저장이 {len(draft)}개 쌓였습니다. Blogger 에서 한 번에 지워도 됩니다(공개에 영향 없음).")
+    lines.append("")
+    return lines
+
+
+def section_search_console(token: str, site: str, days: int) -> list[str]:
+    lines = ["## 검색 유입 (Search Console)", ""]
+    if not site:
+        return lines + ["- 블로그 주소를 알 수 없어 건너뜀", ""]
+    end = datetime.now(KST).date() - timedelta(days=2)   # GSC 는 2일 지연
+    start = end - timedelta(days=days)
+    import urllib.parse
+    url = GSC_API.format(site=urllib.parse.quote(site, safe=""))
+    try:
+        resp = net.session().post(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "startDate": start.isoformat(),
+                "endDate": end.isoformat(),
+                "dimensions": ["page"],
+                "rowLimit": 10,
+            },
+            timeout=30,
+        )
+    except Exception as exc:
+        return lines + [f"- 조회 실패: {exc}", ""]
+    if resp.status_code == 403:
+        return lines + [
+            "- 권한 없음. `python scripts/get_blogger_token.py --full` 로 토큰을 다시 받으면 표시됩니다.",
+            "  (Search Console 에 이 블로그가 등록돼 있어야 합니다. Blogger 블로그는 같은 계정이면 자동 인증됩니다.)",
+            "",
+        ]
+    if resp.status_code != 200:
+        return lines + [f"- 조회 실패 ({resp.status_code}): {resp.text[:200]}", ""]
+
+    rows = resp.json().get("rows", [])
+    if not rows:
+        return lines + [f"- {start}~{end} 유입 데이터 없음 (색인 초기에는 정상입니다)", ""]
+    clicks = sum(r["clicks"] for r in rows)
+    imps = sum(r["impressions"] for r in rows)
+    lines.append(f"- {start} ~ {end}: 클릭 {clicks:.0f} · 노출 {imps:.0f} (상위 10개 페이지 합계)")
+    lines.append("")
+    lines.append("| 클릭 | 노출 | 페이지 |")
+    lines.append("|---:|---:|---|")
+    for r in sorted(rows, key=lambda r: -r["clicks"])[:10]:
+        page = r["keys"][0]
+        lines.append(f"| {r['clicks']:.0f} | {r['impressions']:.0f} | {page.replace(site, '')} |")
+    lines.append("")
+    return lines
+
+
+def section_adsense(token: str, days: int) -> list[str]:
+    lines = ["## 광고 수익 (애드센스)", ""]
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        resp = net.session().get(f"{ADSENSE_API}/accounts", headers=headers, timeout=30)
+    except Exception as exc:
+        return lines + [f"- 조회 실패: {exc}", ""]
+    if resp.status_code == 403:
+        return lines + [
+            "- 권한 없음 또는 애드센스 미승인. 승인 뒤 `python scripts/get_blogger_token.py --full` 로 토큰을 다시 받으세요.",
+            "",
+        ]
+    if resp.status_code != 200:
+        return lines + [f"- 조회 실패 ({resp.status_code}): {resp.text[:200]}", ""]
+    accounts = resp.json().get("accounts", [])
+    if not accounts:
+        return lines + ["- 애드센스 계정이 없습니다 (아직 신청 전이면 정상).", ""]
+
+    account = accounts[0]["name"]  # accounts/pub-xxxx
+    end = datetime.now(KST).date()
+    start = end - timedelta(days=days)
+    params = [
+        ("metrics", "ESTIMATED_EARNINGS"), ("metrics", "PAGE_VIEWS"), ("metrics", "CLICKS"),
+        ("startDate.year", start.year), ("startDate.month", start.month), ("startDate.day", start.day),
+        ("endDate.year", end.year), ("endDate.month", end.month), ("endDate.day", end.day),
+    ]
+    resp = net.session().get(f"{ADSENSE_API}/{account}/reports:generate", params=params, headers=headers, timeout=30)
+    if resp.status_code != 200:
+        return lines + [f"- 보고서 조회 실패 ({resp.status_code}): {resp.text[:200]}", ""]
+    data = resp.json()
+    totals = (data.get("totals") or {}).get("cells", [])
+    vals = [c.get("value", "0") for c in totals]
+    currency = data.get("headers", [{}])[0].get("currencyCode", "")
+    if len(vals) >= 3:
+        lines.append(f"- 최근 {days}일: 예상 수익 **{vals[0]} {currency}** · 페이지뷰 {vals[1]} · 광고 클릭 {vals[2]}")
+    else:
+        lines.append("- 데이터 없음")
+    lines.append("")
+    return lines
+
+
+def build(days: int = 7) -> str:
+    cfg = load_config()
+    now = datetime.now(KST)
+    history = state.load()
+
+    body: list[str] = []
+    hist_lines, alerts = section_history(history, days)
+
+    token = ""
+    site = ""
+    try:
+        token = blogger._access_token()
+        site = _blog_url(token)
+    except Exception as exc:
+        alerts.append(f"Blogger 인증 실패 — {exc}")
+
+    head = [f"# 주간 보고 — {now.strftime('%Y-%m-%d')} (최근 {days}일)", ""]
+    if alerts:
+        head.append("> ⚠️ **확인이 필요한 항목**")
+        head += [f"> - {a}" for a in alerts]
+        head.append("")
+    else:
+        head.append("> ✅ 이상 없음. 이번 주는 할 일이 없습니다.")
+        head.append("")
+
+    body += hist_lines
+    if token:
+        body += section_blogger(token)
+        body += section_search_console(token, site, days)
+        body += section_adsense(token, days)
+
+    body += [
+        "## 설정 요약",
+        "",
+        f"- 하루 작성 {cfg['run']['posts_per_run']}건 · 공개 상한 {cfg['publish'].get('max_live_per_run')}건 · "
+        f"검수 기준 {cfg['review'].get('min_score')}점 · 작성 모델 {cfg['writer']['model']}",
+        f"- 장수 글 주 {cfg['evergreen']['posts_per_run']}건 · 쿠팡 제휴 {'켜짐' if cfg['monetize']['coupang'].get('enabled') else '꺼짐'}"
+        + ("" if env("COUPANG_ACCESS_KEY") else " (키 없음 → 비활성)"),
+        "",
+    ]
+    return "\n".join(head + body)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="주간 운영·수익 보고서")
+    parser.add_argument("--days", type=int, default=7)
+    parser.add_argument("--out", help="저장할 파일 경로")
+    args = parser.parse_args()
+
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+    text = build(args.days)
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"저장: {args.out}")
+    else:
+        print(text)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

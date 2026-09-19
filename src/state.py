@@ -84,7 +84,17 @@ def record(
     post_id: str = "",
     url: str = "",
     status: str = "draft",
+    mode: str = "trend",
+    cost_usd: float = 0.0,
+    review_score: int | None = None,
+    extras: list[str] | None = None,
 ) -> list[dict]:
+    """이력에 한 건 추가합니다.
+
+    status: live(공개) | draft(보류) | rejected(올리지 않음)
+    mode:   trend(실시간 이슈) | evergreen(장수 해설)
+    extras: 적용된 수익화 항목 (예: ["coupang"])
+    """
     entries.append(
         {
             "keyword": keyword,
@@ -92,6 +102,10 @@ def record(
             "post_id": post_id,
             "url": url,
             "status": status,
+            "mode": mode,
+            "cost_usd": round(cost_usd, 4),
+            "review_score": review_score,
+            "extras": extras or [],
             "posted_at": _now().isoformat(timespec="seconds"),
         }
     )

@@ -43,7 +43,7 @@ def _slug(text: str) -> str:
     return cleaned[:60] or "post"
 
 
-def publish(cfg: dict, article: Article) -> dict:
+def publish(cfg: dict, article: Article, live: bool | None = None) -> dict:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     path = OUT_DIR / f"{stamp}-{_slug(article.keyword)}.html"
