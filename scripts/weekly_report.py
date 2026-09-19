@@ -135,9 +135,31 @@ def section_search_console(token: str, site: str, days: int) -> list[str]:
     except Exception as exc:
         return lines + [f"- 조회 실패: {exc}", ""]
     if resp.status_code == 403:
+        # 권한 문제인지, 속성이 등록되지 않은 문제인지 구분해서 알려줍니다.
+        detail = ""
+        try:
+            detail = resp.json().get("error", {}).get("message", "")
+        except ValueError:
+            detail = resp.text[:200]
+        try:
+            sites_resp = net.session().get(
+                "https://searchconsole.googleapis.com/webmasters/v3/sites",
+                headers={"Authorization": f"Bearer {token}"}, timeout=20,
+            )
+            sites = [s.get("siteUrl") for s in sites_resp.json().get("siteEntry", [])] if sites_resp.status_code == 200 else None
+        except Exception:
+            sites = None
+        if sites is None:
+            return lines + [
+                f"- 토큰에 Search Console 권한이 없습니다 ({detail}).",
+                "  `python scripts/get_blogger_token.py --full` 로 토큰을 다시 받아 `BLOGGER_REFRESH_TOKEN` Secret 을 교체하세요.",
+                "",
+            ]
         return lines + [
-            "- 권한 없음. `python scripts/get_blogger_token.py --full` 로 토큰을 다시 받으면 표시됩니다.",
-            "  (Search Console 에 이 블로그가 등록돼 있어야 합니다. Blogger 블로그는 같은 계정이면 자동 인증됩니다.)",
+            f"- 권한은 있지만 이 블로그({site})가 Search Console 에 등록돼 있지 않습니다 ({detail}).",
+            f"  등록된 속성: {', '.join(sites) if sites else '없음'}",
+            "  → https://search.google.com/search-console 에서 **속성 추가 → URL 접두어** 에 블로그 주소를 넣으세요. "
+            "Blogger 블로그는 같은 구글 계정이면 소유권이 자동 확인됩니다.",
             "",
         ]
     if resp.status_code != 200:
@@ -200,6 +222,42 @@ def section_adsense(token: str, days: int) -> list[str]:
     return lines
 
 
+# 같은 운영자의 다른 블로그. 이쪽은 PC 의 예약 작업이 돌리므로, 공개 글 수를 밖에서
+# 세어 "PC 쪽 파이프라인이 멈췄는지"를 이 보고서가 대신 알려줍니다.
+WP_SITES = [
+    {"name": "withsmartcontent.com (WordPress, PC 예약 작업)", "url": "https://withsmartcontent.com", "min_per_week": 4},
+]
+
+
+def section_wordpress(days: int) -> tuple[list[str], list[str]]:
+    lines = ["## 다른 블로그 현황", ""]
+    alerts: list[str] = []
+    since = (datetime.now(KST) - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00")
+    for site in WP_SITES:
+        try:
+            resp = net.session().get(
+                f"{site['url']}/wp-json/wp/v2/posts",
+                params={"status": "publish", "after": since, "per_page": 50, "_fields": "id,date,title,link"},
+                timeout=30,
+            )
+            posts = resp.json() if resp.status_code == 200 else []
+        except Exception as exc:
+            lines.append(f"- **{site['name']}** — 조회 실패: {exc}")
+            alerts.append(f"{site['name']} 조회 실패")
+            continue
+        lines.append(f"- **{site['name']}** — 최근 {days}일 공개 {len(posts)}건")
+        for p in posts[:10]:
+            title = p.get("title", {}).get("rendered", "").replace("&#8211;", "–")
+            lines.append(f"  - [{title}]({p.get('link')}) ({p.get('date', '')[:10]})")
+        if len(posts) < site["min_per_week"]:
+            alerts.append(
+                f"{site['name']} 공개 {len(posts)}건 — 주 {site['min_per_week']}건 미만. "
+                "PC 예약 작업(MoneyBlogDailyContent)과 logs/last-status.json 확인"
+            )
+    lines.append("")
+    return lines, alerts
+
+
 def build(days: int = 7) -> str:
     cfg = load_config()
     now = datetime.now(KST)
@@ -207,6 +265,8 @@ def build(days: int = 7) -> str:
 
     body: list[str] = []
     hist_lines, alerts = section_history(history, days)
+    wp_lines, wp_alerts = section_wordpress(days)
+    alerts += wp_alerts
 
     token = ""
     site = ""
@@ -230,6 +290,7 @@ def build(days: int = 7) -> str:
         body += section_blogger(token)
         body += section_search_console(token, site, days)
         body += section_adsense(token, days)
+    body += wp_lines
 
     body += [
         "## 설정 요약",

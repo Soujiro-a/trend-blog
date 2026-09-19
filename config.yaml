@@ -130,8 +130,10 @@ research:
   max_context_chars: 6000
 
 writer:
-  model: claude-opus-5
-  # 비용을 낮추려면 claude-sonnet-5 (입력 $2 / 출력 $10 per 1M) 로 바꾸세요.
+  # claude-fable-5-1: 가장 성능 좋은 모델 (입력 $10 / 출력 $50 per 1M, 글당 약 $0.25)
+  # claude-opus-5:    절반 비용 (입력 $5 / 출력 $25, 글당 약 $0.12)
+  # claude-sonnet-5:  가장 저렴 (입력 $2 / 출력 $10, 글당 약 $0.05)
+  model: claude-fable-5-1
   max_tokens: 16000
   effort: high          # low | medium | high | xhigh | max
   target_length: 1900   # 최소 글자수(한글, 공백 포함). 보통 이보다 조금 길게 나옵니다.
