@@ -16,7 +16,10 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from collections import Counter
+
+import requests
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -112,71 +115,94 @@ def section_blogger(token: str) -> list[str]:
     return lines
 
 
-def section_search_console(token: str, site: str, days: int) -> list[str]:
-    lines = ["## 검색 유입 (Search Console)", ""]
+def _gsc_sites(token: str) -> list[str] | None:
+    """Search Console 에 등록된 속성 목록. 권한이 없으면 None."""
+    try:
+        resp = net.session().get(
+            "https://searchconsole.googleapis.com/webmasters/v3/sites",
+            headers={"Authorization": f"Bearer {token}"}, timeout=20,
+        )
+    except Exception:
+        return None
+    if resp.status_code != 200:
+        return None
+    return [s.get("siteUrl", "") for s in resp.json().get("siteEntry", [])]
+
+
+def _gsc_property(site: str, registered: list[str]) -> str | None:
+    """블로그 주소에 맞는 GSC 속성 이름. URL 접두어 속성이 없으면 도메인 속성(sc-domain:)을 씁니다."""
+    import urllib.parse
+    host = urllib.parse.urlparse(site).hostname or ""
+    for cand in (site, site.rstrip("/") + "/", f"sc-domain:{host}"):
+        if cand in registered:
+            return cand
+    # www. 유무 차이까지 허용
+    for r in registered:
+        if r.startswith("sc-domain:") and host.endswith(r.split(":", 1)[1]):
+            return r
+    return None
+
+
+def _gsc_query(token: str, prop: str, start, end, row_limit: int = 10):
+    import urllib.parse
+    url = GSC_API.format(site=urllib.parse.quote(prop, safe=""))
+    return net.session().post(
+        url,
+        headers={"Authorization": f"Bearer {token}"},
+        json={"startDate": start.isoformat(), "endDate": end.isoformat(), "dimensions": ["page"], "rowLimit": row_limit},
+        timeout=30,
+    )
+
+
+def section_search_console(token: str, site: str, days: int, heading: str = "## 검색 유입 (Search Console)") -> list[str]:
+    lines = [heading, ""]
     if not site:
         return lines + ["- 블로그 주소를 알 수 없어 건너뜀", ""]
     end = datetime.now(KST).date() - timedelta(days=2)   # GSC 는 2일 지연
     start = end - timedelta(days=days)
-    import urllib.parse
-    url = GSC_API.format(site=urllib.parse.quote(site, safe=""))
+
+    registered = _gsc_sites(token)
+    if registered is None:
+        return lines + [
+            "- 토큰에 Search Console 권한이 없습니다.",
+            "  `python scripts/get_blogger_token.py --full` 로 토큰을 다시 받아 `BLOGGER_REFRESH_TOKEN` Secret 을 교체하세요.",
+            "",
+        ]
+    prop = _gsc_property(site, registered)
+    if prop is None:
+        return lines + [
+            f"- 권한은 있지만 이 블로그({site})가 Search Console 에 등록돼 있지 않습니다.",
+            f"  등록된 속성: {', '.join(registered) if registered else '없음'}",
+            "  → https://search.google.com/search-console 에서 **속성 추가** 에 블로그 주소를 넣으세요. "
+            "Blogger 블로그는 같은 구글 계정이면 소유권이 자동 확인됩니다.",
+            "",
+        ]
     try:
-        resp = net.session().post(
-            url,
-            headers={"Authorization": f"Bearer {token}"},
-            json={
-                "startDate": start.isoformat(),
-                "endDate": end.isoformat(),
-                "dimensions": ["page"],
-                "rowLimit": 10,
-            },
-            timeout=30,
-        )
+        resp = _gsc_query(token, prop, start, end)
     except Exception as exc:
         return lines + [f"- 조회 실패: {exc}", ""]
-    if resp.status_code == 403:
-        # 권한 문제인지, 속성이 등록되지 않은 문제인지 구분해서 알려줍니다.
+    if resp.status_code != 200:
         detail = ""
         try:
             detail = resp.json().get("error", {}).get("message", "")
         except ValueError:
             detail = resp.text[:200]
-        try:
-            sites_resp = net.session().get(
-                "https://searchconsole.googleapis.com/webmasters/v3/sites",
-                headers={"Authorization": f"Bearer {token}"}, timeout=20,
-            )
-            sites = [s.get("siteUrl") for s in sites_resp.json().get("siteEntry", [])] if sites_resp.status_code == 200 else None
-        except Exception:
-            sites = None
-        if sites is None:
-            return lines + [
-                f"- 토큰에 Search Console 권한이 없습니다 ({detail}).",
-                "  `python scripts/get_blogger_token.py --full` 로 토큰을 다시 받아 `BLOGGER_REFRESH_TOKEN` Secret 을 교체하세요.",
-                "",
-            ]
-        return lines + [
-            f"- 권한은 있지만 이 블로그({site})가 Search Console 에 등록돼 있지 않습니다 ({detail}).",
-            f"  등록된 속성: {', '.join(sites) if sites else '없음'}",
-            "  → https://search.google.com/search-console 에서 **속성 추가 → URL 접두어** 에 블로그 주소를 넣으세요. "
-            "Blogger 블로그는 같은 구글 계정이면 소유권이 자동 확인됩니다.",
-            "",
-        ]
-    if resp.status_code != 200:
-        return lines + [f"- 조회 실패 ({resp.status_code}): {resp.text[:200]}", ""]
+        return lines + [f"- 조회 실패 ({resp.status_code}, 속성 {prop}): {detail}", ""]
 
     rows = resp.json().get("rows", [])
     if not rows:
-        return lines + [f"- {start}~{end} 유입 데이터 없음 (색인 초기에는 정상입니다)", ""]
+        return lines + [f"- 속성 {prop} · {start}~{end} 유입 데이터 없음 (색인 초기에는 정상입니다)", ""]
     clicks = sum(r["clicks"] for r in rows)
     imps = sum(r["impressions"] for r in rows)
-    lines.append(f"- {start} ~ {end}: 클릭 {clicks:.0f} · 노출 {imps:.0f} (상위 10개 페이지 합계)")
+    lines.append(f"- 속성 {prop} · {start} ~ {end}: 클릭 {clicks:.0f} · 노출 {imps:.0f} (상위 10개 페이지 합계)")
     lines.append("")
     lines.append("| 클릭 | 노출 | 페이지 |")
     lines.append("|---:|---:|---|")
+    base = site.rstrip("/")
     for r in sorted(rows, key=lambda r: -r["clicks"])[:10]:
         page = r["keys"][0]
-        lines.append(f"| {r['clicks']:.0f} | {r['impressions']:.0f} | {page.replace(site, '')} |")
+        short = page.replace(base, "").replace("https://", "") or "/"
+        lines.append(f"| {r['clicks']:.0f} | {r['impressions']:.0f} | {short} |")
     lines.append("")
     return lines
 
@@ -200,6 +226,17 @@ def section_adsense(token: str, days: int) -> list[str]:
         return lines + ["- 애드센스 계정이 없습니다 (아직 신청 전이면 정상).", ""]
 
     account = accounts[0]["name"]  # accounts/pub-xxxx
+    state = accounts[0].get("state", "?")
+    pending = accounts[0].get("pendingTasks") or []
+    lines.append(f"- 계정 {account.split('/')[-1]} · 상태 **{state}**" + (f" · 처리 필요: {', '.join(pending)}" if pending else ""))
+    # 어떤 사이트가 승인됐는지 (READY / NEEDS_ATTENTION / REQUIRES_REVIEW / GETTING_READY)
+    try:
+        sites_resp = net.session().get(f"{ADSENSE_API}/{account}/sites", headers=headers, timeout=30)
+        if sites_resp.status_code == 200:
+            for s in sites_resp.json().get("sites", []):
+                lines.append(f"  - {s.get('domain')}: {s.get('state')}")
+    except Exception:
+        pass
     end = datetime.now(KST).date()
     start = end - timedelta(days=days)
     params = [
@@ -217,7 +254,7 @@ def section_adsense(token: str, days: int) -> list[str]:
     if len(vals) >= 3:
         lines.append(f"- 최근 {days}일: 예상 수익 **{vals[0]} {currency}** · 페이지뷰 {vals[1]} · 광고 클릭 {vals[2]}")
     else:
-        lines.append("- 데이터 없음")
+        lines.append(f"- 최근 {days}일 수익 데이터 없음 (광고가 아직 안 나가고 있으면 정상입니다)")
     lines.append("")
     return lines
 
@@ -234,16 +271,27 @@ def section_wordpress(days: int) -> tuple[list[str], list[str]]:
     alerts: list[str] = []
     since = (datetime.now(KST) - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00")
     for site in WP_SITES:
-        try:
-            resp = net.session().get(
-                f"{site['url']}/wp-json/wp/v2/posts",
-                params={"status": "publish", "after": since, "per_page": 50, "_fields": "id,date,title,link"},
-                timeout=30,
-            )
-            posts = resp.json() if resp.status_code == 200 else []
-        except Exception as exc:
-            lines.append(f"- **{site['name']}** — 조회 실패: {exc}")
-            alerts.append(f"{site['name']} 조회 실패")
+        # 공용 세션의 자동 재시도를 타지 않고 한 번만 요청합니다. WordPress 쪽 보안 플러그인이
+        # 짧은 시간에 여러 번 부르면 429 를 돌려주는데, 재시도 어댑터가 그걸 연타하면 더 막힙니다.
+        posts = None
+        for attempt in range(2):
+            try:
+                resp = requests.get(
+                    f"{site['url']}/wp-json/wp/v2/posts",
+                    params={"after": since, "per_page": 50, "_fields": "id,date,title,link"},
+                    headers={"User-Agent": "trend-blog-weekly-report/1.0", "Accept": "application/json"},
+                    timeout=30,
+                )
+                if resp.status_code == 200:
+                    posts = resp.json()
+                    break
+                err = f"HTTP {resp.status_code}"
+            except Exception as exc:
+                err = str(exc)[:120]
+            if attempt == 0:
+                time.sleep(20)
+        if posts is None:
+            lines.append(f"- **{site['name']}** — 조회 실패 ({err}). 사이트가 잠시 막았을 수 있습니다. 다음 주에도 실패하면 확인하세요.")
             continue
         lines.append(f"- **{site['name']}** — 최근 {days}일 공개 {len(posts)}건")
         for p in posts[:10]:
@@ -291,6 +339,9 @@ def build(days: int = 7) -> str:
         body += section_search_console(token, site, days)
         body += section_adsense(token, days)
     body += wp_lines
+    if token:
+        for site in WP_SITES:
+            body += section_search_console(token, site["url"], days, heading=f"### 검색 유입 — {site['url']}")
 
     body += [
         "## 설정 요약",
