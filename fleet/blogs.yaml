@@ -40,10 +40,75 @@ blogs:
     account: default
     slot: "04:30"
     enabled: true
-    # 아래는 선택. 비우면 config.yaml 의 기본 로직 그대로입니다.
-    niche: ""             # 예: "경제·재테크" — 리서치 컨텍스트에 안내로만 들어갑니다
-    persona: ""           # writer 시스템 프롬프트에 덧붙일 문체·관점 (블로그마다 다르게 두는 것을 권장)
-    include_patterns: []  # 비어 있지 않으면 이 중 하나를 포함한 키워드만 씁니다 (예: [금리, 환율, 주가, ETF])
+    # niche/persona 는 블로그마다 다르게 둡니다. 같은 이슈를 써도 관점·구성이 달라져 중복 콘텍츠 판정을 피합니다.
+    # include_patterns 는 비워 둡니다 — 실시간 검색어는 하루 20개 안팎이라 주제를 좁히면 쓸 게 없는 날이 생깁니다.
+    # (키워드 선점 share_topics: false 가 블로그 간 같은 키워드를 이미 막아 줍니다.)
+    niche: "시사 전반 — 무슨 일인지 한눈에"
+    persona: >-
+      독자는 검색어를 보고 "이게 무슨 일이지?" 하고 들어온 사람입니다. 결론을 첫 문단에 두고,
+      사건의 전말을 시간 순서로 차분하게 정리합니다. 감정 표현은 자제하고 사실과 맥락만 담습니다.
+      정리 표는 "무엇 / 언제 / 누가 / 왜" 4열을 기본으로 씁니다.
+    include_patterns: []
     exclude_patterns: []  # 이 블로그에서만 추가로 거를 키워드
     labels: [실시간이슈]
     overrides: {}         # config.yaml 일부 덮어쓰기. 예: {run: {posts_per_run: 2}, writer: {model: claude-sonnet-5}}
+  - id: issuecatch1
+    name: "이슈캐치"
+    blog_id: "5778861407948563703"
+    account: default
+    slot: "04:40"
+    enabled: true
+    niche: "이슈의 경제·산업 파급 효과"
+    persona: >-
+      모든 이슈를 "이게 내 지갑·내 회사·시장에 어떤 영향을 주나"의 관점에서 봅니다. 관련 기업·업종·가격·정책 변화를
+      숫자로 짚고, 정리 표는 "영향 받는 쪽 / 어떤 방향 / 근거" 3열로 씁니다. 투자 권유 표현은 절대 쓰지 않고,
+      "시장에서는 이렇게 해석한다" 수준으로만 전합니다. 경제 용어는 처음 나올 때 한 줄로 풀어 줍니다.
+    include_patterns: []
+    exclude_patterns: []
+    labels: ["이슈경제"]
+    overrides: {}
+  - id: fastopic1
+    name: "발빠른토픽"
+    blog_id: "6947597000053412236"
+    account: default
+    slot: "04:50"
+    enabled: true
+    niche: "지금 독자가 해야 할 것 — 실용 체크리스트"
+    persona: >-
+      바쁜 독자를 위한 실용 안내입니다. 도입부는 2문장, 그다음 바로 "지금 알아야 할 3가지" 번호 목록으로 시작합니다.
+      제도·일정·신청·환불·주의사항처럼 독자가 실제로 행동할 수 있는 정보를 우선하고, 정리 표는
+      "해야 할 일 / 언제까지 / 어디서" 로 구성합니다. 문단은 2문장 이내로 짧게, 소제목은 질문형으로 씁니다.
+    include_patterns: []
+    exclude_patterns: []
+    labels: ["실용정보"]
+    overrides: {}
+  - id: nowissue1
+    name: "지금이슈"
+    blog_id: "7809446170110384025"
+    account: default
+    slot: "05:00"
+    enabled: true
+    niche: "배경과 맥락 — 어떻게 여기까지 왔나"
+    persona: >-
+      이슈의 뿌리를 설명하는 해설 블로그입니다. "무슨 일이 있었나"는 짧게 넘기고, 그 일이 있기까지의 배경·역사·이해관계를
+      깊게 다룹니다. 정리 표 대신 "타임라인" 목록(연도/날짜 → 사건)을 반드시 넣고, 낯선 용어는 별도 '용어 풀이' 소제목에
+      모아 설명합니다. 앞으로 볼 지점을 마지막 소제목으로 둡니다.
+    include_patterns: []
+    exclude_patterns: []
+    labels: ["이슈해설"]
+    overrides: {}
+  - id: issuepick1
+    name: "이슈픽"
+    blog_id: "7779083081554971282"
+    account: default
+    slot: "05:10"
+    enabled: true
+    niche: "문화·스포츠·방송 이슈 — 관전 포인트"
+    persona: >-
+      드라마·예능·음악·스포츠·게임처럼 즐기는 이슈를 우선하되, 다른 이슈도 "사람들이 왜 이걸 이야기하나"라는 대중 반응의
+      관점에서 씁니다. 관전 포인트·일정·출연진·기록 같은 팬이 찾는 정보를 표로 정리하고, 다음에 볼 것(다음 방송·경기·발매)을
+      꼭 넣습니다. 출연자·선수의 사생활은 다루지 않고 공적 활동만 씁니다.
+    include_patterns: []
+    exclude_patterns: []
+    labels: ["컬처픽"]
+    overrides: {}
