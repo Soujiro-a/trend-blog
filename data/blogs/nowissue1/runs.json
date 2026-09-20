@@ -1,29 +1,12 @@
 {
   "evergreen:2026-09-21": {
-<<<<<<< Updated upstream
-    "at": "2026-09-21T05:06:53+09:00",
+    "at": "2026-09-21T05:40:20+09:00",
     "ok": false,
-    "summary": "공개 0건 / 임시저장 0건 / 예상 비용 약 $0.00** · 실패 6건"
-=======
-    "at": "2026-09-21T05:36:31+09:00",
-    "ok": false,
-    "summary": "예외: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'You have reached your specified API usage limits. You will regain access on 2026-10-01 at 00:00 UTC.'}, 'request_id': 'req_011CfFLJJ71KtgfWkfPUrYF5'}"
->>>>>>> Stashed changes
-  },
-  "trend:2026-09-20": {
-    "at": "2026-09-20T13:39:52+09:00",
-    "ok": true,
-    "summary": "공개 3건 / 임시저장 1건 / 예상 비용 약 $1.47"
+    "summary": "예외: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'You have reached your specified API usage limits. You will regain access on 2026-10-01 at 00:00 UTC.'}, 'request_id': 'req_011CfFLbjH4Bc4ZojfqdfGRJ'}"
   },
   "trend:2026-09-21": {
-<<<<<<< Updated upstream
-    "at": "2026-09-21T05:06:53+09:00",
-    "ok": true,
-    "summary": "공개 0건 / 임시저장 2건 / 예상 비용 약 $0.73** · 실패 7건"
-=======
-    "at": "2026-09-21T05:36:31+09:00",
+    "at": "2026-09-21T05:40:20+09:00",
     "ok": false,
     "summary": "공개 0건 / 임시저장 0건 / 예상 비용 약 $0.00** · 실패 21건"
->>>>>>> Stashed changes
   }
 }
