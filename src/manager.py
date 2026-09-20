@@ -44,7 +44,8 @@ REPORT_PATH = fleet_mod.FLEET_DATA / "manager_report.md"
 RULES = {
     "pause_after_consecutive_failures": 3,
     "pause_if_zero_live_days": 7,          # 7일간 공개 0건이고 실행은 5회 이상이면 중지 검토
-    "posts_per_run_range": (1, 4),
+    # 2026-09-20 사고 이후 상한을 2로 낮췄습니다. 관리 에이전트가 이보다 올릴 수 없습니다.
+    "posts_per_run_range": (1, 2),
     "max_changes_per_day": 5,
     "cost_alert_per_blog_week_usd": 12.0,  # 글 4개×7일×$0.28 ≈ $8 가 정상
     "duplicate_title_similarity": 0.6,

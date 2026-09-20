@@ -180,62 +180,117 @@ GitHub 에서 **비공개(Private)** 저장소를 만들고 푸시합니다.
 
 ---
 
-## 2-1. 블로그 함대 — 같은 로직으로 블로그 100개까지
+## 2-1. 블로그 함대 — 블로그마다 고유 주제, 서로 다른 시각
 
-한 저장소에서 여러 Blogger 블로그를 **같은 파이프라인, 다른 시각**에 운영합니다. 목록은
+한 저장소에서 여러 Blogger 블로그를 **같은 파이프라인, 다른 주제, 다른 시각**에 운영합니다. 목록은
 [`fleet/blogs.yaml`](fleet/blogs.yaml) 하나에 있고, 블로그마다 이력·보고서가 `data/blogs/<id>/` 에 따로 쌓입니다.
 
 ```
- fleet.yml (10분마다)  ─▶  src/fleet_run.py  ─▶  "슬롯이 지났고 오늘 아직 안 돈" 블로그를 슬롯 순서대로
-                                                    └▶ src/main.py --blog <id>   (수집 → 작성 → 검수 → 공개)
+ fleet.yml (10분마다)  ─▶  src/fleet_run.py  ─▶  계정 상한 확인 → "시각이 지났고 아직 안 돈" 슬롯을 순서대로
+                                                    └▶ src/main.py --blog <id> --count 1
+                                                         기획(주제 안에서 글감) → 리서치 → 작성 → 검수 → 공개
  manager.yml (매일 23:35) ─▶ src/manager.py   ─▶  블로그별 지표 → Sonnet 5 판단 → 중지/재개/글 수 조정 → 이슈
 ```
 
+**슬롯 하나 = 글 한 건**입니다. 하루 2건이면 아침·오후 슬롯을 하나씩 둬서, 몇 분 안에 여러 건이 몰리지 않게 합니다.
+
 | 하고 싶은 일 | 명령 |
 |---|---|
-| 블로그 추가 (슬롯 자동 배정) | `python scripts/fleet_cli.py add --name "이름" --blog-id <Blogger ID> --niche "경제·재테크" --persona "..."` |
+| 블로그 추가 (슬롯 자동 배정) | `python scripts/fleet_cli.py add --name "이름" --blog-id <ID> --subject "고유 주제"` |
 | 계정의 블로그 전부 등록 | `python scripts/fleet_cli.py discover --add` |
 | 슬롯표 / 상태 | `python scripts/fleet_cli.py list` · `status` |
 | 켜기/끄기 | `python scripts/fleet_cli.py enable <id>` · `disable <id>` |
-| 지금 돌 차례 확인 | `python -m src.fleet_run --dry-run` |
-| 한 블로그 테스트 | `python -m src.fleet_run --blog <id> --target local --count 1` |
-| 관리 에이전트 판단 미리 보기 | `python -m src.manager --dry-run` |
+| 설정 검사 (주제 중복·슬롯 간격) | `python scripts/fleet_cli.py validate` |
+| 지금 돌 슬롯 확인 | `python -m src.fleet_run --dry-run` |
+| 한 블로그 테스트 | `python -m src.fleet_run --blog <id> --target local` |
+| **Blogger 계정 교체** | `python scripts/switch_account.py` (안내) · `--check` · `--plan` · `--apply` |
 
 Claude Code 안에서는 **`fleet-manager` 에이전트**([.claude/agents/fleet-manager.md](.claude/agents/fleet-manager.md))에게
 "블로그 5개 추가해", "함대 상태 봐줘", "어느 블로그가 안 돌아?" 처럼 말하면 위 명령을 대신 실행하고 판단해 줍니다.
 
-### 시간 배정
-첫 슬롯 04:30 KST, 10분 간격으로 자동 배정됩니다(100개면 04:30 ~ 21:00). 실행기는 10분마다 깨어나
-"슬롯이 지났는데 오늘 아직 안 돈" 블로그를 **슬롯 순서대로 하나씩** 돌립니다. GitHub 예약이 밀려도
-그날 안에는 반드시 처리되고, 밀린 블로그들도 각각 3~4분씩 순서대로 돌기 때문에 블로그 간 간격은 유지됩니다.
+### 주제 특화 — 블로그마다 다른 subject
 
-> **GitHub 의 10분 cron 은 실제로 1~3시간씩 밀립니다** (2026-09-20 관측: 3시간 넘게 한 번도 안 돎).
-> 그래서 PC 가 켜져 있을 때는 Windows 작업 스케줄러 `TrendBlogFleetDispatch` 가 10분마다
-> [`scripts/fleet_dispatch.ps1`](scripts/fleet_dispatch.ps1) 을 돌려, 돌 차례인 블로그가 있을 때만 GitHub 워크플로를
-> 직접 호출합니다(글 작성은 여전히 GitHub 에서). PC 가 꺼져 있으면 GitHub cron 이 느리게라도 처리합니다.
-> 정확한 시각이 중요해지면 GitHub Actions 를 떠나 VPS 에 `scripts/fleet_local.ps1` 방식(cron)으로 옮기는 것이 정답입니다.
+블로그마다 `subject`(고유 주제)와 `pillars`(하위 축)를 정하고, [`src/planner.py`](src/planner.py) 가
+**그 주제 안에서만** 글감을 기획합니다. 실시간 검색어를 보지 않으므로 블로그 간 주제 충돌이 설계상 일어나지 않습니다.
+
+```yaml
+  - id: issuecatch1
+    content_mode: planned            # planned(기본) | trend(실시간 검색어, 비권장)
+    subject: "세금과 공제 기초"        # 다른 블로그와 겹치면 validate 가 막습니다
+    pillars: [연말정산 항목별 공제 조건, 종합소득세 신고 기초, ...]
+    audience: "연말정산을 앞두고 검색하는 직장인"
+```
+
+주제가 비어 있거나 다른 블로그와 비슷하면 `validate` 가 실행을 거부합니다. 글 수명이 길어 하루 2건으로도
+누적이 쌓이고, 실시간 이슈와 달리 몇 달 뒤에도 검색 유입이 남습니다.
+
+### 발행 안전장치 (2026-09-20 사고 이후)
+
+[`src/guard.py`](src/guard.py) 가 매 발행 직전에 **Blogger 서버에 직접** "오늘 몇 건 올렸나"를 물어 상한을 계산합니다.
+로컬 이력 파일이 깨지거나 같은 날 여러 번 실행돼도 상한을 넘을 수 없습니다.
+
+| 장치 | 값 | 무엇을 막나 |
+|---|---|---|
+| `publish.max_live_per_day` | 2 | 블로그 하나의 하루 공개 수 |
+| `fleet.max_live_per_day_account` | 6 | **계정 전체** 하루 공개 수 (구글이 보는 단위) |
+| `publish.min_gap_minutes` | 45 | 몇 분 사이 연속 발행 |
+| `fleet.own_slot_gap_minutes` | 240 | 같은 블로그 슬롯 간 간격 |
+| 이력 손상 감지 | — | 깨진 이력을 '이력 없음'으로 넘기던 문제 (사고의 직접 원인) |
+
+서버 조회가 실패하면 **발행하지 않습니다**(fail-closed). 모르는 상태에서 올리는 것이 이번 사고의 원인이었습니다.
 
 ### 블로그가 많아질 때 꼭 알아야 할 세 가지
 
-1. **같은 글을 100번 찍으면 안 됩니다.** 기본값 `share_topics: false` 는 같은 날 다른 블로그가 쓴 키워드(유사
-   포함)를 건너뜁니다(`data/fleet/claims.json`). 그리고 블로그마다 `niche` / `persona` / `include_patterns` 를
-   **다르게** 채우세요 — 경제 블로그, 스포츠 블로그, 연예 블로그처럼 나누는 것이 구글 '대량 생성 콘텍츠'
-   판정을 피하는 가장 확실한 방법입니다. 관리 에이전트가 비슷한 제목이 여러 블로그에서 나오면 경고합니다.
-2. **비용은 블로그 수에 비례합니다.** 블로그 1개 = 하루 약 $1.1 (Fable 작성 4개 + Sonnet 검수). 100개면
-   **월 약 $3,300** 입니다. 블로그별 `overrides: {writer: {model: claude-sonnet-5}}` 로 두면 1/3 로 줍니다.
-   Anthropic Console 의 사용량 한도를 함대 규모에 맞게 올려두세요. 한도에 걸리면 그날 이후 블로그는 전부 실패합니다.
-3. **GitHub Actions 무료 한도(비공개 저장소 월 2,000분)는 블로그 10개 근처에서 넘습니다.** 블로그당 하루 약
-   4분 + 10분마다 도는 실행기 오버헤드 월 약 1,500분. 셋 중 하나를 고르세요:
+1. **계정 단위 총량이 먼저 걸립니다.** 구글이 보는 단위는 블로그가 아니라 계정입니다. 2026-09-20 차단 당시
+   블로그별로는 2~8건이었지만 **계정 합계가 하루 16건**이었습니다. `max_live_per_day_account` 를 6에서 시작해
+   몇 주에 걸쳐 천천히 올리세요. 블로그를 늘려도 이 값이 먼저 막습니다.
+2. **비용은 블로그 수에 비례합니다.** 블로그 1개 = 하루 약 $0.6 (Fable 작성 2건 + Sonnet 기획·검수).
+   10개면 월 약 $180, 100개면 월 약 $1,800 입니다. 블로그별 `overrides: {writer: {model: claude-sonnet-5}}` 로
+   두면 1/3 로 줍니다. Anthropic Console 의 사용량 한도를 함대 규모에 맞게 올려두세요.
+3. **GitHub Actions 무료 한도(비공개 저장소 월 2,000분)는 블로그 10개 근처에서 넘습니다.** 셋 중 하나를 고르세요:
    - 저장소를 **공개(Public)** 로 전환 — Actions 무제한 (코드·이력만 공개되고 시크릿은 노출되지 않습니다)
    - GitHub 유료 플랜/추가 분 구매
-   - PC 에서 돌리기 — `scripts/fleet_local.ps1` 을 Windows 작업 스케줄러에 10분 간격으로 등록 (PC 가 켜져 있어야 함)
+   - PC 에서 돌리기 — `scripts/fleet_local.ps1` 을 작업 스케줄러에 등록 (PC 가 켜져 있어야 함)
+
+> **자동 dispatch 스크립트는 끄세요.** `scripts/fleet_dispatch.ps1` 을 10분마다 돌리면 GitHub cron 과 겹쳐
+> 하루 17회가 실행됩니다(2026-09-20 실제). 그게 동시 실행 → 이력 손상 → 과다 발행의 출발점이었습니다.
+> 작업 스케줄러 `TrendBlogFleetDispatch` 는 비활성 상태로 두는 것이 기본입니다.
 
 ### 관리 에이전트가 하는 일
 매일 23:35 KST 에 블로그별 7일 지표(공개/보류/거부, 비용, 검수 평균, 연속 실패, Blogger 글 수, Search Console
 클릭)를 모아 Sonnet 5 에게 넘기고, **정해진 네 가지 행동**(중지 / 재개 / 하루 글 수 ±1 / 메모) 안에서만 결정을
-받습니다. 코드가 규칙(연속 3회 실패 → 중지, 글 수 1~4, 하루 최대 5건 변경, 사람이 끈 블로그는 안 건드림)으로
+받습니다. 코드가 규칙(연속 3회 실패 → 중지, 글 수 1~2, 하루 최대 5건 변경, 사람이 끈 블로그는 안 건드림)으로
 다시 걸러 `data/fleet/manager_state.json` 에 적용합니다. 조치나 경고가 있으면 GitHub 이슈(`fleet` 라벨)가 열려
 메일이 옵니다. 모델 호출이 실패해도 규칙 기반 최소 조치는 적용됩니다.
+
+---
+
+## 2-2. Blogger 계정 교체
+
+계정이 정책 위반으로 제한되면 이의신청을 기다리는 대신 새 계정으로 옮기는 편이 빠릅니다.
+**로직·주제·설정은 그대로 두고 대상 계정만 바꿉니다.** 사람이 할 일은 구글 계정 만들기와 OAuth 승인뿐입니다.
+
+```bash
+python scripts/switch_account.py          # 전체 순서 안내
+```
+
+| 단계 | 누가 | 내용 |
+|---|---|---|
+| 1 | 사람 | 새 구글 계정으로 blogger.com 에서 블로그 생성 (**처음엔 2~3개만**) |
+| 2 | 사람 | 새 계정으로 **새 Google Cloud 프로젝트** → Blogger API 사용 설정 → OAuth 앱 게시(프로덕션) → 데스크톱 앱 클라이언트 |
+| 3 | 사람 | `.env` 의 `BLOGGER_CLIENT_ID` / `BLOGGER_CLIENT_SECRET` 를 새 값으로 교체 |
+| 4 | 사람 | `python scripts/get_blogger_token.py --full --from-env --write-env` → 브라우저에서 **새 계정으로** 승인 |
+| 5 | 자동 | `python scripts/switch_account.py --check` → `--apply` (설정 보관 → 새 블로그 등록 → 이력 초기화) |
+| 6 | 자동 | `python scripts/setup_pages.py --all` (소개·개인정보처리방침 페이지 생성) |
+| 7 | 사람 | GitHub Secrets 3개 갱신 (`copy_secret.py` 로 값 복사) |
+| 8 | 자동 | `gh workflow enable fleet.yml && gh workflow enable manager.yml` |
+
+> **기존 Cloud 프로젝트를 재사용하지 마세요.** 제한은 계정에 붙고, 같은 프로젝트의 OAuth 클라이언트를 쓰면
+> 새 블로그가 제한된 계정과 엮입니다. 프로젝트도 새로 만드는 것이 안전합니다.
+
+`--apply` 는 이전 `blogs.yaml` 과 `data/` 를 `data/archive/<시각>/` 에 보관한 뒤, 새 계정의 블로그로
+`blogs.yaml` 을 다시 쓰고 이력을 비웁니다. **주제(subject)는 이전 블로그에서 순서대로 물려받으므로**
+같은 주제 구성을 그대로 이어갈 수 있습니다.
 
 ---
 

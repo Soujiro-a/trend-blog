@@ -50,13 +50,16 @@ def _append_blog(entry: dict) -> None:
         f"    name: {json.dumps(entry['name'], ensure_ascii=False)}",
         f"    blog_id: \"{entry['blog_id']}\"",
         f"    account: {entry.get('account', 'default')}",
-        f"    slot: \"{entry['slot']}\"",
+        f"    slots: {json.dumps(entry['slots'], ensure_ascii=False)}",
         "    enabled: true",
-        f"    niche: {json.dumps(entry.get('niche', ''), ensure_ascii=False)}",
+        f"    content_mode: {entry.get('content_mode', 'planned')}",
+        f"    subject: {json.dumps(entry.get('subject', ''), ensure_ascii=False)}",
+        f"    pillars: {json.dumps(entry.get('pillars', []), ensure_ascii=False)}",
+        f"    audience: {json.dumps(entry.get('audience', ''), ensure_ascii=False)}",
         f"    persona: {json.dumps(entry.get('persona', ''), ensure_ascii=False)}",
         "    include_patterns: []",
         "    exclude_patterns: []",
-        f"    labels: {json.dumps(entry.get('labels', ['실시간이슈']), ensure_ascii=False)}",
+        f"    labels: {json.dumps(entry.get('labels', ['생활정보']), ensure_ascii=False)}",
         "    overrides: {}",
     ]
     path.write_text(text + "\n".join(lines) + "\n", encoding="utf-8")
@@ -65,7 +68,11 @@ def _append_blog(entry: dict) -> None:
 def cmd_list(_args) -> int:
     fleet = fleet_mod.load_fleet()
     print(fleet_mod.schedule_table(fleet))
-    print(f"\n{len(fleet.blogs)}개 블로그 · 켜짐 {sum(b.enabled for b in fleet.blogs)}개 · 다음 빈 슬롯 {fleet_mod.next_free_slot(fleet)}")
+    slots = sum(len(b.slots) for b in fleet.blogs if b.enabled)
+    print(
+        f"\n{len(fleet.blogs)}개 블로그 · 켜짐 {sum(b.enabled for b in fleet.blogs)}개 · "
+        f"하루 {slots}건 · 다음 빈 슬롯 {fleet_mod.next_free_slot(fleet)}"
+    )
     return 0
 
 
@@ -74,18 +81,28 @@ def cmd_add(args) -> int:
     if any(b.blog_id == args.blog_id for b in fleet.blogs):
         print(f"이미 등록된 blog_id 입니다: {args.blog_id}")
         return 1
+    posts = args.posts_per_day or int(
+        (fleet.settings.get("defaults", {}).get("run", {}) or {}).get("posts_per_run", 1)
+    ) + 1
     entry = {
         "id": args.id or _slug(args.name, {b.id for b in fleet.blogs}),
         "name": args.name,
         "blog_id": args.blog_id,
         "account": args.account,
-        "slot": args.slot or fleet_mod.next_free_slot(fleet),
-        "niche": args.niche or "",
+        "slots": args.slots.split(",") if args.slots else fleet_mod.next_free_slots(fleet, posts),
+        "subject": args.subject or "",
+        "audience": args.audience or "",
         "persona": args.persona or "",
     }
     _append_blog(entry)
-    fleet_mod.load_fleet()  # 검증
-    print(f"등록: {entry['id']} ({entry['name']}) 슬롯 {entry['slot']} KST")
+    try:
+        fleet_mod.load_fleet()  # 검증 (subject 누락·중복이면 여기서 걸립니다)
+    except ValueError as exc:
+        print(f"등록했지만 검증 실패: {exc}\n→ fleet/blogs.yaml 에서 해당 항목을 고치세요.")
+        return 1
+    print(f"등록: {entry['id']} ({entry['name']}) 슬롯 {', '.join(entry['slots'])} KST")
+    if not entry["subject"]:
+        print("  ⚠️ subject(고유 주제)가 비어 있습니다. planned 모드로 돌리려면 blogs.yaml 에서 채우세요.")
     return 0
 
 
@@ -106,14 +123,17 @@ def cmd_discover(args) -> int:
             entry = {
                 "id": _slug(it["url"].split("//")[-1].split(".")[0], {b.id for b in fleet.blogs}),
                 "name": it["name"], "blog_id": it["id"], "account": args.account,
-                "slot": fleet_mod.next_free_slot(fleet),
+                "slots": fleet_mod.next_free_slots(fleet, args.posts_per_day),
+                "content_mode": "planned",
             }
             _append_blog(entry)
             added += 1
-            print(f"      → 등록: {entry['id']} 슬롯 {entry['slot']}")
-    if args.add:
-        fleet_mod.load_fleet()
-        print(f"\n{added}개 등록됨. persona/niche 는 blogs.yaml 에서 블로그마다 다르게 채워 주세요.")
+            print(f"      → 등록: {entry['id']} 슬롯 {', '.join(entry['slots'])}")
+    if args.add and added:
+        print(
+            f"\n{added}개 등록됨. **blogs.yaml 에서 블로그마다 subject(고유 주제)를 채워야** 실행됩니다.\n"
+            "  주제가 비어 있거나 다른 블로그와 겹치면 validate 가 막습니다."
+        )
     return 0
 
 
@@ -130,24 +150,39 @@ def _toggle(blog_id: str, enabled: bool) -> int:
 
 def cmd_validate(_args) -> int:
     fleet = fleet_mod.load_fleet()
-    print(f"OK — 블로그 {len(fleet.blogs)}개, 슬롯 간격 ≥ {fleet.step}분, 계정 {', '.join(fleet.accounts)}")
+    slots = sum(len(b.slots) for b in fleet.blogs if b.enabled)
+    print(
+        f"OK — 블로그 {len(fleet.blogs)}개, 하루 {slots}건, 슬롯 간격 ≥ {fleet.step}분, "
+        f"주제 중복 없음, 계정 {', '.join(fleet.accounts)}"
+    )
     return 0
 
 
 def cmd_status(_args) -> int:
     fleet = fleet_mod.load_fleet()
-    print("| 블로그 | 슬롯 | 오늘 실행 | 7일 공개/보류/거부 | 7일 비용 | 마지막 결과 |")
+    print("| 블로그 | 슬롯 | 오늘 완료 | 7일 공개/보류/거부 | 7일 비용 | 마지막 결과 |")
     print("|---|---|---|---|---:|---|")
+    today_str = datetime.now(KST).strftime("%Y-%m-%d")
     for b in sorted(fleet.blogs, key=lambda b: b.slot_minutes):
         runs = fleet_mod.load_runs(b)
-        today = runs.get(f"trend:{datetime.now(KST).strftime('%Y-%m-%d')}")
-        hist = state.recent(state.load(b.history_path), 7)
+        done = sum(
+            1 for s in b.slots
+            if any(f"{m}:{today_str}:{s}" in runs for m in ("planned", "trend", "evergreen"))
+        )
+        try:
+            hist = state.recent(state.load(b.history_path), 7)
+        except state.HistoryCorrupted as exc:
+            print(f"| {b.name} ({b.id}) | {', '.join(b.slots)} | ⚠️ | **이력 손상** | - | {str(exc)[:60]} |")
+            continue
         live = sum(h.get("status") == "live" for h in hist)
         draft = sum(h.get("status") == "draft" for h in hist)
         rej = sum(h.get("status") == "rejected" for h in hist)
         cost = sum(float(h.get("cost_usd") or 0) for h in hist)
         last = sorted(runs.items())[-1][1]["summary"] if runs else "-"
-        print(f"| {b.name} ({b.id}) | {b.slot} | {'✅' if today and today['ok'] else ('❌' if today else '-')} | {live}/{draft}/{rej} | ${cost:.2f} | {last[:60]} |")
+        print(
+            f"| {b.name} ({b.id}) | {', '.join(b.slots)} | {done}/{len(b.slots)} | "
+            f"{live}/{draft}/{rej} | ${cost:.2f} | {last[:60]} |"
+        )
     return 0
 
 
@@ -162,14 +197,17 @@ def main() -> int:
     a.add_argument("--name", required=True)
     a.add_argument("--blog-id", required=True)
     a.add_argument("--id")
-    a.add_argument("--slot")
+    a.add_argument("--slots", help="쉼표로 구분한 시각들 (예: 06:20,15:00). 비우면 자동 배정")
+    a.add_argument("--posts-per-day", type=int, help="자동 배정할 슬롯 수 (기본 2)")
     a.add_argument("--account", default="default")
-    a.add_argument("--niche")
+    a.add_argument("--subject", help="이 블로그만의 고유 주제 (planned 모드 필수)")
+    a.add_argument("--audience")
     a.add_argument("--persona")
     a.set_defaults(fn=cmd_add)
     d = sub.add_parser("discover")
     d.add_argument("--add", action="store_true")
     d.add_argument("--account", default="default")
+    d.add_argument("--posts-per-day", type=int, default=2)
     d.set_defaults(fn=cmd_discover)
     e = sub.add_parser("enable"); e.add_argument("blog"); e.set_defaults(fn=lambda a: _toggle(a.blog, True))
     x = sub.add_parser("disable"); x.add_argument("blog"); x.set_defaults(fn=lambda a: _toggle(a.blog, False))

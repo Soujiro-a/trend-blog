@@ -26,7 +26,7 @@ import yaml
 from .config import DATA_DIR, ROOT
 from .state import KST
 from .trends import Candidate
-from .trends.base import similarity
+from .trends.base import normalize, similarity
 
 log = logging.getLogger(__name__)
 
@@ -41,9 +41,18 @@ class Blog:
     id: str
     name: str
     blog_id: str
-    slot: str = "04:30"
+    # 하루에 이 블로그가 글을 올리는 시각들. 슬롯 하나당 글 1건입니다.
+    # 여러 건을 한 번에 몰아 올리면(2026-09-20: 2분 30초에 3건) 자동 스팸 신호로 잡히므로
+    # 하루 2건이면 아침·오후로 나눠 slots 를 두 개 둡니다.
+    slots: list[str] = field(default_factory=lambda: ["06:20"])
     account: str = "default"
     enabled: bool = True
+    # 2026-09-20 사고 이후 기본 운영 방식. planned: 블로그 고유 주제 안에서 글감을 기획(권장).
+    # trend: 실시간 검색어 추종(블로그 간 주제 충돌 위험이 구조적으로 남아 기본값에서 제외).
+    content_mode: str = "planned"
+    subject: str = ""                                   # 이 블로그만의 고유 주제 (다른 블로그와 겹치면 안 됨)
+    pillars: list[str] = field(default_factory=list)    # 주제를 나눈 하위 축
+    audience: str = ""                                  # 누가 읽는지
     niche: str = ""
     persona: str = ""
     include_patterns: list[str] = field(default_factory=list)
@@ -69,9 +78,22 @@ class Blog:
         return self.dir / "runs.json"
 
     @property
+    def slot(self) -> str:
+        """첫 슬롯. 표·보고서에서 블로그를 정렬·표시할 때 씁니다."""
+        return self.slots[0] if self.slots else "06:20"
+
+    @property
     def slot_minutes(self) -> int:
-        h, m = self.slot.split(":")
-        return int(h) * 60 + int(m)
+        return to_minutes(self.slot)
+
+
+def to_minutes(hhmm: str) -> int:
+    h, m = hhmm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def to_hhmm(minutes: int) -> str:
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
 @dataclass
@@ -118,6 +140,13 @@ def save_manager_state(state: dict, path: Path = MANAGER_STATE_PATH) -> None:
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _read_slots(entry: dict, settings: dict) -> list[str]:
+    """slots(목록) 우선, 없으면 옛 slot(단수) 도 받습니다."""
+    raw = entry.get("slots") or entry.get("slot") or settings.get("slot_start", "06:20")
+    slots = [str(raw)] if isinstance(raw, str) else [str(s) for s in raw]
+    return sorted(dict.fromkeys(slots), key=to_minutes)
+
+
 def load_fleet(path: Path = FLEET_PATH, manager_state: dict | None = None) -> Fleet:
     with path.open(encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
@@ -132,9 +161,13 @@ def load_fleet(path: Path = FLEET_PATH, manager_state: dict | None = None) -> Fl
             id=str(entry["id"]),
             name=str(entry.get("name", entry["id"])),
             blog_id=str(entry["blog_id"]),
-            slot=str(entry.get("slot", settings.get("slot_start", "04:30"))),
+            slots=_read_slots(entry, settings),
             account=str(entry.get("account", "default")),
             enabled=bool(entry.get("enabled", True)),
+            content_mode=str(entry.get("content_mode", "planned")),
+            subject=str(entry.get("subject") or ""),
+            pillars=list(entry.get("pillars") or []),
+            audience=str(entry.get("audience") or ""),
             niche=str(entry.get("niche") or ""),
             persona=str(entry.get("persona") or ""),
             include_patterns=list(entry.get("include_patterns") or []),
@@ -162,30 +195,75 @@ def validate(fleet: Fleet) -> None:
     blog_ids = [b.blog_id for b in fleet.blogs]
     if len(blog_ids) != len(set(blog_ids)):
         raise ValueError("blogs.yaml 에 blog_id 가 중복됩니다")
+    subjects: dict[str, str] = {}  # subject -> blog id
     for b in fleet.blogs:
         if b.account not in fleet.accounts:
             raise ValueError(f"{b.id}: 계정 '{b.account}' 이(가) accounts 에 없습니다")
-        h, m = b.slot.split(":")
-        if not (0 <= int(h) < 24 and 0 <= int(m) < 60):
-            raise ValueError(f"{b.id}: 슬롯 형식 오류 '{b.slot}'")
-    slots = sorted(b.slot_minutes for b in fleet.blogs if b.enabled)
-    for a, c in zip(slots, slots[1:]):
+        if not b.slots:
+            raise ValueError(f"{b.id}: 슬롯이 없습니다")
+        for s in b.slots:
+            try:
+                mins = to_minutes(s)
+            except ValueError as exc:
+                raise ValueError(f"{b.id}: 슬롯 형식 오류 '{s}'") from exc
+            if not (0 <= mins < 24 * 60):
+                raise ValueError(f"{b.id}: 슬롯 범위 오류 '{s}'")
+        if b.content_mode not in ("planned", "trend"):
+            raise ValueError(f"{b.id}: content_mode 는 planned 또는 trend 여야 합니다 ('{b.content_mode}')")
+        if b.enabled and b.content_mode == "planned":
+            if not b.subject:
+                raise ValueError(f"{b.id}: planned 모드에는 subject(고유 주제)가 필요합니다")
+            # 주제가 겹치면 블로그를 나눈 의미가 없고, 중복 콘텐츠 위험이 그대로 돌아옵니다.
+            # 어순만 바꾼 주제도 같은 것으로 봅니다.
+            for prev_subject, prev_id in subjects.items():
+                if similarity(b.subject, prev_subject) >= 0.7:
+                    raise ValueError(
+                        f"{b.id}: subject '{b.subject}' 가 {prev_id} 의 '{prev_subject}' 와 겹칩니다 "
+                        "— 블로그마다 다른 주제를 쓰세요"
+                    )
+            subjects[b.subject] = b.id
+    # 함대 전체의 모든 슬롯이 서로 step 분 이상 떨어져 있어야 합니다.
+    # 여러 블로그가 같은 시각에 올리면 계정 전체가 한꺼번에 움직이는 것으로 보입니다.
+    all_slots = sorted((to_minutes(s), b.id) for b in fleet.blogs if b.enabled for s in b.slots)
+    for (a, ida), (c, idc) in zip(all_slots, all_slots[1:]):
         if c - a < fleet.step:
-            raise ValueError(f"슬롯 간격이 {fleet.step}분보다 좁습니다: {a // 60:02d}:{a % 60:02d} 와 {c // 60:02d}:{c % 60:02d}")
+            raise ValueError(
+                f"슬롯 간격이 {fleet.step}분보다 좁습니다: {ida} {to_hhmm(a)} 와 {idc} {to_hhmm(c)}"
+            )
 
 
 # ---------------------------------------------------------------- 슬롯
 
-def next_free_slot(fleet: Fleet) -> str:
-    """기존 슬롯과 step 이상 떨어진 가장 이른 빈 슬롯."""
-    start_h, start_m = str(fleet.settings.get("slot_start", "04:30")).split(":")
-    t = int(start_h) * 60 + int(start_m)
-    taken = sorted(b.slot_minutes for b in fleet.blogs)
-    while any(abs(t - s) < fleet.step for s in taken):
+def next_free_slots(fleet: Fleet, count: int = 1, extra_taken: list[str] | None = None) -> list[str]:
+    """빈 슬롯을 count 개 찾습니다. 기존 슬롯 전부와 step 분 이상 떨어뜨립니다.
+
+    같은 블로그의 슬롯끼리는 min_gap_minutes 이상 벌려, 하루치 글이 몇 분 안에 몰리지 않게 합니다.
+    """
+    start = to_minutes(str(fleet.settings.get("slot_start", "06:20")))
+    end = to_minutes(str(fleet.settings.get("slot_end", "21:00")))
+    own_gap = int(fleet.settings.get("own_slot_gap_minutes", 240))
+    taken = [to_minutes(s) for b in fleet.blogs for s in b.slots]
+    taken += [to_minutes(s) for s in (extra_taken or [])]
+
+    out: list[str] = []
+    mine: list[int] = [to_minutes(s) for s in (extra_taken or [])]
+    t = start
+    while len(out) < count:
+        if t > end:
+            raise ValueError(
+                f"슬롯이 다 찼습니다 ({fleet.settings.get('slot_start')}~{fleet.settings.get('slot_end')}, "
+                f"간격 {fleet.step}분). slot_end 를 늘리거나 slot_step_minutes 를 줄이세요."
+            )
+        if all(abs(t - s) >= fleet.step for s in taken) and all(abs(t - s) >= own_gap for s in mine):
+            out.append(to_hhmm(t))
+            taken.append(t)
+            mine.append(t)
         t += fleet.step
-        if t >= 24 * 60:
-            raise ValueError("하루에 넣을 수 있는 슬롯이 다 찼습니다 (slot_step_minutes 를 줄이세요)")
-    return f"{t // 60:02d}:{t % 60:02d}"
+    return out
+
+
+def next_free_slot(fleet: Fleet) -> str:
+    return next_free_slots(fleet, 1)[0]
 
 
 def load_runs(blog: Blog) -> dict:
@@ -197,10 +275,10 @@ def load_runs(blog: Blog) -> dict:
         return {}
 
 
-def mark_ran(blog: Blog, mode: str, ok: bool, summary: str, now: datetime | None = None) -> None:
+def mark_ran(blog: Blog, mode: str, ok: bool, summary: str, now: datetime | None = None, slot: str | None = None) -> None:
     now = now or datetime.now(KST)
     runs = load_runs(blog)
-    key = f"{mode}:{now.strftime('%Y-%m-%d')}"
+    key = _run_key(mode, now, slot)
     runs[key] = {"at": now.isoformat(timespec="seconds"), "ok": ok, "summary": summary[:300]}
     # 최근 60일만 유지
     keep = sorted(runs.keys())[-120:]
@@ -209,30 +287,51 @@ def mark_ran(blog: Blog, mode: str, ok: bool, summary: str, now: datetime | None
     blog.runs_path.write_text(json.dumps(runs, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def ran_today(blog: Blog, mode: str, now: datetime | None = None) -> bool:
+def _run_key(mode: str, now: datetime, slot: str | None) -> str:
+    base = f"{mode}:{now.strftime('%Y-%m-%d')}"
+    return f"{base}:{slot}" if slot else base
+
+
+def ran_today(blog: Blog, mode: str, now: datetime | None = None, slot: str | None = None) -> bool:
     now = now or datetime.now(KST)
-    return f"{mode}:{now.strftime('%Y-%m-%d')}" in load_runs(blog)
+    runs = load_runs(blog)
+    if slot is None:
+        # 슬롯을 안 주면 "오늘 한 번이라도 돌았나"
+        prefix = f"{mode}:{now.strftime('%Y-%m-%d')}"
+        return any(k == prefix or k.startswith(prefix + ":") for k in runs)
+    return _run_key(mode, now, slot) in runs
 
 
-def due_blogs(fleet: Fleet, now: datetime | None = None, mode: str = "trend") -> list[Blog]:
-    """지금 실행해야 할 블로그. 슬롯 순서대로.
+def due_slots(fleet: Fleet, now: datetime | None = None, mode: str = "planned") -> list[tuple[Blog, str]]:
+    """지금 처리해야 할 (블로그, 슬롯) 목록. 슬롯 시각 순서대로.
 
-    catch_up 이 켜져 있으면 '슬롯이 지났고 오늘 아직 안 돈' 블로그 전부, 꺼져 있으면
-    슬롯이 현재 10분 창 안에 있는 블로그만.
+    슬롯 하나 = 글 한 건입니다. catch_up 이 켜져 있으면 '시각이 지났고 아직 안 돈' 슬롯 전부,
+    꺼져 있으면 현재 step 분 창 안의 슬롯만.
     """
     now = now or datetime.now(KST)
     minute_now = now.hour * 60 + now.minute
     catch_up = bool(fleet.settings.get("catch_up", True))
-    due = []
-    for b in sorted(fleet.blogs, key=lambda b: b.slot_minutes):
-        if not b.enabled or ran_today(b, mode, now):
+    due: list[tuple[int, Blog, str]] = []
+    for b in fleet.blogs:
+        if not b.enabled:
             continue
-        if catch_up:
-            if b.slot_minutes <= minute_now:
-                due.append(b)
-        elif b.slot_minutes <= minute_now < b.slot_minutes + fleet.step:
-            due.append(b)
-    return due
+        for s in b.slots:
+            if ran_today(b, mode, now, s):
+                continue
+            mins = to_minutes(s)
+            if (mins <= minute_now) if catch_up else (mins <= minute_now < mins + fleet.step):
+                due.append((mins, b, s))
+    return [(b, s) for _, b, s in sorted(due, key=lambda x: x[0])]
+
+
+def due_blogs(fleet: Fleet, now: datetime | None = None, mode: str = "planned") -> list[Blog]:
+    """due_slots 의 블로그만. 같은 블로그가 여러 슬롯이면 중복 없이 한 번."""
+    seen, out = set(), []
+    for b, _ in due_slots(fleet, now, mode):
+        if b.id not in seen:
+            seen.add(b.id)
+            out.append(b)
+    return out
 
 
 # ---------------------------------------------------------------- 실행 컨텍스트
@@ -374,8 +473,10 @@ def claim(claims: dict, blog: Blog, keyword: str, now: datetime | None = None) -
 # ---------------------------------------------------------------- 표시용
 
 def schedule_table(fleet: Fleet) -> str:
-    lines = ["| 슬롯(KST) | id | 이름 | 상태 | 글/일 | 비고 |", "|---|---|---|---|---:|---|"]
+    lines = ["| 슬롯(KST) | id | 이름 | 상태 | 글/일 | 주제 |", "|---|---|---|---|---:|---|"]
     for b in sorted(fleet.blogs, key=lambda b: b.slot_minutes):
-        ppr = (b.overrides.get("run", {}) or {}).get("posts_per_run") or (fleet.settings.get("defaults", {}).get("run", {}) or {}).get("posts_per_run", "-")
-        lines.append(f"| {b.slot} | {b.id} | {b.name} | {'켜짐' if b.enabled else '꺼짐'} | {ppr} | {b.manager_note or b.niche} |")
+        lines.append(
+            f"| {', '.join(b.slots)} | {b.id} | {b.name} | {'켜짐' if b.enabled else '꺼짐'} | "
+            f"{len(b.slots)} | {b.manager_note or b.subject or b.niche} |"
+        )
     return "\n".join(lines)

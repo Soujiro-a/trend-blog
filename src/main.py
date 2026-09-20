@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import evergreen, filters, monetize, publishers, research, reviewer, state, trends, writer
+from . import evergreen, filters, guard, monetize, planner, publishers, research, reviewer, state, trends, writer
 from . import fleet as fleet_mod
 from .config import DATA_DIR, load_config
 from .state import KST
@@ -48,8 +48,12 @@ class RunContext:
         if not self.blog:
             return ""
         parts = []
-        if self.blog.niche:
+        if self.blog.subject:
+            parts.append(f"이 블로그의 주제: {self.blog.subject}")
+        elif self.blog.niche:
             parts.append(f"이 블로그의 주제 영역: {self.blog.niche}")
+        if self.blog.audience:
+            parts.append(f"읽는 사람: {self.blog.audience}")
         if self.blog.persona:
             parts.append(self.blog.persona)
         return "\n".join(parts)
@@ -85,19 +89,30 @@ def _write_report(ctx: RunContext, lines: list[str]) -> None:
     log.info("실행 보고서: %s", ctx.report_path)
 
 
-def decide(cfg: dict, review: reviewer.Review | None, live_so_far: int, force_draft: bool) -> str:
-    """검수 결과와 상한을 보고 live / draft / reject 를 정합니다."""
+def decide(
+    cfg: dict,
+    review: reviewer.Review | None,
+    live_so_far: int,
+    force_draft: bool,
+    live_cap: int | None = None,
+) -> str:
+    """검수 결과와 상한을 보고 live / draft / reject 를 정합니다.
+
+    live_cap 은 서버 기준으로 계산된 '오늘 더 공개해도 되는 수'입니다(src/guard.py).
+    넘기지 않으면 config 의 하루 상한을 씁니다.
+    """
     pub = cfg["publish"]
+    cap = live_cap if live_cap is not None else int(pub.get("max_live_per_day", pub.get("max_live_per_run", 2)))
     if review is not None and review.verdict == "reject":
         return "reject"
     if force_draft or pub.get("mode", "draft") != "auto" or pub.get("draft_only", False):
         return "draft"
+    if live_so_far >= cap:
+        return "draft"
     if review is None:
         # 검수를 끈 상태에서 auto 모드 → 그대로 공개 (사용자가 의도적으로 껐다고 봅니다)
-        return "live" if live_so_far < pub.get("max_live_per_run", 3) else "draft"
+        return "live"
     if not review.approved(cfg["review"].get("min_score", 80)):
-        return "draft"
-    if live_so_far >= pub.get("max_live_per_run", 3):
         return "draft"
     return "live"
 
@@ -152,6 +167,29 @@ def _collect_trend_candidates(cfg: dict, ctx: RunContext, report: list[str]) -> 
     return fresh
 
 
+def _collect_planned_candidates(cfg: dict, ctx: RunContext, report: list[str]) -> list[trends.Candidate]:
+    """블로그 고유 주제 안에서 글감을 기획합니다 (2026-09-20 이후 기본 방식).
+
+    실시간 검색어를 보지 않으므로 블로그 간 주제 충돌이 설계상 일어나지 않습니다.
+    """
+    if ctx.blog is None:
+        raise ValueError("planned 모드는 --blog 로 블로그를 지정해야 합니다 (주제가 블로그에 붙어 있습니다)")
+    history = state.load(ctx.history_path)
+    proposed = planner.propose(cfg, ctx.blog, history)
+    fresh, skipped = state.filter_seen(cfg, proposed, history)
+
+    report.append(f"## 글감 기획 — {ctx.blog.subject}")
+    for c in fresh:
+        why = f" — {c.headline_hits[0]}" if c.headline_hits else ""
+        report.append(f"- **{c.keyword}**{why}")
+    if skipped:
+        report.append("")
+        report.append("## 이미 다뤄서 건너뛴 글감")
+        report += [f"- {k} (이전: {prev})" for k, prev in skipped[:10]]
+    report.append("")
+    return fresh
+
+
 def _collect_evergreen_candidates(cfg: dict, ctx: RunContext, report: list[str]) -> list[trends.Candidate]:
     history = state.load(ctx.history_path)
     proposed = evergreen.propose(cfg, history)
@@ -197,32 +235,60 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="키워드 수집·필터까지만 실행")
     parser.add_argument("--target", choices=sorted(publishers.TARGETS), help="발행 대상 덮어쓰기")
     parser.add_argument("--count", type=int, help="작성할 글 개수 덮어쓰기")
-    parser.add_argument("--mode", choices=["trend", "evergreen"], default="trend", help="trend: 실시간 이슈 / evergreen: 장수 해설")
+    parser.add_argument(
+        "--mode",
+        choices=["auto", "planned", "trend", "evergreen"],
+        default="auto",
+        help="auto: 블로그의 content_mode 를 따름(기본) / planned: 고유 주제 기획 / trend: 실시간 검색어 / evergreen: 장수 해설",
+    )
     parser.add_argument("--draft", action="store_true", help="검수 결과와 무관하게 전부 임시저장")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
     _setup_logging(args.verbose)
     cfg = load_config()
-    ctx, cfg = _build_context(args.blog, cfg)
+    try:
+        ctx, cfg = _build_context(args.blog, cfg)
+    except state.HistoryCorrupted as exc:
+        log.error("%s", exc)
+        return 1
 
     target_name = args.target or cfg["publish"]["target"]
     mode = args.mode
+    if mode == "auto":
+        mode = ctx.blog.content_mode if ctx.blog else "trend"
     if mode == "evergreen":
         want = args.count or cfg["evergreen"]["posts_per_run"]
         labels_cfg = {**cfg, "publish": {**cfg["publish"], "default_labels": cfg["evergreen"].get("default_labels", [])}}
     else:
         want = args.count or cfg["run"]["posts_per_run"]
         labels_cfg = cfg
+    mode_label = {"planned": "주제 기획", "trend": "실시간 이슈", "evergreen": "장수 글"}.get(mode, mode)
     now = datetime.now(KST)
     date_str = now.strftime("%Y년 %m월 %d일")
     review_on = cfg.get("review", {}).get("enabled", True)
 
     title_blog = f" · {ctx.blog.name}" if ctx.blog else ""
     report = [
-        f"# 실행 보고 — {now.strftime('%Y-%m-%d %H:%M')} KST ({'장수 글' if mode == 'evergreen' else '실시간 이슈'}{title_blog})",
+        f"# 실행 보고 — {now.strftime('%Y-%m-%d %H:%M')} KST ({mode_label}{title_blog})",
         "",
     ]
+
+    # 0) 발행 여유 확인 — 로컬 이력이 아니라 Blogger 서버에 직접 묻습니다.
+    #    2026-09-20 사고(로컬 이력 손상 → 상한 해제 → 하루 8건 → API 차단) 재발 방지의 핵심입니다.
+    budget = None
+    if target_name == "blogger" and not args.dry_run:
+        budget = guard.daily_budget(cfg, ctx.blog.blog_id if ctx.blog else None, now)
+        if budget.blocked and not args.draft:
+            log.warning("발행하지 않습니다: %s", budget.reason)
+            report.append(f"- ⛔ 발행 보류 — {budget.reason}")
+            _write_report(ctx, report)
+            return 0
+        want = min(want, budget.allowed) if not args.draft else want
+        report.append(
+            f"오늘 이 블로그 공개 {budget.already_today}건 / 상한 {budget.daily_cap}건 → 이번 실행 최대 {want}건"
+        )
+        report.append("")
 
     # 1) 후보
     if mode == "evergreen":
@@ -231,6 +297,12 @@ def main(argv: list[str] | None = None) -> int:
             _write_report(ctx, report + ["- dry-run: 장수 모드는 확인할 것이 없습니다."])
             return 0
         fresh = _collect_evergreen_candidates(cfg, ctx, report)
+    elif mode == "planned":
+        if args.dry_run:
+            log.info("--dry-run: 글감 기획은 모델 호출이 필요해 건너뜁니다.")
+            _write_report(ctx, report + ["- dry-run: 기획 모드는 확인할 것이 없습니다."])
+            return 0
+        fresh = _collect_planned_candidates(cfg, ctx, report)
     else:
         fresh = _collect_trend_candidates(cfg, ctx, report)
         if fresh is None:
@@ -295,7 +367,7 @@ def main(argv: list[str] | None = None) -> int:
             fleet_mod.claim(ctx.claims, ctx.blog, candidate.keyword, now)
             fleet_mod.save_claims(ctx.claims)
 
-        decision = decide(cfg, rv, live, args.draft)
+        decision = decide(cfg, rv, live, args.draft, budget.allowed if budget else None)
         score_txt = f"검수 {rv.score}점" if rv else "검수 없음"
         issues_txt = f" — {'; '.join(rv.issues[:2])}" if rv and rv.issues else ""
 
@@ -311,6 +383,15 @@ def main(argv: list[str] | None = None) -> int:
             continue
 
         extras: list[str] = []
+        if decision == "live" and target_name == "blogger":
+            # 몇 분 사이에 여러 건이 올라가는 패턴을 막습니다. 9/19 에 한 블로그가
+            # 2분 30초에 3건을 올린 것이 자동 스팸 신호로 잡혔습니다.
+            # 슬롯이 이미 몇 시간씩 벌어져 있으므로 여기 걸리면 기다리지 않고 임시저장으로 돌립니다.
+            gap_ok, gap_why = guard.min_gap_ok(cfg, ctx.blog.blog_id if ctx.blog else None)
+            if not gap_ok:
+                log.info("[%s] 발행 간격 미확보로 임시저장 — %s", candidate.keyword, gap_why)
+                issues_txt += f" · {gap_why}"
+                decision = "draft"
         if decision == "live" and rv is not None:
             extras = monetize.apply(cfg, article, rv)
 

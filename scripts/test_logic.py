@@ -254,9 +254,104 @@ def test_reviewer_parse(cfg: dict) -> None:
     check("검수 비용 계산", abs(rv3.cost_usd - (10000 * 2 + 500 * 10) / 1e6) < 1e-9)
 
 
+def fm_for_guard():
+    """계정 상한 테스트용 소형 함대 (블로그 2개, 계정 상한 6)."""
+    from src import fleet as fm
+    return fm.Fleet(
+        {"max_live_per_day_account": 6},
+        {"default": {}},
+        [fm.Blog(id="a", name="a", blog_id="1", subject="가"),
+         fm.Blog(id="b", name="b", blog_id="2", subject="나")],
+    )
+
+
+def test_guard(cfg: dict) -> None:
+    section("발행 안전장치 (서버 기준 상한)")
+    from src import guard
+    from datetime import datetime, timezone, timedelta
+    kst = timezone(timedelta(hours=9))
+    now = datetime(2026, 9, 21, 10, 0, tzinfo=kst)
+    g = {**cfg, "publish": {**cfg["publish"], "max_live_per_day": 2}}
+
+    import src.publishers.blogger as bl
+    orig = bl.published_since
+    try:
+        bl.published_since = lambda *a, **k: 0
+        b = guard.daily_budget(g, "1", now)
+        check("오늘 0건 → 2건 허용", b.allowed == 2 and not b.blocked)
+        bl.published_since = lambda *a, **k: 2
+        b = guard.daily_budget(g, "1", now)
+        check("상한 도달 → 차단", b.blocked and "2건" in b.reason, b.reason)
+        bl.published_since = lambda *a, **k: 5   # 이미 초과된 상태(사고 상황)
+        check("이미 초과면 음수 아닌 0", guard.daily_budget(g, "1", now).allowed == 0)
+        def boom(*a, **k): raise RuntimeError("네트워크 오류")
+        bl.published_since = boom
+        b = guard.daily_budget(g, "1", now)
+        check("서버 확인 실패 → 발행 안 함 (fail-closed)", b.blocked and b.already_today == -1)
+
+        # 계정 전체 상한 — 블로그를 늘려도 이게 먼저 막습니다
+        fl = fm_for_guard()
+        bl.published_since = lambda *a, **k: 2   # 블로그마다 2건
+        ab = guard.account_budget(fl, {}, now)
+        check("계정 합계로 계산", ab.already_today == 4 and ab.allowed == 2, f"{ab.already_today}/{ab.allowed}")
+        bl.published_since = lambda *a, **k: 3
+        check("계정 상한 도달 → 차단", guard.account_budget(fl, {}, now).blocked)
+        bl.published_since = boom
+        check("한 블로그라도 확인 실패 → 계정 전체 보류", guard.account_budget(fl, {}, now).blocked)
+
+        gap = {**cfg, "publish": {**cfg["publish"], "min_gap_minutes": 45}}
+        bl.published_since = lambda *a, **k: 1
+        ok, why = guard.min_gap_ok(gap, "1", now)
+        check("최근 발행 있으면 간격 미확보", not ok and "45분" in why, why)
+        bl.published_since = lambda *a, **k: 0
+        check("최근 발행 없으면 통과", guard.min_gap_ok(gap, "1", now)[0])
+        nogap = {**cfg, "publish": {**cfg["publish"], "min_gap_minutes": 0}}
+        check("간격 0이면 항상 통과", guard.min_gap_ok(nogap, "1", now)[0])
+    finally:
+        bl.published_since = orig
+
+
+def test_history_guard() -> None:
+    section("이력 손상 감지 (사고 재발 방지)")
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "history.json"
+        p.write_text('[{"keyword":"가","posted_at":"2026-09-20T10:00:00+09:00"}]', encoding="utf-8")
+        check("정상 파일은 읽힘", len(state.load(p)) == 1)
+
+        p.write_text('[{"keyword":"가"},\n<<<<<<< Updated upstream\n{"keyword":"나"}\n=======\n{"keyword":"다"}\n>>>>>>> x\n]', encoding="utf-8")
+        try:
+            state.load(p)
+            check("깃 충돌 마커 → 예외", False, "조용히 넘어감 — 이게 사고 원인이었음")
+        except state.HistoryCorrupted:
+            check("깃 충돌 마커 → 예외", True)
+
+        p.write_text('{"not": "a list"}', encoding="utf-8")
+        try:
+            state.load(p)
+            check("목록이 아니면 예외", False)
+        except state.HistoryCorrupted:
+            check("목록이 아니면 예외", True)
+
+        p.write_text("깨진 내용 {{{", encoding="utf-8")
+        try:
+            state.load(p)
+            check("파싱 실패 → 예외", False)
+        except state.HistoryCorrupted:
+            check("파싱 실패 → 예외", True)
+
+        check("파일이 없으면 빈 이력", state.load(Path(tmp) / "none.json") == [])
+
+        # 저장은 원자적이어야 합니다 (반쪽 파일이 남으면 다음 실행이 멈춥니다)
+        state.save([{"keyword": "가", "posted_at": "2026-09-21T00:00:00+09:00"}], p)
+        check("저장 후 다시 읽힘", len(state.load(p)) == 1)
+        check("임시 파일이 남지 않음", not (Path(tmp) / "history.json.tmp").exists())
+
+
 def test_decide(cfg: dict) -> None:
     section("공개 판정")
-    auto = {**cfg, "publish": {**cfg["publish"], "mode": "auto", "max_live_per_run": 2},
+    auto = {**cfg, "publish": {**cfg["publish"], "mode": "auto", "max_live_per_day": 2},
             "review": {**cfg["review"], "min_score": 80}}
     ok = reviewer.Review(verdict="publish", score=85)
     low = reviewer.Review(verdict="publish", score=70)
@@ -268,6 +363,8 @@ def test_decide(cfg: dict) -> None:
     check("hold → 임시저장", decide(auto, hold, 0, False) == "draft")
     check("reject → 올리지 않음", decide(auto, bad, 0, False) == "reject")
     check("하루 상한 초과 → 임시저장", decide(auto, ok, 2, False) == "draft")
+    check("서버 기준 여유가 0이면 임시저장", decide(auto, ok, 0, False, live_cap=0) == "draft")
+    check("서버 기준 여유만큼만 공개", decide(auto, ok, 1, False, live_cap=2) == "live")
     check("--draft 강제", decide(auto, ok, 0, True) == "draft")
     check("--draft 라도 reject 는 reject", decide(auto, bad, 0, True) == "reject")
 
@@ -321,7 +418,14 @@ def test_config_shape(cfg: dict) -> None:
     section("설정 형식")
     check("review 섹션", cfg["review"]["model"].startswith("claude-") and 0 < cfg["review"]["min_score"] <= 100)
     check("publish.mode", cfg["publish"]["mode"] in ("auto", "draft"))
-    check("공개 상한 3 이하", 1 <= cfg["publish"]["max_live_per_run"] <= 3, "대량 생성 정책 위험")
+    # 2026-09-20 사고: 하루 8건 발행 → 계정 API 차단. 상한을 다시 올리지 못하게 테스트로 고정합니다.
+    check("하루 공개 상한 2 이하", 1 <= cfg["publish"]["max_live_per_day"] <= 2, "대량 생성 정책 위험")
+    check("작성 수 2 이하", 1 <= cfg["run"]["posts_per_run"] <= 2)
+    check("발행 간격 설정 있음", cfg["publish"].get("min_gap_minutes", 0) >= 30)
+    check("글 작성 모델은 Fable", cfg["writer"]["model"] == "claude-fable-5-1", cfg["writer"]["model"])
+    check("검수·기획·관리는 Sonnet",
+          cfg["review"]["model"] == cfg["planner"]["model"] == cfg["manager"]["model"] == "claude-sonnet-5")
+    check("planner 섹션", cfg["planner"]["candidates"] >= 3)
     check("evergreen 섹션", cfg["evergreen"]["posts_per_run"] >= 1)
     check("monetize.coupang 섹션", isinstance(cfg["monetize"]["coupang"]["enabled"], bool))
     check("검수 모델 비용표에 있음", cfg["review"]["model"] in writer.PRICES)
@@ -336,30 +440,43 @@ def test_fleet(cfg: dict) -> None:
 
     kst = timezone(timedelta(hours=9))
     fleet = fm.load_fleet()
-    check("blogs.yaml 로딩·검증", len(fleet.blogs) >= 1 and fleet.step == 10)
+    check("blogs.yaml 로딩·검증", len(fleet.blogs) >= 1 and fleet.step >= 10)
     nxt = fm.next_free_slot(fleet)
-    taken = [b.slot_minutes for b in fleet.blogs]
-    h, m = nxt.split(":")
-    check("다음 빈 슬롯은 기존과 10분 이상 차이", all(abs(int(h) * 60 + int(m) - t) >= 10 for t in taken), nxt)
+    taken = [fm.to_minutes(s) for b in fleet.blogs for s in b.slots]
+    check("다음 빈 슬롯은 기존 모든 슬롯과 간격 확보", all(abs(fm.to_minutes(nxt) - t) >= fleet.step for t in taken), nxt)
+    check("블로그마다 슬롯이 여러 개", all(len(b.slots) >= 1 for b in fleet.blogs))
+    check("같은 블로그 슬롯끼리 몇 시간 벌어짐",
+          all(fm.to_minutes(b.slots[-1]) - fm.to_minutes(b.slots[0]) >= 120 for b in fleet.blogs if len(b.slots) > 1))
 
-    # 슬롯 간격 위반 감지
+    # 서로 다른 블로그의 슬롯 간격 위반 감지
     bad = fm.Fleet(fleet.settings, fleet.accounts, [
-        fm.Blog(id="a", name="a", blog_id="1", slot="04:30"),
-        fm.Blog(id="b", name="b", blog_id="2", slot="04:35"),
+        fm.Blog(id="a", name="a", blog_id="1", slots=["06:20"], subject="가"),
+        fm.Blog(id="b", name="b", blog_id="2", slots=["06:25"], subject="나"),
     ])
     try:
         fm.validate(bad)
-        check("슬롯 간격 5분은 거부", False)
+        check("서로 다른 블로그 슬롯 5분 차이는 거부", False)
     except ValueError:
-        check("슬롯 간격 5분은 거부", True)
+        check("서로 다른 블로그 슬롯 5분 차이는 거부", True)
 
-    # 100개까지 슬롯 배정이 하루 안에 들어가는지
-    many = fm.Fleet({**fleet.settings}, fleet.accounts, [])
-    for i in range(100):
-        slot = fm.next_free_slot(many)
-        many.blogs.append(fm.Blog(id=f"b{i}", name=f"b{i}", blog_id=str(i), slot=slot))
-    fm.validate(many)
-    check("블로그 100개 슬롯 배정 (04:30~)", many.blogs[-1].slot == "21:00", many.blogs[-1].slot)
+    # 주제 중복 감지 — 블로그를 나눈 의미가 사라지므로 막아야 합니다
+    dup = fm.Fleet(fleet.settings, fleet.accounts, [
+        fm.Blog(id="a", name="a", blog_id="1", slots=["06:20"], subject="세금과 공제 기초"),
+        fm.Blog(id="b", name="b", blog_id="2", slots=["09:00"], subject="공제 세금 기초"),
+    ])
+    try:
+        fm.validate(dup)
+        check("주제 중복은 거부", False)
+    except ValueError:
+        check("주제 중복은 거부", True)
+
+    # planned 모드인데 subject 가 없으면 거부
+    nosubj = fm.Fleet(fleet.settings, fleet.accounts, [fm.Blog(id="a", name="a", blog_id="1", slots=["06:20"])])
+    try:
+        fm.validate(nosubj)
+        check("planned 인데 subject 없으면 거부", False)
+    except ValueError:
+        check("planned 인데 subject 없으면 거부", True)
 
     section("함대: 실행 대상 계산")
     with tempfile.TemporaryDirectory() as tmp:
@@ -368,33 +485,34 @@ def test_fleet(cfg: dict) -> None:
         fm.DATA_DIR = Path(tmp)
         try:
             f2 = fm.Fleet({**fleet.settings, "catch_up": True}, fleet.accounts, [
-                fm.Blog(id="x", name="x", blog_id="1", slot="04:30"),
-                fm.Blog(id="y", name="y", blog_id="2", slot="09:00"),
-                fm.Blog(id="z", name="z", blog_id="3", slot="12:00", enabled=False),
+                fm.Blog(id="x", name="x", blog_id="1", slots=["06:20", "15:00"], subject="가"),
+                fm.Blog(id="y", name="y", blog_id="2", slots=["09:00"], subject="나"),
+                fm.Blog(id="z", name="z", blog_id="3", slots=["12:00"], subject="다", enabled=False),
             ])
-            now = datetime(2026, 9, 20, 9, 3, tzinfo=kst)
-            due = [b.id for b in fm.due_blogs(f2, now)]
-            check("지난 슬롯은 밀려도 전부 대상 (catch-up)", due == ["x", "y"], f"{due}")
-            fm.mark_ran(f2.blogs[0], "trend", True, "ok", now)
-            due2 = [b.id for b in fm.due_blogs(f2, now)]
-            check("오늘 돈 블로그는 제외", due2 == ["y"], f"{due2}")
-            check("꺼진 블로그는 제외", "z" not in due2)
+            now = datetime(2026, 9, 20, 16, 0, tzinfo=kst)
+            due = [(b.id, s) for b, s in fm.due_slots(f2, now, "planned")]
+            check("슬롯 단위로, 시각 순서대로", due == [("x", "06:20"), ("y", "09:00"), ("x", "15:00")], f"{due}")
+            fm.mark_ran(f2.blogs[0], "planned", True, "ok", now, slot="06:20")
+            due2 = [(b.id, s) for b, s in fm.due_slots(f2, now, "planned")]
+            check("완료한 슬롯만 빠짐 (같은 블로그 다른 슬롯은 남음)",
+                  due2 == [("y", "09:00"), ("x", "15:00")], f"{due2}")
+            check("꺼진 블로그는 제외", all(b != "z" for b, _ in due2))
             f3 = fm.Fleet({**f2.settings, "catch_up": False}, f2.accounts, f2.blogs)
-            due3 = [b.id for b in fm.due_blogs(f3, datetime(2026, 9, 20, 9, 3, tzinfo=kst))]
-            due3b = [b.id for b in fm.due_blogs(f3, datetime(2026, 9, 20, 9, 30, tzinfo=kst))]
-            check("catch-up 끄면 현재 10분 창만", due3 == ["y"] and due3b == [], f"{due3} {due3b}")
+            due3 = [(b.id, s) for b, s in fm.due_slots(f3, datetime(2026, 9, 20, 9, 3, tzinfo=kst), "planned")]
+            due3b = [(b.id, s) for b, s in fm.due_slots(f3, datetime(2026, 9, 20, 9, 50, tzinfo=kst), "planned")]
+            check("catch-up 끄면 현재 창만", due3 == [("y", "09:00")] and due3b == [], f"{due3} {due3b}")
         finally:
             fm.DATA_DIR = orig
 
     section("함대: 설정 덮어쓰기·주제 필터·선점")
-    blog = fm.Blog(id="eco", name="경제", blog_id="9", include_patterns=["금리", "환율"],
+    blog = fm.Blog(id="eco", name="경제", blog_id="9", subject="경제", include_patterns=["금리", "환율"],
                    exclude_patterns=["로또번호"], labels=["경제"], overrides={"run": {"posts_per_run": 2}})
     merged = fm.apply_config(cfg, fleet, blog)
     check("overrides 적용", merged["run"]["posts_per_run"] == 2)
-    check("fleet.defaults 적용", merged["publish"]["max_live_per_run"] == 3)
+    check("fleet.defaults 적용", merged["publish"]["max_live_per_day"] == 2)
     check("블로그 라벨 적용", merged["publish"]["default_labels"] == ["경제"])
     check("exclude_patterns → block_keywords", "로또번호" in merged["filters"]["block_keywords"])
-    check("원본 cfg 불변", cfg["run"]["posts_per_run"] == 4)
+    check("원본 cfg 불변", cfg["run"]["posts_per_run"] == load_config()["run"]["posts_per_run"])
 
     cands = [mk_candidate("기준금리 인하 전망"), mk_candidate("축구 국가대표 명단")]
     kept, dropped = fm.filter_niche(blog, cands)
@@ -422,16 +540,16 @@ def test_fleet(cfg: dict) -> None:
     section("함대: 관리 에이전트 규칙")
     from src import manager
     metrics = [
-        {"id": "ok", "enabled": True, "paused_by": None, "posts_per_run": 4, "runs_7d": 7, "live_7d": 10, "consecutive_failures": 0},
-        {"id": "dead", "enabled": True, "paused_by": None, "posts_per_run": 4, "runs_7d": 7, "live_7d": 0, "consecutive_failures": 3},
-        {"id": "manual", "enabled": False, "paused_by": "manual", "posts_per_run": 4, "runs_7d": 0, "live_7d": 0, "consecutive_failures": 0},
+        {"id": "ok", "enabled": True, "paused_by": None, "posts_per_run": 2, "runs_7d": 7, "live_7d": 10, "consecutive_failures": 0},
+        {"id": "dead", "enabled": True, "paused_by": None, "posts_per_run": 2, "runs_7d": 7, "live_7d": 0, "consecutive_failures": 3},
+        {"id": "manual", "enabled": False, "paused_by": "manual", "posts_per_run": 2, "runs_7d": 0, "live_7d": 0, "consecutive_failures": 0},
     ]
     proposed = [
         {"blog": "ok", "action": "pause", "value": None, "reason": "그냥"},
         {"blog": "dead", "action": "pause", "value": None, "reason": "연속 실패"},
         {"blog": "manual", "action": "resume", "value": None, "reason": "켜자"},
-        {"blog": "ok", "action": "set_posts_per_run", "value": 2, "reason": "두 칸"},
-        {"blog": "ok", "action": "set_posts_per_run", "value": 3, "reason": "한 칸"},
+        {"blog": "ok", "action": "set_posts_per_run", "value": 4, "reason": "상한 초과"},
+        {"blog": "ok", "action": "set_posts_per_run", "value": 1, "reason": "한 칸 내림"},
         {"blog": "ghost", "action": "pause", "value": None, "reason": "?"},
         {"blog": "ok", "action": "note", "value": None, "reason": "메모"},
     ]
@@ -440,7 +558,8 @@ def test_fleet(cfg: dict) -> None:
     check("근거 없는 pause 거부", ("ok", "pause", None) not in got)
     check("연속 실패 pause 허용", ("dead", "pause", None) in got)
     check("수동 중지 블로그 resume 거부", ("manual", "resume", None) not in got)
-    check("글 수 두 칸 변경 거부, 한 칸 허용", ("ok", "set_posts_per_run", 2) not in got and ("ok", "set_posts_per_run", 3) in got)
+    check("상한(2) 초과 제안 거부, 한 칸 내리기 허용",
+          ("ok", "set_posts_per_run", 4) not in got and ("ok", "set_posts_per_run", 1) in got)
     check("없는 블로그 거부", not any(a["blog"] == "ghost" for a in actions))
     check("note 는 항상 통과", ("ok", "note", None) in got)
     check("거부 사유 기록", len(rejected) == 4, f"{len(rejected)}")
@@ -458,6 +577,8 @@ def main() -> int:
     test_writer_parse(cfg)
     test_footer(cfg)
     test_reviewer_parse(cfg)
+    test_guard(cfg)
+    test_history_guard()
     test_decide(cfg)
     test_coupang(cfg)
     test_evergreen_parse(cfg)

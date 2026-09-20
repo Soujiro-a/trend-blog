@@ -93,6 +93,37 @@ def publish(cfg: dict, article: Article, live: bool | None = None) -> dict:
     return post
 
 
+def published_since(start_iso: str, blog_id: str | None = None) -> int:
+    """이 블로그가 start_iso 이후 **실제로 공개한** 글 수를 Blogger 에 직접 물어봅니다.
+
+    로컬 이력과 무관한 진짜 기준입니다. 2026-09-20 사고에서 로컬 이력이 깨지자
+    상한 계산이 통째로 풀려 하루 8건이 나갔습니다. 서버에 세면 로컬이 어떻게 망가져도
+    같은 일이 반복되지 않습니다.
+    """
+    blog_id = blog_id or env("BLOGGER_BLOG_ID", required=True)
+    total, page_token = 0, None
+    while True:
+        params = {
+            "status": "live",
+            "startDate": start_iso,
+            "maxResults": 100,
+            "fetchBodies": "false",
+            "view": "ADMIN",
+        }
+        if page_token:
+            params["pageToken"] = page_token
+        resp = net.get(
+            f"{API_BASE}/blogs/{blog_id}/posts",
+            params=params,
+            headers={"Authorization": f"Bearer {_access_token()}"},
+        )
+        payload = resp.json()
+        total += len(payload.get("items", []))
+        page_token = payload.get("nextPageToken")
+        if not page_token:
+            return total
+
+
 def list_posts(status: str = "live", max_results: int = 50) -> list[dict]:
     """관리자 시점으로 글 목록을 봅니다. 주간 보고서용. status: live | draft"""
     blog_id = env("BLOGGER_BLOG_ID", required=True)

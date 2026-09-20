@@ -17,6 +17,7 @@ import sys
 from datetime import datetime
 
 from . import fleet as fleet_mod
+from . import guard
 from . import main as single
 from .config import DATA_DIR
 from .state import KST
@@ -26,7 +27,9 @@ REPORT_PATH = fleet_mod.FLEET_DATA / "last_fleet_run.md"
 
 
 def _run_blog(blog: fleet_mod.Blog, mode: str, extra: list[str]) -> tuple[bool, str]:
-    argv = ["--blog", blog.id, "--mode", mode, *extra]
+    # 슬롯 하나당 글 1건입니다. 하루치를 한 번에 몰아 올리지 않기 위한 설계입니다
+    # (2026-09-20: 한 블로그가 2분 30초에 3건 → 계정 API 차단).
+    argv = ["--blog", blog.id, "--mode", mode, "--count", "1", *extra]
     try:
         code = single.main(argv)
     except SystemExit as exc:  # argparse 등
@@ -57,55 +60,77 @@ def main(argv: list[str] | None = None) -> int:
     fleet = fleet_mod.load_fleet()
     now = datetime.now(KST)
 
-    if args.blog:
-        targets = [fleet.get(args.blog)]
-    elif args.all:
-        targets = [b for b in fleet.blogs if b.enabled]
-    else:
-        targets = fleet_mod.due_blogs(fleet, now, mode="trend")
+    def blog_mode(b: fleet_mod.Blog) -> str:
+        return b.content_mode if args.mode == "auto" else args.mode
 
-    modes = ["trend"]
-    if args.mode == "evergreen":
-        modes = ["evergreen"]
-    elif args.mode == "auto" and now.weekday() == int(fleet.settings.get("evergreen_weekday", -1)):
-        modes.append("evergreen")
+    if args.blog:
+        b = fleet.get(args.blog)
+        targets = [(b, b.slots[0])]
+    elif args.all:
+        targets = [(b, b.slots[0]) for b in fleet.blogs if b.enabled]
+    else:
+        # 블로그마다 content_mode 가 다를 수 있어 모드별로 모아 합칩니다.
+        seen: set[tuple[str, str]] = set()
+        targets = []
+        for b in fleet.blogs:
+            for cand_b, slot in fleet_mod.due_slots(fleet, now, mode=blog_mode(b)):
+                if cand_b.id == b.id and (b.id, slot) not in seen:
+                    seen.add((b.id, slot))
+                    targets.append((cand_b, slot))
+        targets.sort(key=lambda t: fleet_mod.to_minutes(t[1]))
 
     report = [f"# 함대 실행 — {now.strftime('%Y-%m-%d %H:%M')} KST", ""]
     if not targets:
-        msg = "실행할 블로그 없음 (모두 오늘 완료 또는 슬롯 전)"
+        msg = "처리할 슬롯 없음 (모두 오늘 완료 또는 시각 전)"
         log.info(msg)
         report.append(f"- {msg}")
         _write(report)
         return 0
 
-    report.append(f"대상 {len(targets)}개: " + ", ".join(f"{b.id}({b.slot})" for b in targets))
+    report.append(f"대상 슬롯 {len(targets)}개: " + ", ".join(f"{b.id}({s})" for b, s in targets))
     report.append("")
     if args.dry_run:
-        for b in targets:
-            print(f"  · {b.id}  슬롯 {b.slot}  {b.name}")
+        for b, s in targets:
+            print(f"  · {b.id}  슬롯 {s}  {b.name}  [{blog_mode(b)}]")
         _write(report)
         return 0
 
     extra: list[str] = []
     if args.target:
         extra += ["--target", args.target]
-    if args.count:
-        extra += ["--count", str(args.count)]
+
+    # 계정 전체 상한 — 블로그를 늘릴수록 이게 실질적인 제동장치입니다.
+    # 2026-09-20 차단 당시 블로그별로는 상한 안팎이었지만 계정 전체로는 하루 16건이었습니다.
+    account_left = None
+    if args.target != "local":
+        ab = guard.account_budget(fleet, {}, now)
+        account_left = ab.allowed
+        report.append(f"계정 전체 오늘 공개 {ab.already_today}건 / 상한 {ab.daily_cap}건 → 남은 여유 {ab.allowed}건")
+        report.append("")
+        if ab.blocked:
+            log.warning("계정 상한으로 이번 실행은 발행하지 않습니다: %s", ab.reason)
+            report.append(f"- ⛔ {ab.reason}")
+            _write(report)
+            return 0
 
     failures = 0
-    for blog in targets:
-        for mode in modes:
-            if args.blog is None and not args.all and fleet_mod.ran_today(blog, mode, now):
-                continue
-            log.info("==== [%s] %s 실행 (슬롯 %s) ====", blog.id, mode, blog.slot)
-            ok, summary = _run_blog(blog, mode, extra)
-            fleet_mod.mark_ran(blog, mode, ok, summary, now)
-            icon = "✅" if ok else "❌"
-            report.append(f"- {icon} **{blog.name}** ({blog.id}, {mode}) — {summary}")
-            if not ok:
-                failures += 1
+    for blog, slot in targets:
+        if account_left is not None and account_left <= 0:
+            log.info("계정 상한 도달 — 남은 슬롯은 다음 기회로 미룹니다.")
+            report.append("- ⏸️ 계정 상한 도달로 이후 슬롯 보류")
+            break
+        mode = blog_mode(blog)
+        log.info("==== [%s] %s 실행 (슬롯 %s) ====", blog.id, mode, slot)
+        ok, summary = _run_blog(blog, mode, extra)
+        fleet_mod.mark_ran(blog, mode, ok, summary, now, slot=slot)
+        if account_left is not None and "공개 1건" in summary:
+            account_left -= 1
+        icon = "✅" if ok else "❌"
+        report.append(f"- {icon} **{blog.name}** ({blog.id} {slot}, {mode}) — {summary}")
+        if not ok:
+            failures += 1
 
-    report += ["", f"**완료 {len(targets)}개 블로그 · 실패 {failures}건**"]
+    report += ["", f"**슬롯 {len(targets)}개 처리 · 실패 {failures}건**"]
     _write(report)
     return 1 if failures and failures == len(targets) else 0
 

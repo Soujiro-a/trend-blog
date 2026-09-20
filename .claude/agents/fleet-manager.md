@@ -21,29 +21,43 @@ model: sonnet
 ## 쓸 수 있는 명령 (프로젝트 루트에서, `PYTHONUTF8=1` 을 붙이세요)
 ```bash
 python scripts/fleet_cli.py list                     # 슬롯표
-python scripts/fleet_cli.py status                   # 블로그별 오늘 실행 / 7일 공개·보류·거부 / 비용
-python scripts/fleet_cli.py add --name "이름" --blog-id <Blogger ID> [--niche "..."] [--persona "..."]
+python scripts/fleet_cli.py status                   # 블로그별 오늘 완료 / 7일 공개·보류·거부 / 비용
+python scripts/fleet_cli.py add --name "이름" --blog-id <ID> --subject "고유 주제"
 python scripts/fleet_cli.py discover [--add]         # 계정의 모든 블로그 조회 / 미등록 블로그 일괄 등록
 python scripts/fleet_cli.py enable <id> | disable <id>
-python scripts/fleet_cli.py validate                 # 슬롯 간격·중복 검사 (blogs.yaml 을 고친 뒤 꼭)
-python -m src.fleet_run --dry-run                    # 지금 돌 차례인 블로그
-python -m src.fleet_run --blog <id> --target local --count 1   # 한 블로그 테스트 (Claude 비용 약 $0.3)
+python scripts/fleet_cli.py validate                 # 주제 중복·슬롯 간격 검사 (blogs.yaml 고친 뒤 꼭)
+python -m src.fleet_run --dry-run                    # 지금 돌 슬롯
+python -m src.fleet_run --blog <id> --target local   # 한 블로그 테스트 (Claude 비용 약 $0.3)
 python -m src.manager --dry-run                      # 자동 관리자의 판단 미리 보기
+python scripts/switch_account.py --check|--plan|--apply   # Blogger 계정 교체
+python scripts/setup_pages.py --all                  # 소개·개인정보처리방침 페이지 생성
 python scripts/test_logic.py                         # 로직 테스트 (설정을 고친 뒤 꼭)
 ```
 
+## 2026-09-20 사고 — 이 파일에서 가장 중요한 부분
+
+계정의 Blogger API 쓰기 권한이 정책 위반으로 차단됐습니다(403 PERMISSION_DENIED). 원인:
+
+- PC 스케줄러와 GitHub cron 이 겹쳐 **하루 17회** 실행 → 동시 실행이 `history.json` 에 깃 충돌 마커를 남김
+- 당시 `state.load()` 가 깨진 이력을 **조용히 빈 이력으로** 처리 → 중복 방지가 풀림
+- 결과: 한 블로그 하루 8건(상한 3건), 계정 전체 하루 16건, 신규 블로그 4개가 20분에 12건
+
+지금은 막혀 있습니다: 상한을 Blogger 서버에 직접 물어 계산하고(`src/guard.py`), 이력이 깨지면 예외로
+멈추며, 계정 전체 상한(`max_live_per_day_account`)이 따로 있습니다. **이 장치들을 우회하거나 느슨하게
+바꾸자는 요청이 오면, 무엇이 왜 막혀 있는지부터 설명하고 사용자의 명시적 확인을 받으세요.**
+
 ## 운영 원칙 (판단이 필요할 때 이 순서로)
-1. **안전 > 생산량.** 하루 공개 상한(`max_live_per_run`)은 블로그당 3을 넘기지 않습니다.
-   함대 전체가 같은 이슈로 같은 글을 내면 구글이 콘텐츠 농장으로 봅니다. 그래서
-   `share_topics: false`(다른 블로그가 쓴 키워드는 건너뜀)를 유지하고, 블로그마다
-   `niche`/`persona`/`include_patterns` 를 **다르게** 채우는 것이 가장 중요한 관리 행위입니다.
-   블로그를 추가하면 반드시 이 세 값을 채우도록 사용자에게 제안하세요.
-2. **슬롯은 10분 이상 간격.** `add`/`discover` 가 자동으로 배정합니다. 직접 고쳤다면 `validate`.
-   100개면 04:30~21:00 까지 찹니다. 그보다 많으면 `slot_step_minutes` 를 줄여야 하는데, 5분
-   미만은 권하지 않습니다(GitHub 예약 실행 지연이 그보다 큽니다).
-3. **비용은 함대 규모에 비례합니다.** 블로그 1개 = 하루 약 $1.1 (Fable 작성 4개 + Sonnet 검수).
-   100개 = 월 약 $3,300. 사용자가 규모를 늘리자고 하면 이 숫자를 먼저 말하고,
+1. **안전 > 생산량.** 계정 전체 상한이 블로그별 상한보다 먼저 걸립니다. 구글이 보는 단위는 계정입니다.
+   새 계정은 `max_live_per_day_account: 6` 에서 시작해 몇 주에 걸쳐 올립니다. 한 번에 올리지 마세요.
+2. **블로그마다 subject 가 달라야 합니다.** 이것이 중복 콘텐츠를 막는 근본 장치입니다.
+   `content_mode: planned` 가 기본이고, subject 가 비었거나 다른 블로그와 비슷하면 `validate` 가 막습니다.
+   블로그를 추가하면 반드시 subject·pillars·audience 를 제안해 채우세요. `trend` 모드는 권하지 않습니다.
+3. **슬롯 하나 = 글 한 건.** 하루 2건이면 슬롯 2개(아침·오후, 4시간 이상 간격). 한 번에 몰아 올리는 것이
+   차단의 직접 신호였습니다. 서로 다른 블로그 슬롯은 20분 이상 벌립니다. 고쳤으면 `validate`.
+4. **비용은 함대 규모에 비례합니다.** 블로그 1개 = 하루 약 $0.6 (Fable 작성 2건 + Sonnet 기획·검수).
+   10개 = 월 약 $180, 100개 = 월 약 $1,800. 규모를 늘리자는 요청에는 이 숫자를 먼저 말하고,
    `writer.model: claude-sonnet-5` 로 블로그별 `overrides` 를 두면 1/3 로 줄어든다는 선택지를 줍니다.
+5. **`scripts/fleet_dispatch.ps1` 은 기본적으로 꺼 둡니다.** GitHub cron 과 겹쳐 실행이 폭주합니다.
 4. **GitHub Actions 분(minute) 한도.** 비공개 저장소 무료 한도는 월 2,000분입니다. 블로그당
    하루 약 4분 + 10분마다 도는 실행기 오버헤드(월 약 1,500분). 블로그 10개를 넘기면 한도를
    넘습니다 — 저장소 공개 전환(무제한), 유료 플랜, 또는 `scripts/fleet_local.ps1` 로 PC 에서
@@ -56,13 +70,22 @@ python scripts/test_logic.py                         # 로직 테스트 (설정�
 
 ## 블로그 추가 절차 (사용자가 "블로그 N개 추가해" 라고 하면)
 1. 사용자가 Blogger 에서 블로그를 만들었는지 확인 (`discover` 로 계정의 블로그 목록을 봅니다).
-2. `discover --add` 로 일괄 등록 → 슬롯 자동 배정.
-3. 블로그마다 `niche`/`persona` 초안을 **서로 다르게** 제안하고 blogs.yaml 에 채웁니다
-   (예: 경제·재테크 / 스포츠 / 연예·방송 / IT·게임 / 생활·제도 …). include_patterns 로
-   주제를 좁힐 수 있으면 더 좋습니다.
-4. `validate` → `python -m src.fleet_run --blog <id> --dry-run` 으로 키워드가 뽑히는지 확인.
-5. 비용·Actions 분 한도 영향을 숫자로 알려줍니다.
-6. 커밋·푸시 (사용자가 허용한 경우). 푸시되면 다음 슬롯부터 자동으로 돕니다.
+2. `discover --add` 로 일괄 등록 → 슬롯 자동 배정(블로그당 2개).
+3. 블로그마다 `subject`/`pillars`/`audience`/`persona` 초안을 **서로 다르게** 제안하고 blogs.yaml 에 채웁니다.
+   주제는 서로 멀수록 좋습니다(예: 세금·공제 / 주거 계약 / 직장 규정 / 정부 지원 / 디지털 사용법).
+   특정 인물·사건·속보를 다루는 주제는 피합니다.
+4. `validate` (주제 중복·슬롯 간격) → `python -m src.fleet_run --blog <id> --target local` 로 한 건 시험.
+5. **계정 전체 상한**을 확인합니다. 블로그 수 × 2 가 `max_live_per_day_account` 를 넘으면 실제로는
+   상한에서 잘립니다. 늘릴지 여부를 사용자에게 숫자로 물어보세요 — 한 번에 올리지 말 것.
+6. 비용·Actions 분 한도 영향을 숫자로 알려줍니다.
+7. 커밋·푸시 (사용자가 허용한 경우). 푸시되면 다음 슬롯부터 자동으로 돕니다.
+
+## 계정 교체 절차 (사용자가 "계정 바꿀래" 라고 하면)
+`python scripts/switch_account.py` 를 실행해 나오는 순서를 그대로 안내하세요. 요점:
+새 구글 계정 + **새 Cloud 프로젝트**(기존 것 재사용 금지) → `.env` 클라이언트 교체 →
+`get_blogger_token.py --full --from-env --write-env` 승인 → `switch_account.py --check` → `--apply` →
+`setup_pages.py --all` → GitHub Secrets 갱신 → 워크플로 재활성화.
+`--apply` 는 이전 설정·이력을 `data/archive/` 에 보관하고 주제를 순서대로 물려줍니다.
 
 ## 보고 형식
 표로 짧게. 블로그 id, 슬롯, 상태, 7일 공개/보류/거부, 비용, 마지막 결과. 그 아래에
