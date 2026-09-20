@@ -49,6 +49,7 @@
   },
   {
     "keyword": "남자 농구 아시안게임 금메달",
+<<<<<<< Updated upstream
     "title": "남자 농구 아시안게임 금메달, 12년 만의 정상이 KBL과 스포츠 산업에 남기는 것",
     "post_id": "8213699950739810991",
     "url": "https://issuecatch1.blogspot.com/2026/09/12-kbl.html",
@@ -118,5 +119,76 @@
     "review_score": 62,
     "extras": [],
     "posted_at": "2026-09-21T04:50:44+09:00"
+=======
+    "title": "남자 농구 아시안게임 금메달, 12년 만의 우승이 KBL과 스포츠 산업에 남기는 것",
+    "post_id": "9169135234955510392",
+    "url": "https://issuecatch1.blogspot.com/2026/09/12-kbl_01211124798.html",
+    "status": "live",
+    "mode": "trend",
+    "cost_usd": 0.3203,
+    "review_score": 85,
+    "extras": [],
+    "posted_at": "2026-09-21T04:52:28+09:00"
+  },
+  {
+    "keyword": "권성준 윤남노 동반 삭발",
+    "title": "권성준 윤남노 동반 삭발 공약, 냉부해 시청률 3.8%가 왜 기준일까",
+    "post_id": "4276418732512898877",
+    "url": "https://issuecatch1.blogspot.com/2026/09/38_0633864173.html",
+    "status": "live",
+    "mode": "trend",
+    "cost_usd": 0.2736,
+    "review_score": 85,
+    "extras": [],
+    "posted_at": "2026-09-21T04:53:41+09:00"
+  },
+  {
+    "keyword": "축구중계",
+    "title": "축구중계 어디서 보나, 아시안게임 SBS·MBC·TV조선 편성과 결방 정리",
+    "post_id": "8126048292239575959",
+    "url": "https://issuecatch1.blogspot.com/2026/09/sbsmbctv.html",
+    "status": "live",
+    "mode": "trend",
+    "cost_usd": 0.3091,
+    "review_score": 85,
+    "extras": [],
+    "posted_at": "2026-09-21T04:55:03+09:00"
+  },
+  {
+    "keyword": "이현중",
+    "title": "이현중 27득점 18리바운드로 일본 꺾고 금메달, 병역·NBA 도전에 미치는 영향",
+    "post_id": "5440933824151777893",
+    "url": "https://issuecatch1.blogspot.com/",
+    "status": "draft",
+    "mode": "trend",
+    "cost_usd": 0.3472,
+    "review_score": 85,
+    "extras": [],
+    "posted_at": "2026-09-21T04:56:37+09:00"
+  },
+  {
+    "keyword": "아시안게임 병역 혜택 기준",
+    "title": "아시안게임 병역 혜택 기준 총정리: 금메달·예술체육요원·구단 손익까지",
+    "post_id": "3689152891894965188",
+    "url": "https://issuecatch1.blogspot.com/2026/09/blog-post_20.html",
+    "status": "live",
+    "mode": "evergreen",
+    "cost_usd": 0.4309,
+    "review_score": 85,
+    "extras": [],
+    "posted_at": "2026-09-21T04:59:01+09:00"
+  },
+  {
+    "keyword": "근대5종 종목 규칙 설명",
+    "title": "근대5종 종목 규칙 설명: 펜싱부터 레이저런까지 순서·점수 계산 한눈에 정리",
+    "post_id": "7776625862369393093",
+    "url": "https://issuecatch1.blogspot.com/",
+    "status": "draft",
+    "mode": "evergreen",
+    "cost_usd": 0.3629,
+    "review_score": 62,
+    "extras": [],
+    "posted_at": "2026-09-21T05:00:49+09:00"
+>>>>>>> Stashed changes
   }
 ]
