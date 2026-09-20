@@ -335,6 +335,7 @@ def _same_topic(candidate: Candidate, claimed: str, threshold: float) -> bool:
     from .trends.base import tokenize
 
     claimed_tokens = tokenize(claimed)
+    claimed_head = _head_token(claimed)
     for expr in [candidate.keyword, *candidate.variants]:
         if similarity(expr, claimed) >= threshold:
             return True
@@ -342,7 +343,18 @@ def _same_topic(candidate: Candidate, claimed: str, threshold: float) -> bool:
         shorter, longer = (toks, claimed_tokens) if len(toks) <= len(claimed_tokens) else (claimed_tokens, toks)
         if shorter and shorter <= longer:
             return True
+        # 실시간 검색어는 '주어(인물·팀·행사) + 서술' 꼴이 많습니다. 주어가 같으면 같은 날엔 같은 사건으로 봅니다.
+        # ('최두호, 핏불에게 1R TKO패' 와 '최두호, UFC 첫 피니시 소감' — 유사도로는 다른 주제로 보입니다)
+        if claimed_head and _head_token(expr) == claimed_head:
+            return True
     return False
+
+
+def _head_token(text: str) -> str:
+    """키워드의 첫 토큰(주어). 3글자 미만이면 주어로 보기 어려워 빈 문자열."""
+    import re as _re
+    first = _re.sub(r"[^0-9A-Za-z가-힣]+", " ", text).split()
+    return first[0].lower() if first and len(first[0]) >= 3 else ""
 
 
 def claim(claims: dict, blog: Blog, keyword: str, now: datetime | None = None) -> dict:
