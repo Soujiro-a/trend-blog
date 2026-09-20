@@ -406,6 +406,12 @@ def test_fleet(cfg: dict) -> None:
     check("다른 블로그가 선점한 유사 키워드 제외", len(kept2) == 1 and skipped and "other" in skipped[0][1])
     kept3, _ = fm.filter_claimed(fleet, cfg, fm.Blog(id="other", name="o", blog_id="8"), cands, claims, now)
     check("자기 선점은 제외 안 함", len(kept3) == 2)
+    # 2026-09-20 관측: 같은 사건이 길이 다른 표현으로 세 블로그에 실렸음
+    ufc = fm.claim({}, fm.Blog(id="a", name="a", blog_id="1"), "최두호, 핏불에게 1R TKO패", now)
+    same = [mk_candidate("최두호"), mk_candidate("최두호, UFC 첫 피니시 소감"), mk_candidate("핑크뮬리 개화")]
+    kept5, skipped5 = fm.filter_claimed(fleet, cfg, blog, same, ufc, now)
+    check("짧은 표현 ⊂ 선점 표현 → 같은 사건", "최두호" not in [c.keyword for c in kept5])
+    check("같은 인물의 다른 표현도 제외", len(kept5) == 1 and kept5[0].keyword == "핑크뮬리 개화", f"{[c.keyword for c in kept5]}")
     shared = fm.Fleet({**fleet.settings, "share_topics": True}, fleet.accounts, fleet.blogs)
     kept4, _ = fm.filter_claimed(shared, cfg, blog, cands, claims, now)
     check("share_topics: true 면 선점 무시", len(kept4) == 2)

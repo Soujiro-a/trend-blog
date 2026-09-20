@@ -20,6 +20,7 @@ fleet:
   # 100개 블로그가 같은 날 같은 이슈 4개를 쓰면 구글이 '콘텐츠 농장'으로 보기 때문에 기본 false.
   share_topics: false
   claim_days: 2             # 다른 블로그의 키워드 선점을 며칠간 존중할지
+  claim_similarity: 0.4     # 선점 판정 유사도. 짧은 표현이 긴 표현에 통째로 들어가면 값과 무관하게 같은 사건으로 봅니다.
   evergreen_weekday: 0      # 이 요일(0=월)에는 실시간 글 뒤에 장수 해설 글도 씁니다. -1 이면 끔.
   defaults:                 # 블로그별 overrides 가 없을 때 config.yaml 위에 덧씌우는 값
     run:

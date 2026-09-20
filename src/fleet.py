@@ -311,16 +311,38 @@ def filter_claimed(
     if fleet.settings.get("share_topics", False):
         return candidates, []
     now = now or datetime.now(KST)
-    threshold = cfg["dedupe"]["similarity_threshold"]
+    # 블로그 간 선점은 같은 블로그의 14일 중복 판정보다 느슨하게 잡습니다. 실시간 검색어는 같은 사건이
+    # '최두호' / '최두호 핏불 1R TKO패' / '최두호 UFC 첫 피니시' 처럼 길이가 다른 표현으로 동시에 올라오는데,
+    # 기본 유사도(0.6)로는 서로 다른 주제로 보여 세 블로그가 같은 사건을 같은 날 쓰게 됩니다(2026-09-20 관측).
+    threshold = float(fleet.settings.get("claim_similarity", 0.4))
     recent = [c for c in _recent_claims(claims, int(fleet.settings.get("claim_days", 2)), now) if c.get("blog") != blog.id]
     kept, skipped = [], []
     for c in candidates:
-        clash = next((r for r in recent if similarity(c.keyword, r.get("keyword", "")) >= threshold), None)
+        clash = next((r for r in recent if _same_topic(c, r.get("keyword", ""), threshold)), None)
         if clash:
             skipped.append((c.keyword, f"{clash.get('blog')} 가 선점"))
         else:
             kept.append(c)
     return kept, skipped
+
+
+def _same_topic(candidate: Candidate, claimed: str, threshold: float) -> bool:
+    """후보(대표 키워드 + 다른 표현들)가 선점된 키워드와 같은 사건인지.
+
+    유사도 외에, 짧은 쪽 토큰이 긴 쪽에 전부 들어가면(포함율 1.0) 같은 사건으로 봅니다.
+    '최두호' ⊂ '최두호 핏불에게 1R TKO패' 가 그 경우입니다.
+    """
+    from .trends.base import tokenize
+
+    claimed_tokens = tokenize(claimed)
+    for expr in [candidate.keyword, *candidate.variants]:
+        if similarity(expr, claimed) >= threshold:
+            return True
+        toks = tokenize(expr)
+        shorter, longer = (toks, claimed_tokens) if len(toks) <= len(claimed_tokens) else (claimed_tokens, toks)
+        if shorter and shorter <= longer:
+            return True
+    return False
 
 
 def claim(claims: dict, blog: Blog, keyword: str, now: datetime | None = None) -> dict:
