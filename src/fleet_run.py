@@ -87,11 +87,16 @@ def main(argv: list[str] | None = None) -> int:
         _write(report)
         return 0
 
-    report.append(f"대상 슬롯 {len(targets)}개: " + ", ".join(f"{b.id}({s})" for b, s in targets))
+    by_account: dict[str, int] = {}
+    for b, _ in targets:
+        by_account[b.account] = by_account.get(b.account, 0) + 1
+    report.append(
+        f"대상 슬롯 {len(targets)}개 (계정별: {', '.join(f'{a} {n}' for a, n in sorted(by_account.items()))})"
+    )
     report.append("")
     if args.dry_run:
         for b, s in targets:
-            print(f"  · {b.id}  슬롯 {s}  {b.name}  [{blog_mode(b)}]")
+            print(f"  · {b.id}  슬롯 {s}  {b.name}  [{blog_mode(b)}]  계정 {b.account}")
         _write(report)
         return 0
 
@@ -99,34 +104,55 @@ def main(argv: list[str] | None = None) -> int:
     if args.target:
         extra += ["--target", args.target]
 
-    # 계정 전체 상한 — 블로그를 늘릴수록 이게 실질적인 제동장치입니다.
-    # 2026-09-20 차단 당시 블로그별로는 상한 안팎이었지만 계정 전체로는 하루 16건이었습니다.
-    account_left = None
-    if args.target != "local":
-        ab = guard.account_budget(fleet, {}, now)
-        account_left = ab.allowed
-        report.append(f"계정 전체 오늘 공개 {ab.already_today}건 / 상한 {ab.daily_cap}건 → 남은 여유 {ab.allowed}건")
+    # 자격증명 점검 — 계정별 변수가 없으면 default 계정 토큰으로 엉뚱한 블로그에 쓰게 됩니다.
+    cred = fleet_mod.credential_report(fleet)
+    bad_accounts = {acc for acc, missing in cred.items() if missing}
+    if bad_accounts:
+        report.append("## 자격증명 없음 (해당 계정 블로그는 건너뜁니다)")
+        for acc in sorted(bad_accounts):
+            report.append(f"- **{acc}**: {', '.join(cred[acc])} 없음")
         report.append("")
-        if ab.blocked:
-            log.warning("계정 상한으로 이번 실행은 발행하지 않습니다: %s", ab.reason)
-            report.append(f"- ⛔ {ab.reason}")
+        for acc in bad_accounts:
+            log.error("계정 '%s' 자격증명 없음: %s", acc, ", ".join(cred[acc]))
+        targets = [(b, s) for b, s in targets if b.account not in bad_accounts]
+        if not targets:
+            report.append("- ⛔ 실행 가능한 슬롯 없음")
+            _write(report)
+            return 1
+
+    # 계정별 상한 — 구글의 제한은 계정에 붙습니다. 계정을 나누면 상한도 따로 계산됩니다.
+    # 2026-09-20 차단 당시 블로그별로는 상한 안팎이었지만 계정 합계가 하루 16건이었습니다.
+    account_left: dict[str, int] = {}
+    if args.target != "local":
+        for acc in sorted({b.account for b, _ in targets}):
+            ab = guard.account_budget(fleet, acc, now)
+            account_left[acc] = ab.allowed
+            report.append(
+                f"- 계정 **{acc}**: 오늘 공개 {ab.already_today}건 / 상한 {ab.daily_cap}건 → 여유 {ab.allowed}건"
+            )
+            if ab.blocked:
+                log.warning("계정 '%s' 상한 도달: %s", acc, ab.reason)
+        report.append("")
+        if all(v <= 0 for v in account_left.values()):
+            report.append("- ⛔ 모든 계정이 오늘 상한에 도달했습니다.")
             _write(report)
             return 0
 
     failures = 0
     for blog, slot in targets:
-        if account_left is not None and account_left <= 0:
-            log.info("계정 상한 도달 — 남은 슬롯은 다음 기회로 미룹니다.")
-            report.append("- ⏸️ 계정 상한 도달로 이후 슬롯 보류")
-            break
+        left = account_left.get(blog.account)
+        if left is not None and left <= 0:
+            log.info("[%s] 계정 '%s' 상한 도달 — 이 슬롯은 다음 기회로 미룹니다.", blog.id, blog.account)
+            report.append(f"- ⏸️ {blog.name} ({slot}) — 계정 '{blog.account}' 상한 도달로 보류")
+            continue
         mode = blog_mode(blog)
         log.info("==== [%s] %s 실행 (슬롯 %s) ====", blog.id, mode, slot)
         ok, summary = _run_blog(blog, mode, extra)
         fleet_mod.mark_ran(blog, mode, ok, summary, now, slot=slot)
-        if account_left is not None and "공개 1건" in summary:
-            account_left -= 1
+        if blog.account in account_left and "공개 1건" in summary:
+            account_left[blog.account] -= 1
         icon = "✅" if ok else "❌"
-        report.append(f"- {icon} **{blog.name}** ({blog.id} {slot}, {mode}) — {summary}")
+        report.append(f"- {icon} **{blog.name}** ({blog.id} {slot}, {mode}, 계정 {blog.account}) — {summary}")
         if not ok:
             failures += 1
 

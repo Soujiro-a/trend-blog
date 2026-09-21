@@ -160,6 +160,12 @@ def main() -> int:
         help="브라우저 승인을 기다릴 최대 초 (기본 300)",
     )
     parser.add_argument(
+        "--account",
+        default="default",
+        help="이 자격증명을 어느 함대 계정에 쓸지. default 가 아니면 "
+        "BLOGGER_CLIENT_ID_<대문자> 처럼 계정별 변수명으로 읽고 씁니다.",
+    )
+    parser.add_argument(
         "--write-env",
         action="store_true",
         help="발급된 refresh token 을 화면에 찍지 않고 .env 의 BLOGGER_REFRESH_TOKEN 에 바로 저장합니다.",
@@ -167,6 +173,10 @@ def main() -> int:
     args = parser.parse_args()
     scope = " ".join([SCOPE, *EXTRA_SCOPES]) if args.full else SCOPE
     env_path = Path(__file__).resolve().parent.parent / ".env"
+
+    def var(base: str) -> str:
+        """계정별 환경변수 이름. default 계정은 표준 이름 그대로."""
+        return base if args.account == "default" else f"{base}_{args.account.upper()}"
 
     print("─" * 60)
     print("  시작 전 확인 — OAuth 앱이 '프로덕션'으로 게시돼 있어야 합니다.")
@@ -178,10 +188,16 @@ def main() -> int:
     print("─" * 60)
     print()
 
+    if args.account != "default":
+        print(f"대상 함대 계정: {args.account}  (변수 {var('BLOGGER_REFRESH_TOKEN')})\n")
+
     if args.from_env:
         current = _read_env(env_path)
-        client_id = current.get("BLOGGER_CLIENT_ID", "")
-        client_secret = current.get("BLOGGER_CLIENT_SECRET", "")
+        client_id = current.get(var("BLOGGER_CLIENT_ID"), "")
+        client_secret = current.get(var("BLOGGER_CLIENT_SECRET"), "")
+        if not client_id:
+            print(f".env 에 {var('BLOGGER_CLIENT_ID')} 가 없습니다. 먼저 채우거나 --from-env 없이 실행하세요.")
+            return 1
         print(f".env 의 클라이언트 정보 사용 (ID {client_id[:12]}…)\n")
     else:
         print("Google Cloud Console 에서 만든 OAuth 클라이언트 정보를 입력하세요.\n")
@@ -285,26 +301,34 @@ def main() -> int:
             print("  잘못된 선택입니다. blog id 는 직접 넣으세요.")
 
     if args.write_env:
-        _update_env(env_path, {
-            "BLOGGER_CLIENT_ID": client_id,
-            "BLOGGER_CLIENT_SECRET": client_secret,
-            "BLOGGER_REFRESH_TOKEN": refresh_token,
-            **({"BLOGGER_BLOG_ID": blog_id} if blog_id and not _read_env(env_path).get("BLOGGER_BLOG_ID") else {}),
-        })
+        updates = {
+            var("BLOGGER_CLIENT_ID"): client_id,
+            var("BLOGGER_CLIENT_SECRET"): client_secret,
+            var("BLOGGER_REFRESH_TOKEN"): refresh_token,
+        }
+        if args.account == "default" and blog_id and not _read_env(env_path).get("BLOGGER_BLOG_ID"):
+            updates["BLOGGER_BLOG_ID"] = blog_id
+        _update_env(env_path, updates)
         print("\n" + "=" * 64)
-        print(f".env 에 저장했습니다: BLOGGER_REFRESH_TOKEN 갱신 (권한: {'전체' if args.full else 'Blogger 만'})")
-        print("GitHub Secrets 도 같은 값으로 바꾸려면:  python scripts/copy_secret.py BLOGGER_REFRESH_TOKEN")
+        print(f".env 에 저장했습니다: {var('BLOGGER_REFRESH_TOKEN')} 갱신 "
+              f"(권한: {'전체' if args.full else 'Blogger 만'})")
+        print("GitHub Secrets 도 같은 값으로 바꾸려면:")
+        print(f"  python scripts/copy_secret.py {var('BLOGGER_REFRESH_TOKEN')}")
+        if args.account != "default":
+            print(f"  (Secrets 이름도 {var('BLOGGER_CLIENT_ID')} / {var('BLOGGER_CLIENT_SECRET')} / "
+                  f"{var('BLOGGER_REFRESH_TOKEN')} 로 등록하세요)")
         print("=" * 64)
         return 0
 
     print("\n" + "=" * 64)
-    print("아래 4개를 GitHub 저장소의 Settings > Secrets and variables > Actions")
+    print("아래 값들을 GitHub 저장소의 Settings > Secrets and variables > Actions")
     print("에 각각 'New repository secret' 으로 등록하세요.")
     print("=" * 64 + "\n")
-    print(f"BLOGGER_CLIENT_ID\n{client_id}\n")
-    print(f"BLOGGER_CLIENT_SECRET\n{client_secret}\n")
-    print(f"BLOGGER_REFRESH_TOKEN\n{refresh_token}\n")
-    print(f"BLOGGER_BLOG_ID\n{blog_id or '(직접 확인 필요)'}\n")
+    print(f"{var('BLOGGER_CLIENT_ID')}\n{client_id}\n")
+    print(f"{var('BLOGGER_CLIENT_SECRET')}\n{client_secret}\n")
+    print(f"{var('BLOGGER_REFRESH_TOKEN')}\n{refresh_token}\n")
+    if args.account == "default":
+        print(f"BLOGGER_BLOG_ID\n{blog_id or '(직접 확인 필요)'}\n")
     print("=" * 64)
     print("이 값들은 비밀번호와 같습니다. 채팅창이나 공개 저장소에 올리지 마세요.")
     return 0

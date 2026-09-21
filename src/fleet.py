@@ -112,6 +112,25 @@ class Fleet:
     def step(self) -> int:
         return int(self.settings.get("slot_step_minutes", 10))
 
+    def blogs_of(self, account: str, enabled_only: bool = True) -> list[Blog]:
+        return [b for b in self.blogs if b.account == account and (b.enabled or not enabled_only)]
+
+    @property
+    def used_accounts(self) -> list[str]:
+        """실제로 블로그가 붙어 있는 계정 이름들 (켜진 블로그 기준)."""
+        return list(dict.fromkeys(b.account for b in self.blogs if b.enabled))
+
+    def account_setting(self, account: str, key: str, default):
+        """계정별 설정. 없으면 함대 공통 설정, 그것도 없으면 default.
+
+        구글의 제한은 계정 단위로 붙으므로, 계정마다 다른 한도를 둘 수 있어야 합니다.
+        새로 만든 계정은 낮게, 오래 운영해 신뢰가 쌓인 계정은 조금 높게.
+        """
+        acc = self.accounts.get(account) or {}
+        if key in acc:
+            return acc[key]
+        return self.settings.get(key, default)
+
 
 # ---------------------------------------------------------------- 로딩
 
@@ -340,14 +359,60 @@ def env_name(base: str, account: str) -> str:
     return base if account == "default" else f"{base}_{account.upper()}"
 
 
+CREDENTIAL_VARS = ("BLOGGER_REFRESH_TOKEN", "BLOGGER_CLIENT_ID", "BLOGGER_CLIENT_SECRET")
+
+# default 계정의 원본 자격증명. apply_env 가 표준 변수명을 덮어쓰기 때문에, 한 번 다른 계정으로
+# 바꾸고 나면 원본을 잃어버립니다. 그 상태로 default 블로그를 처리하면 **직전 계정의 토큰으로
+# default 블로그에 글을 쓰게 됩니다.** 그래서 처음 본 값을 따로 보관해 두고 복원합니다.
+_default_credentials: dict[str, str] | None = None
+
+
+def _snapshot_default() -> dict[str, str]:
+    global _default_credentials
+    if _default_credentials is None:
+        _default_credentials = {v: os.environ.get(v, "") for v in CREDENTIAL_VARS}
+    return _default_credentials
+
+
+def account_credentials(account: str) -> dict[str, str]:
+    """그 계정의 자격증명 값 {표준변수명: 값}. 없으면 빈 문자열."""
+    if account == "default":
+        return dict(_snapshot_default())
+    return {base: os.environ.get(env_name(base, account), "") for base in CREDENTIAL_VARS}
+
+
 def apply_env(fleet: Fleet, blog: Blog) -> None:
-    """이 블로그용 환경변수를 설정합니다. 계정별 토큰이 있으면 기본 변수명으로 복사해 publishers 가 그대로 쓰게 합니다."""
+    """이 블로그 계정의 자격증명을 표준 변수명에 올립니다.
+
+    계정이 'default' 가 아니면 BLOGGER_REFRESH_TOKEN_<계정대문자> 같은 계정별 변수를 찾아
+    BLOGGER_REFRESH_TOKEN 자리에 넣고, 'default' 면 처음 보관해 둔 원본으로 되돌립니다.
+    publishers/blogger.py 는 표준 이름만 보면 되고, 토큰 캐시가 자격증명 해시로 키를 잡으므로
+    계정이 바뀌면 캐시도 자동으로 갈립니다.
+
+    자격증명이 비어 있으면 표준 변수를 **지웁니다**. 이전 계정 값이 남아 엉뚱한 계정에
+    글을 쓰는 것보다, 인증 오류로 실패하는 편이 안전합니다.
+    """
+    _snapshot_default()
     os.environ["BLOGGER_BLOG_ID"] = blog.blog_id
     os.environ["FLEET_BLOG"] = blog.id
-    for base in ("BLOGGER_REFRESH_TOKEN", "BLOGGER_CLIENT_ID", "BLOGGER_CLIENT_SECRET"):
-        specific = env_name(base, blog.account)
-        if specific != base and os.environ.get(specific):
-            os.environ[base] = os.environ[specific]
+    os.environ["FLEET_ACCOUNT"] = blog.account
+    for base, value in account_credentials(blog.account).items():
+        if value:
+            os.environ[base] = value
+        else:
+            os.environ.pop(base, None)
+
+
+def missing_credentials(fleet: Fleet, account: str) -> list[str]:
+    """이 계정에 필요한데 없는 환경변수 이름들. 비어 있으면 정상입니다."""
+    _snapshot_default()
+    values = account_credentials(account)
+    return [env_name(base, account) for base in CREDENTIAL_VARS if not values.get(base)]
+
+
+def credential_report(fleet: Fleet) -> dict[str, list[str]]:
+    """계정별로 빠진 자격증명. 실행 전 점검과 CLI 표시에 씁니다."""
+    return {acc: missing_credentials(fleet, acc) for acc in fleet.used_accounts}
 
 
 def apply_config(cfg: dict, fleet: Fleet, blog: Blog) -> dict:

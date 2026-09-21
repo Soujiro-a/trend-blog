@@ -207,8 +207,8 @@ def section_search_console(token: str, site: str, days: int, heading: str = "## 
     return lines
 
 
-def section_adsense(token: str, days: int) -> list[str]:
-    lines = ["## 광고 수익 (애드센스)", ""]
+def section_adsense(token: str, days: int, heading: str = "## 광고 수익 (애드센스)") -> list[str]:
+    lines = [heading, ""]
     headers = {"Authorization": f"Bearer {token}"}
     try:
         resp = net.session().get(f"{ADSENSE_API}/accounts", headers=headers, timeout=30)
@@ -309,20 +309,17 @@ def section_wordpress(days: int) -> tuple[list[str], list[str]]:
 def build(days: int = 7) -> str:
     cfg = load_config()
     now = datetime.now(KST)
-    history = state.load()
+    try:
+        history = state.load()
+    except state.HistoryCorrupted:
+        history = []
 
     body: list[str] = []
     wp_lines, wp_alerts = section_wordpress(days)
 
-    token = ""
     site = ""
-    try:
-        token = blogger._access_token()
-    except Exception as exc:
-        token = ""
-        auth_error = f"Blogger 인증 실패 — {exc}"
-    else:
-        auth_error = ""
+    alerts: list[str] = []
+    alerts += wp_alerts
 
     # 함대(fleet/blogs.yaml)가 있으면 블로그별로, 없으면 루트 이력 한 덩어리로.
     try:
@@ -333,31 +330,47 @@ def build(days: int = 7) -> str:
         fleet, blogs = None, []
         body.append(f"> 함대 설정을 읽지 못해 단일 블로그로 보고합니다: {exc}")
 
-    alerts: list[str] = []
-    if auth_error:
-        alerts.append(auth_error)
-    alerts += wp_alerts
-
     if blogs:
+        # 계정마다 자격증명이 다릅니다. 블로그별로 환경변수를 바꿔 가며 토큰을 받습니다
+        # (토큰 캐시는 자격증명별이라 계정이 섞여도 서로의 토큰을 쓰지 않습니다).
+        cred = fleet_mod.credential_report(fleet)
+        for acc, missing in cred.items():
+            if missing:
+                alerts.append(f"계정 '{acc}' 자격증명 없음: {', '.join(missing)}")
+        token = ""  # 아래 단일 블로그용 섹션을 건너뛰게 하는 표시
         hist_lines: list[str] = []
-        if fleet is not None:
-            hist_lines += ["## 함대 슬롯표", "", fleet_mod.schedule_table(fleet), ""]
-        for b in sorted(blogs, key=lambda b: b.slot_minutes):
-            bl, ba = section_history(state.load(b.history_path), days)
-            bl[0] = f"## {b.name} ({b.id}, 슬롯 {b.slot}) — 이번 주 작성"
+        hist_lines += ["## 함대 슬롯표", "", fleet_mod.schedule_table(fleet), ""]
+        for b in sorted(blogs, key=lambda b: (b.account, b.slot_minutes)):
+            try:
+                blog_history = state.load(b.history_path)
+            except state.HistoryCorrupted as exc:
+                hist_lines += [f"## {b.name} ({b.id}) — ⚠️ 이력 손상", "", f"- {exc}", ""]
+                alerts.append(f"[{b.id}] 이력 파일 손상 — 실행이 멈춰 있습니다")
+                continue
+            bl, ba = section_history(blog_history, days)
+            bl[0] = f"## {b.name} ({b.id}, 계정 {b.account}, 슬롯 {', '.join(b.slots)}) — 이번 주 작성"
             hist_lines += bl
             alerts += [f"[{b.id}] {a}" for a in ba]
-            if token:
-                try:
-                    fleet_mod.apply_env(fleet, b)
-                    url = net.get(f"{blogger.API_BASE}/blogs/{b.blog_id}", headers={"Authorization": f"Bearer {blogger._access_token()}"}).json().get("url", "")
-                except Exception:
-                    url = ""
-                if url:
-                    hist_lines += section_search_console(token, url, days, heading=f"### 검색 유입 — {url}")
-        if len(blogs) == 1 and token:
-            site = ""  # 아래 단일 블로그용 GSC 섹션은 위에서 이미 넣었으므로 건너뜀
+            if cred.get(b.account):
+                continue
+            try:
+                fleet_mod.apply_env(fleet, b)
+                blog_token = blogger._access_token()
+                url = net.get(
+                    f"{blogger.API_BASE}/blogs/{b.blog_id}",
+                    headers={"Authorization": f"Bearer {blog_token}"},
+                ).json().get("url", "")
+            except Exception as exc:  # noqa: BLE001
+                hist_lines += [f"- Blogger 조회 실패: {str(exc)[:100]}", ""]
+                continue
+            if url:
+                hist_lines += section_search_console(blog_token, url, days, heading=f"### 검색 유입 — {url}")
     else:
+        try:
+            token = blogger._access_token()
+        except Exception as exc:  # noqa: BLE001
+            token = ""
+            alerts.append(f"Blogger 인증 실패 — {exc}")
         hist_lines, alerts_single = section_history(history, days)
         alerts += alerts_single
         if token:
@@ -376,15 +389,28 @@ def build(days: int = 7) -> str:
         head.append("")
 
     body += hist_lines
-    if token:
-        if not blogs:
-            body += section_blogger(token)
-            body += section_search_console(token, site, days)
+    if token and not blogs:
+        body += section_blogger(token)
+        body += section_search_console(token, site, days)
         body += section_adsense(token, days)
     body += wp_lines
-    if token:
-        for site in WP_SITES:
-            body += section_search_console(token, site["url"], days, heading=f"### 검색 유입 — {site['url']}")
+    # 애드센스는 계정 단위입니다. 함대라면 계정마다 한 번씩 봅니다.
+    if blogs:
+        for acc in fleet.used_accounts:
+            if fleet_mod.credential_report(fleet).get(acc):
+                continue
+            sample = fleet.blogs_of(acc)
+            if not sample:
+                continue
+            try:
+                fleet_mod.apply_env(fleet, sample[0])
+                acc_token = blogger._access_token()
+            except Exception:  # noqa: BLE001
+                continue
+            body += section_adsense(acc_token, days, heading=f"## 광고 수익 — 계정 {acc}")
+            for wp in WP_SITES:
+                body += section_search_console(acc_token, wp["url"], days, heading=f"### 검색 유입 — {wp['url']}")
+            break   # WordPress 사이트는 계정과 무관하므로 한 번만
 
     body += [
         "## 설정 요약",

@@ -255,14 +255,87 @@ def test_reviewer_parse(cfg: dict) -> None:
 
 
 def fm_for_guard():
-    """계정 상한 테스트용 소형 함대 (블로그 2개, 계정 상한 6)."""
+    """계정 상한 테스트용 소형 함대.
+
+    default 계정에 블로그 2개(공통 상한 6), second 계정에 1개(계정별 상한 3).
+    """
     from src import fleet as fm
     return fm.Fleet(
         {"max_live_per_day_account": 6},
-        {"default": {}},
+        {"default": {}, "second": {"max_live_per_day_account": 3}},
         [fm.Blog(id="a", name="a", blog_id="1", subject="가"),
-         fm.Blog(id="b", name="b", blog_id="2", subject="나")],
+         fm.Blog(id="b", name="b", blog_id="2", subject="나"),
+         fm.Blog(id="c", name="c", blog_id="3", subject="다", account="second")],
     )
+
+
+def test_accounts(cfg: dict) -> None:
+    section("다계정 지원")
+    import os
+    from src import fleet as fm
+    fl = fm_for_guard()
+
+    check("계정별 블로그 분리", [b.id for b in fl.blogs_of("default")] == ["a", "b"]
+          and [b.id for b in fl.blogs_of("second")] == ["c"])
+    check("사용 중인 계정 목록", fl.used_accounts == ["default", "second"], f"{fl.used_accounts}")
+    check("계정별 설정이 함대 공통보다 우선", fl.account_setting("second", "max_live_per_day_account", 9) == 3)
+    check("계정 설정 없으면 함대 공통", fl.account_setting("default", "max_live_per_day_account", 9) == 6)
+    check("둘 다 없으면 기본값", fl.account_setting("default", "없는키", 42) == 42)
+
+    check("default 계정은 표준 변수명", fm.env_name("BLOGGER_REFRESH_TOKEN", "default") == "BLOGGER_REFRESH_TOKEN")
+    check("그 외 계정은 접미사", fm.env_name("BLOGGER_REFRESH_TOKEN", "second") == "BLOGGER_REFRESH_TOKEN_SECOND")
+
+    # 환경변수 교체가 계정별로 되는지
+    saved = {k: os.environ.get(k) for k in
+             ("BLOGGER_REFRESH_TOKEN", "BLOGGER_CLIENT_ID", "BLOGGER_CLIENT_SECRET",
+              "BLOGGER_REFRESH_TOKEN_SECOND", "BLOGGER_CLIENT_ID_SECOND", "BLOGGER_CLIENT_SECRET_SECOND",
+              "BLOGGER_BLOG_ID", "FLEET_ACCOUNT")}
+    try:
+        os.environ.update({
+            "BLOGGER_REFRESH_TOKEN": "tok-default", "BLOGGER_CLIENT_ID": "cid-default",
+            "BLOGGER_CLIENT_SECRET": "sec-default",
+            "BLOGGER_REFRESH_TOKEN_SECOND": "tok-second", "BLOGGER_CLIENT_ID_SECOND": "cid-second",
+            "BLOGGER_CLIENT_SECRET_SECOND": "sec-second",
+        })
+        fm._default_credentials = None   # 이 테스트 값으로 원본 스냅샷을 다시 잡습니다
+        fm.apply_env(fl, fl.get("c"))
+        check("다른 계정 블로그 → 그 계정 토큰으로 교체",
+              os.environ["BLOGGER_REFRESH_TOKEN"] == "tok-second"
+              and os.environ["BLOGGER_CLIENT_ID"] == "cid-second"
+              and os.environ["BLOGGER_BLOG_ID"] == "3",
+              os.environ["BLOGGER_REFRESH_TOKEN"])
+        check("계정 이름도 환경에 기록", os.environ.get("FLEET_ACCOUNT") == "second")
+
+        # 토큰 캐시가 자격증명별이어야 계정을 오갈 때 섞이지 않습니다 (이 버그가 다계정의 핵심 함정)
+        from src.publishers import blogger as bl
+        key_second = bl._credential_key()
+        fm.apply_env(fl, fl.get("a"))
+        check("default 로 되돌리면 표준 토큰", os.environ["BLOGGER_REFRESH_TOKEN"] == "tok-default")
+        check("자격증명이 바뀌면 캐시 키도 다름", bl._credential_key() != key_second)
+        check("같은 자격증명이면 캐시 키 동일", bl._credential_key() == bl._credential_key())
+
+        check("자격증명 있으면 missing 없음", fm.missing_credentials(fl, "second") == [])
+        del os.environ["BLOGGER_REFRESH_TOKEN_SECOND"]
+        check("빠진 변수는 이름으로 보고",
+              fm.missing_credentials(fl, "second") == ["BLOGGER_REFRESH_TOKEN_SECOND"],
+              f"{fm.missing_credentials(fl, 'second')}")
+        rep = fm.credential_report(fl)
+        check("계정별 보고", rep["default"] == [] and rep["second"], f"{rep}")
+
+        # 자격증명 없는 계정으로 바꾸면 표준 변수를 지워 인증 오류로 실패하게 합니다
+        # (이전 계정 토큰이 남아 엉뚱한 블로그에 쓰는 것보다 안전)
+        fm.apply_env(fl, fl.get("c"))
+        check("자격증명 없으면 표준 변수 제거", "BLOGGER_REFRESH_TOKEN" not in os.environ,
+              os.environ.get("BLOGGER_REFRESH_TOKEN", "(없음)"))
+        fm.apply_env(fl, fl.get("a"))
+        check("그 뒤 default 는 정상 복원", os.environ.get("BLOGGER_REFRESH_TOKEN") == "tok-default")
+    finally:
+        fm._default_credentials = None
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def test_guard(cfg: dict) -> None:
@@ -289,15 +362,19 @@ def test_guard(cfg: dict) -> None:
         b = guard.daily_budget(g, "1", now)
         check("서버 확인 실패 → 발행 안 함 (fail-closed)", b.blocked and b.already_today == -1)
 
-        # 계정 전체 상한 — 블로그를 늘려도 이게 먼저 막습니다
+        # 계정별 상한 — 구글의 제한은 계정에 붙습니다
         fl = fm_for_guard()
         bl.published_since = lambda *a, **k: 2   # 블로그마다 2건
-        ab = guard.account_budget(fl, {}, now)
+        ab = guard.account_budget(fl, "default", now)
         check("계정 합계로 계산", ab.already_today == 4 and ab.allowed == 2, f"{ab.already_today}/{ab.allowed}")
+        check("다른 계정은 따로 계산", guard.account_budget(fl, "second", now).already_today == 2,
+              f"{guard.account_budget(fl, 'second', now).already_today}")
+        check("계정별 상한 설정이 우선", guard.account_budget(fl, "second", now).daily_cap == 3,
+              f"{guard.account_budget(fl, 'second', now).daily_cap}")
         bl.published_since = lambda *a, **k: 3
-        check("계정 상한 도달 → 차단", guard.account_budget(fl, {}, now).blocked)
+        check("계정 상한 도달 → 차단", guard.account_budget(fl, "default", now).blocked)
         bl.published_since = boom
-        check("한 블로그라도 확인 실패 → 계정 전체 보류", guard.account_budget(fl, {}, now).blocked)
+        check("한 블로그라도 확인 실패 → 계정 전체 보류", guard.account_budget(fl, "default", now).blocked)
 
         gap = {**cfg, "publish": {**cfg["publish"], "min_gap_minutes": 45}}
         bl.published_since = lambda *a, **k: 1
@@ -578,6 +655,7 @@ def main() -> int:
     test_footer(cfg)
     test_reviewer_parse(cfg)
     test_guard(cfg)
+    test_accounts(cfg)
     test_history_guard()
     test_decide(cfg)
     test_coupang(cfg)

@@ -63,28 +63,33 @@ def daily_budget(cfg: dict, blog_id: str | None = None, now: datetime | None = N
     return Budget(allowed, already, cap, reason)
 
 
-def account_budget(fleet, cfg: dict, now: datetime | None = None) -> Budget:
-    """계정 전체가 오늘 몇 건 더 올려도 되는지. 블로그별 상한만으로는 부족합니다.
+def account_budget(fleet, account: str, now: datetime | None = None) -> Budget:
+    """**한 구글 계정**이 오늘 몇 건 더 올려도 되는지. 블로그별 상한만으로는 부족합니다.
 
     2026-09-20 차단 당시 블로그별로는 2~8건이었지만 **계정 전체로는 하루 16건**이었습니다.
-    구글이 보는 단위는 계정이므로, 블로그를 늘릴수록 이 상한이 실질적인 제동장치가 됩니다.
+    구글의 제한은 계정에 붙으므로, 한 계정에 블로그를 여러 개 두면 이 상한이 실질적인 제동장치입니다.
+    계정을 나누면 상한도 계정마다 따로 계산됩니다 — 그게 계정을 나누는 실익이기도 합니다.
+
+    계정별 자격증명으로 바꿔 가며 세기 때문에, 호출 뒤 환경변수는 마지막 블로그 계정 상태로 남습니다.
+    호출부는 이어서 쓸 블로그에 대해 다시 apply_env 를 부르세요.
     """
+    from . import fleet as fleet_mod
+
     now = now or datetime.now(KST)
-    cap = int(fleet.settings.get("max_live_per_day_account", 6))
+    cap = int(fleet.account_setting(account, "max_live_per_day_account", 6))
     start = _day_start_iso(now)
 
     total = 0
-    for blog in fleet.blogs:
-        if not blog.enabled:
-            continue
+    for blog in fleet.blogs_of(account):
         try:
+            fleet_mod.apply_env(fleet, blog)
             total += blogger.published_since(start, blog.blog_id)
         except Exception as exc:  # noqa: BLE001
-            log.error("[%s] 오늘 발행 수 확인 실패 — 계정 상한을 계산할 수 없습니다: %s", blog.id, exc)
+            log.error("[%s] 오늘 발행 수 확인 실패 — 계정 '%s' 상한을 계산할 수 없습니다: %s", blog.id, account, exc)
             return Budget(0, -1, cap, f"{blog.id} 발행 수 확인 실패")
 
     allowed = max(0, cap - total)
-    reason = "" if allowed else f"계정 전체가 오늘 이미 {total}건 공개 (계정 상한 {cap}건)"
+    reason = "" if allowed else f"계정 '{account}' 이 오늘 이미 {total}건 공개 (계정 상한 {cap}건)"
     return Budget(allowed, total, cap, reason)
 
 

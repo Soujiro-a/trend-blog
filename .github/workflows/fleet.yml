@@ -46,13 +46,25 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
+      # 여러 구글 계정을 쓰므로 시크릿 이름이 계정마다 다릅니다
+      # (BLOGGER_REFRESH_TOKEN_SECOND 처럼). 계정을 추가할 때 이 워크플로를 고치지 않아도 되도록,
+      # BLOGGER_ 로 시작하는 시크릿을 전부 환경변수로 내보냅니다.
+      # 값은 GitHub 이 로그에서 자동으로 가립니다.
+      - name: 계정별 Blogger 자격증명 준비
+        env:
+          ALL_SECRETS: ${{ toJSON(secrets) }}
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          import json, os
+          for k, v in json.loads(os.environ["ALL_SECRETS"]).items():
+              if k.startswith("BLOGGER_") and v and "\n" not in v:
+                  print(f"{k}={v}")
+          PY
+          echo "준비된 Blogger 변수: $(grep -c '^BLOGGER_' "$GITHUB_ENV" || true)개"
+
       - name: 함대 실행
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
-          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
-          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
-          # 계정을 더 쓰면 여기와 Secrets 에 BLOGGER_REFRESH_TOKEN_<계정> 을 추가합니다.
           COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
           COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
           PYTHONUTF8: "1"

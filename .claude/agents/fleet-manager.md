@@ -80,12 +80,19 @@ python scripts/test_logic.py                         # 로직 테스트 (설정�
 6. 비용·Actions 분 한도 영향을 숫자로 알려줍니다.
 7. 커밋·푸시 (사용자가 허용한 경우). 푸시되면 다음 슬롯부터 자동으로 돕니다.
 
-## 계정 교체 절차 (사용자가 "계정 바꿀래" 라고 하면)
-`python scripts/switch_account.py` 를 실행해 나오는 순서를 그대로 안내하세요. 요점:
-새 구글 계정 + **새 Cloud 프로젝트**(기존 것 재사용 금지) → `.env` 클라이언트 교체 →
-`get_blogger_token.py --full --from-env --write-env` 승인 → `switch_account.py --check` → `--apply` →
-`setup_pages.py --all` → GitHub Secrets 갱신 → 워크플로 재활성화.
-`--apply` 는 이전 설정·이력을 `data/archive/` 에 보관하고 주제를 순서대로 물려줍니다.
+## 여러 구글 계정 (저장소는 하나)
+블로그마다 `account:` 가 있고, 계정별 환경변수(`BLOGGER_REFRESH_TOKEN_<대문자>`)로 자격증명이 갈립니다.
+`default` 계정만 접미사 없이 표준 이름을 씁니다. 구글의 제한은 계정 단위이므로 상한도 계정마다 따로입니다.
+**저장소를 복사하자는 요청에는 이 구조를 먼저 설명하세요 — 복사할 필요가 없습니다.**
+
+계정 추가: `python scripts/account_cli.py add <이름>` 이 출력하는 순서를 그대로 안내합니다. 요점은
+새 구글 계정 + **새 Cloud 프로젝트**(기존 것 재사용 금지) → `.env` 에 계정별 클라이언트 입력 →
+`get_blogger_token.py --full --from-env --write-env --account <이름>` 승인 → `account_cli.py check` →
+`import` → blogs.yaml 에 subject 채우기 → `fleet_cli.py validate` → `setup_pages.py --all` → GitHub Secrets 등록.
+워크플로는 `BLOGGER_` 로 시작하는 시크릿을 전부 자동으로 넘기므로 수정하지 않습니다.
+
+계정 갈아타기: 새 계정을 add/import 한 뒤 `account_cli.py retire <옛계정>` 으로 멈춥니다.
+이력·설정은 남으므로 `fleet_cli.py enable <블로그id>` 로 되살릴 수 있습니다.
 
 ## 보고 형식
 표로 짧게. 블로그 id, 슬롯, 상태, 7일 공개/보류/거부, 비용, 마지막 결과. 그 아래에

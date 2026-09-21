@@ -36,11 +36,23 @@ fleet:
     publish:
       max_live_per_day: 2   # 서버 기준 하루 상한. 실행이 몇 번 돌든 이 값을 넘을 수 없습니다.
 
-# 구글 계정. Blogger 는 계정당 블로그 100개까지라 한 계정이면 기본(default) 하나로 충분합니다.
-# 계정을 바꾸거나 더 쓰려면 이름을 추가하고, Secrets/.env 에
-# BLOGGER_REFRESH_TOKEN_<이름대문자> (필요하면 BLOGGER_CLIENT_ID_<이름대문자>, ..._SECRET_<이름대문자>) 를 넣습니다.
+# 구글 계정. **여러 계정을 한 저장소에서 함께 운영합니다** — 저장소를 복사할 필요가 없습니다.
+#
+# 구글의 제한은 계정 단위로 붙으므로(2026-09-20: 한 계정의 Blogger API 쓰기 차단),
+# 계정을 나누면 하루 상한도 계정마다 따로 계산되고 한쪽이 막혀도 나머지는 계속 돕니다.
+#
+# 계정별 환경변수 (.env 와 GitHub Secrets 에 같은 이름으로):
+#   default 계정 : BLOGGER_CLIENT_ID      / BLOGGER_CLIENT_SECRET      / BLOGGER_REFRESH_TOKEN
+#   그 외        : BLOGGER_CLIENT_ID_<대문자> / BLOGGER_CLIENT_SECRET_<대문자> / BLOGGER_REFRESH_TOKEN_<대문자>
+# 워크플로는 BLOGGER_ 로 시작하는 시크릿을 전부 자동으로 넘기므로 계정을 늘려도 워크플로는 그대로입니다.
+#
+# 추가: python scripts/account_cli.py add <이름>   (이후 순서를 안내합니다)
+# 현황: python scripts/account_cli.py list
 accounts:
-  default: {}
+  default:
+    # 이 계정이 하루에 공개할 수 있는 총 글 수. 비워 두면 fleet.max_live_per_day_account 를 씁니다.
+    # 새 계정은 3~4에서 시작해 몇 주에 걸쳐 올리세요.
+    max_live_per_day_account: 6
 
 blogs:
   - id: picktopic

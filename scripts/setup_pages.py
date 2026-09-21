@@ -118,9 +118,8 @@ def main() -> int:
     fleet = fleet_mod.load_fleet()
     targets = [fleet.get(args.blog)] if args.blog else fleet.blogs
     for blog in targets:
-        fleet_mod.apply_env(fleet, blog)
-        blogger._token_cache = None  # 계정이 바뀔 수 있으니 토큰 캐시 초기화
-        token = blogger._access_token()
+        fleet_mod.apply_env(fleet, blog)   # 이 블로그 계정의 자격증명으로 환경변수 교체
+        token = blogger._access_token()    # 캐시는 자격증명별이라 계정이 바뀌면 자동으로 새 토큰
         print(f"== {blog.name} ({blog.id}) ==")
         for line in setup(blog, token, email, args.update):
             print("  ", line)

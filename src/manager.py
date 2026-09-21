@@ -66,7 +66,10 @@ SYSTEM = """당신은 여러 개의 한국어 이슈 블로그를 운영하는 �
 - 하루 최대 {max_changes}건만 바꿉니다. 확신이 없으면 note 로 남기고 바꾸지 않습니다.
 - 사람이 수동으로 끈 블로그(by=manual)는 건드리지 않습니다.
 - 여러 블로그가 같은 날 비슷한 제목을 냈다면 그것은 함대 전체의 위험(중복 콘텍츠)입니다. \
-해당 블로그들의 niche/persona 를 다르게 설정하라고 note 로 권고하세요.
+해당 블로그들의 subject(고유 주제)를 다르게 설정하라고 note 로 권고하세요. 특히 **같은 계정** 안에서 \
+겹치면 더 위험합니다 — 구글의 제한은 계정 단위로 붙습니다.
+- 지표에 `history_error` 가 있는 블로그는 이력 파일이 깨져 실행이 멈춘 상태입니다. 조치 대신 note 로 \
+사람이 복구해야 한다고 알리세요.
 - 비용이 기준을 넘는 블로그는 posts_per_run 을 줄이는 쪽을 우선합니다.
 
 ## 출력
@@ -75,8 +78,20 @@ JSON 하나만. 설명이나 코드 펜스 없이.
   "actions": [{{"blog": "id", "action": "pause|resume|set_posts_per_run|note", "value": 정수 또는 null, "reason": "이유"}}]}}"""
 
 
-def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, token: str | None, now: datetime) -> dict:
-    hist = state.recent(state.load(blog.history_path), 7)
+def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, use_api: bool, now: datetime) -> dict:
+    try:
+        hist = state.recent(state.load(blog.history_path), 7)
+    except state.HistoryCorrupted as exc:
+        # 이력이 깨진 블로그는 실행이 멈춰 있습니다. 지표 대신 그 사실을 올려 보냅니다.
+        return {
+            "id": blog.id, "name": blog.name, "slot": blog.slot, "account": blog.account,
+            "enabled": blog.enabled, "paused_by": None, "posts_per_run": 0,
+            "runs_7d": 0, "runs_failed_7d": 0, "consecutive_failures": 99,
+            "live_7d": 0, "draft_7d": 0, "rejected_7d": 0, "avg_score_7d": None,
+            "cost_7d": 0.0, "titles_today": [], "blogger_live_total": None,
+            "blog_url": None, "gsc_clicks_7d": None,
+            "history_error": str(exc)[:160],
+        }
     by = Counter(h.get("status") for h in hist)
     scores = [h["review_score"] for h in hist if h.get("review_score") is not None]
     runs = fleet_mod.load_runs(blog)
@@ -90,7 +105,8 @@ def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, token: str | Non
     ms = fleet_mod.load_manager_state().get("blogs", {}).get(blog.id, {})
 
     m = {
-        "id": blog.id, "name": blog.name, "slot": blog.slot, "enabled": blog.enabled,
+        "id": blog.id, "name": blog.name, "slot": blog.slot, "account": blog.account,
+        "enabled": blog.enabled,
         "paused_by": ms.get("by") if ms.get("enabled") is False else None,
         "posts_per_run": (blog.overrides.get("run", {}) or {}).get("posts_per_run")
         or (fleet.settings.get("defaults", {}).get("run", {}) or {}).get("posts_per_run", 4),
@@ -102,13 +118,20 @@ def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, token: str | Non
         "titles_today": [h.get("title", "") for h in hist if h.get("posted_at", "").startswith(now.strftime("%Y-%m-%d"))],
         "blogger_live_total": None, "blog_url": None, "gsc_clicks_7d": None,
     }
-    if token:
+    if use_api:
         try:
+            # 계정별 자격증명으로 바꾼 뒤 토큰을 받습니다. 토큰 캐시가 자격증명별이라
+            # 여러 계정을 오가도 서로의 토큰을 쓰지 않습니다.
             fleet_mod.apply_env(fleet, blog)
-            resp = net.get(f"{blogger.API_BASE}/blogs/{blog.blog_id}", headers={"Authorization": f"Bearer {token}"})
-            info = resp.json()
+            token = blogger._access_token()
+            info = net.get(
+                f"{blogger.API_BASE}/blogs/{blog.blog_id}",
+                headers={"Authorization": f"Bearer {token}"},
+            ).json()
             m["blogger_live_total"] = info.get("posts", {}).get("totalItems")
             m["blog_url"] = info.get("url")
+            if m["blog_url"]:
+                m["gsc_clicks_7d"] = _gsc_clicks(token, m["blog_url"], 7)
         except Exception as exc:  # noqa: BLE001
             m["blogger_error"] = str(exc)[:120]
     return m
@@ -269,23 +292,21 @@ def main(argv: list[str] | None = None) -> int:
     fleet = fleet_mod.load_fleet()
     now = datetime.now(KST)
 
-    token = None
-    try:
-        token = blogger._access_token()
-    except Exception as exc:  # noqa: BLE001
-        log.warning("Blogger 토큰 없음/실패 — 사이트 지표 없이 진행: %s", exc)
-
-    metrics = [_blog_metrics(fleet, b, token, now) for b in fleet.blogs]
-    if token:
-        for m in metrics:
-            if m.get("blog_url"):
-                m["gsc_clicks_7d"] = _gsc_clicks(token, m["blog_url"], 7)
+    # 계정별로 자격증명이 있는지 먼저 봅니다. 없는 계정 블로그는 사이트 지표를 건너뜁니다.
+    cred = fleet_mod.credential_report(fleet)
+    usable = {acc for acc, missing in cred.items() if not missing}
+    metrics = [_blog_metrics(fleet, b, b.account in usable, now) for b in fleet.blogs]
 
     duplicates = _find_duplicates(metrics)
     alerts: list[str] = []
+    for acc, missing in cred.items():
+        if missing:
+            alerts.append(f"계정 '{acc}' 자격증명 없음: {', '.join(missing)} — 이 계정 블로그는 실행되지 않습니다")
     for m in metrics:
-        if m["enabled"] and m["runs_7d"] == 0:
-            alerts.append(f"{m['id']}: 7일간 실행 기록 없음 (슬롯 {m['slot']}) — 함대 실행기가 멈췼는지 확인")
+        if m.get("history_error"):
+            alerts.append(f"{m['id']}: 이력 파일 손상 — {m['history_error']}")
+        if m["enabled"] and m["runs_7d"] == 0 and not m.get("history_error"):
+            alerts.append(f"{m['id']}: 7일간 실행 기록 없음 (슬롯 {m['slot']}) — 함대 실행기가 멈췄는지 확인")
         if m["cost_7d"] > RULES["cost_alert_per_blog_week_usd"]:
             alerts.append(f"{m['id']}: 7일 비용 ${m['cost_7d']} — 기준 ${RULES['cost_alert_per_blog_week_usd']} 초과")
         if m["enabled"] and m["consecutive_failures"] >= 2:
@@ -334,17 +355,28 @@ def main(argv: list[str] | None = None) -> int:
         lines.append("## 규칙에 걸려 버린 제안")
         lines += [f"- {r}" for r in rejected]
     lines += ["", "## 블로그별 지표 (7일)", "",
-              "| 블로그 | 슬롯 | 상태 | 실행/실패 | 공개/보류/거부 | 검수평균 | 비용 | Blogger 총 글 | GSC 클릭 |",
-              "|---|---|---|---|---|---:|---:|---:|---:|"]
-    for m in metrics:
+              "| 계정 | 블로그 | 슬롯 | 상태 | 실행/실패 | 공개/보류/거부 | 검수평균 | 비용 | Blogger 총 글 | GSC 클릭 |",
+              "|---|---|---|---|---|---|---:|---:|---:|---:|"]
+    for m in sorted(metrics, key=lambda x: (x.get("account", ""), x["slot"])):
         st = "켜짐" if m["enabled"] else f"꺼짐({m.get('paused_by') or '?'})"
+        if m.get("history_error"):
+            st = "⚠️ 이력 손상"
         lines.append(
-            f"| {m['name']} ({m['id']}) | {m['slot']} | {st} | {m['runs_7d']}/{m['runs_failed_7d']} | "
+            f"| {m.get('account', '?')} | {m['name']} ({m['id']}) | {m['slot']} | {st} | "
+            f"{m['runs_7d']}/{m['runs_failed_7d']} | "
             f"{m['live_7d']}/{m['draft_7d']}/{m['rejected_7d']} | {m['avg_score_7d'] or '-'} | ${m['cost_7d']} | "
             f"{m['blogger_live_total'] if m['blogger_live_total'] is not None else '-'} | {m['gsc_clicks_7d'] if m['gsc_clicks_7d'] is not None else '-'} |"
         )
     total_cost = sum(m["cost_7d"] for m in metrics)
-    lines += ["", f"**함대 {len(metrics)}개 블로그 · 7일 총 비용 약 ${total_cost:.2f} · 7일 공개 {sum(m['live_7d'] for m in metrics)}건**"]
+    per_account: dict[str, int] = {}
+    for m in metrics:
+        per_account[m.get("account", "?")] = per_account.get(m.get("account", "?"), 0) + m["live_7d"]
+    lines += [
+        "",
+        f"**계정 {len(per_account)}개 · 블로그 {len(metrics)}개 · 7일 총 비용 약 ${total_cost:.2f} · "
+        f"7일 공개 {sum(m['live_7d'] for m in metrics)}건** "
+        f"(계정별: {', '.join(f'{a} {n}건' for a, n in sorted(per_account.items()))})",
+    ]
     if usage:
         lines.append(f"<sub>관리 모델 토큰 {usage[0]}/{usage[1]}</sub>")
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -265,32 +265,76 @@ Claude Code 안에서는 **`fleet-manager` 에이전트**([.claude/agents/fleet-
 
 ---
 
-## 2-2. Blogger 계정 교체
+## 2-2. 여러 구글 계정 — 저장소는 하나로
 
-계정이 정책 위반으로 제한되면 이의신청을 기다리는 대신 새 계정으로 옮기는 편이 빠릅니다.
-**로직·주제·설정은 그대로 두고 대상 계정만 바꿉니다.** 사람이 할 일은 구글 계정 만들기와 OAuth 승인뿐입니다.
+**저장소를 복사하지 않습니다.** 한 `fleet/blogs.yaml` 안에서 여러 구글 계정의 블로그를 함께 운영합니다.
+블로그마다 `account:` 를 적으면 그 계정의 자격증명으로 글이 올라갑니다.
+
+왜 계정을 나누나: 구글의 제한은 **계정 단위**로 붙습니다(2026-09-20에 한 계정이 차단됐습니다).
+계정을 나누면 하루 상한도 계정마다 따로 계산되고, 한 계정이 막혀도 나머지는 계속 돕니다.
+
+```yaml
+accounts:
+  default:
+    max_live_per_day_account: 6     # 이 계정이 하루에 공개할 수 있는 총 글 수
+  second:
+    max_live_per_day_account: 3     # 새 계정은 낮게 시작
+
+blogs:
+  - id: taxbasic
+    account: second                  # ← 이 한 줄로 second 계정에 올라갑니다
+    subject: "세금과 공제 기초"
+```
+
+환경변수는 계정 이름을 접미사로 붙입니다. `default` 만 접미사 없이 표준 이름을 씁니다.
+
+| 계정 | 변수 이름 |
+|---|---|
+| `default` | `BLOGGER_CLIENT_ID` / `BLOGGER_CLIENT_SECRET` / `BLOGGER_REFRESH_TOKEN` |
+| `second` | `BLOGGER_CLIENT_ID_SECOND` / `BLOGGER_CLIENT_SECRET_SECOND` / `BLOGGER_REFRESH_TOKEN_SECOND` |
+
+워크플로는 `BLOGGER_` 로 시작하는 시크릿을 **전부 자동으로 넘기므로**, 계정을 추가해도 워크플로는 고치지 않습니다.
+
+### 계정 추가 절차
 
 ```bash
-python scripts/switch_account.py          # 전체 순서 안내
+python scripts/account_cli.py add second      # 이후 해야 할 일을 순서대로 출력합니다
 ```
 
 | 단계 | 누가 | 내용 |
 |---|---|---|
 | 1 | 사람 | 새 구글 계정으로 blogger.com 에서 블로그 생성 (**처음엔 2~3개만**) |
-| 2 | 사람 | 새 계정으로 **새 Google Cloud 프로젝트** → Blogger API 사용 설정 → OAuth 앱 게시(프로덕션) → 데스크톱 앱 클라이언트 |
-| 3 | 사람 | `.env` 의 `BLOGGER_CLIENT_ID` / `BLOGGER_CLIENT_SECRET` 를 새 값으로 교체 |
-| 4 | 사람 | `python scripts/get_blogger_token.py --full --from-env --write-env` → 브라우저에서 **새 계정으로** 승인 |
-| 5 | 자동 | `python scripts/switch_account.py --check` → `--apply` (설정 보관 → 새 블로그 등록 → 이력 초기화) |
-| 6 | 자동 | `python scripts/setup_pages.py --all` (소개·개인정보처리방침 페이지 생성) |
-| 7 | 사람 | GitHub Secrets 3개 갱신 (`copy_secret.py` 로 값 복사) |
-| 8 | 자동 | `gh workflow enable fleet.yml && gh workflow enable manager.yml` |
+| 2 | 사람 | 그 계정으로 **새 Google Cloud 프로젝트** → Blogger API 사용 설정 → OAuth 앱 게시(프로덕션) → 데스크톱 앱 클라이언트 |
+| 3 | 사람 | `.env` 에 `BLOGGER_CLIENT_ID_SECOND` / `BLOGGER_CLIENT_SECRET_SECOND` 입력 |
+| 4 | 사람 | `python scripts/get_blogger_token.py --full --from-env --write-env --account second` → 브라우저에서 **그 계정으로** 승인 |
+| 5 | 자동 | `python scripts/account_cli.py check second` → `import second` (블로그를 함대에 등록, 슬롯 자동 배정) |
+| 6 | 사람 | `blogs.yaml` 에서 새 블로그의 `subject` 를 채움 → `python scripts/fleet_cli.py validate` |
+| 7 | 자동 | `python scripts/setup_pages.py --all` (소개·개인정보처리방침 페이지) |
+| 8 | 사람 | GitHub Secrets 에 3개 등록 (이름은 `.env` 와 동일) |
 
 > **기존 Cloud 프로젝트를 재사용하지 마세요.** 제한은 계정에 붙고, 같은 프로젝트의 OAuth 클라이언트를 쓰면
-> 새 블로그가 제한된 계정과 엮입니다. 프로젝트도 새로 만드는 것이 안전합니다.
+> 새 블로그가 제한된 계정과 엮입니다. 프로젝트도 계정마다 새로 만드세요.
 
-`--apply` 는 이전 `blogs.yaml` 과 `data/` 를 `data/archive/<시각>/` 에 보관한 뒤, 새 계정의 블로그로
-`blogs.yaml` 을 다시 쓰고 이력을 비웁니다. **주제(subject)는 이전 블로그에서 순서대로 물려받으므로**
-같은 주제 구성을 그대로 이어갈 수 있습니다.
+### 계정 갈아타기
+
+새 계정을 붙인 뒤 옛 계정만 멈추면 됩니다. 이력과 설정은 남아 있어 나중에 되살릴 수 있습니다.
+
+```bash
+python scripts/account_cli.py retire default   # default 계정 블로그를 전부 중지
+python scripts/fleet_cli.py enable <블로그id>   # 되살리기
+```
+
+| 명령 | 하는 일 |
+|---|---|
+| `account_cli.py list` | 계정별 자격증명·블로그·슬롯·상한 현황 |
+| `account_cli.py add <이름>` | 계정 등록 + 다음 순서 안내 |
+| `account_cli.py check <이름>` | 그 계정 토큰으로 실제 블로그 조회 (설정과 실제가 맞는지) |
+| `account_cli.py import <이름>` | 그 계정 블로그를 함대에 등록 |
+| `account_cli.py retire <이름>` | 그 계정 블로그 전부 중지 |
+| `account_cli.py remove <이름>` | 계정 항목 삭제 (블로그가 없을 때만) |
+
+자격증명이 없는 계정의 블로그는 **실행되지 않고 보고서에 경고로 남습니다.** 이전 계정 토큰으로
+엉뚱한 블로그에 글이 올라가는 것을 막기 위해, 자격증명이 비면 표준 변수를 지워 인증 오류로 실패시킵니다.
 
 ---
 

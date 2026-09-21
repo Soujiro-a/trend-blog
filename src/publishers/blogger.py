@@ -6,6 +6,7 @@ OAuth refresh token 으로 액세스 토큰을 받아 Blogger API v3 에 글을 
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 
@@ -20,18 +21,33 @@ API_BASE = "https://www.googleapis.com/blogger/v3"
 
 
 # 한 번 실행에서 글을 여러 개 올리므로 토큰을 재사용합니다.
-# (만료 시각, 토큰) — 만료 60초 전에 미리 갱신합니다.
-_token_cache: tuple[float, str] | None = None
+# **자격증명별로** 따로 캐시합니다: 함대는 한 실행 안에서 여러 구글 계정을 오가며
+# (fleet.apply_env 가 BLOGGER_* 환경변수를 계정별 값으로 바꿉니다) 글을 올립니다.
+# 캐시가 하나뿐이면 계정을 바꿔도 이전 계정의 토큰이 그대로 나와 엉뚱한 블로그에 씁니다.
+# 키는 client_id + refresh_token 의 해시라, 환경변수가 바뀌면 자동으로 다른 캐시가 됩니다.
+# {키: (만료 시각, 토큰)} — 만료 60초 전에 미리 갱신합니다.
+_token_cache: dict[str, tuple[float, str]] = {}
+
+
+def _credential_key() -> str:
+    raw = f"{env('BLOGGER_CLIENT_ID', required=True)}:{env('BLOGGER_REFRESH_TOKEN', required=True)}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 def _access_token() -> str:
-    global _token_cache
-    if _token_cache and time.monotonic() < _token_cache[0]:
-        return _token_cache[1]
+    key = _credential_key()
+    cached = _token_cache.get(key)
+    if cached and time.monotonic() < cached[0]:
+        return cached[1]
 
     token, expires_in = _fetch_token()
-    _token_cache = (time.monotonic() + max(0, expires_in - 60), token)
+    _token_cache[key] = (time.monotonic() + max(0, expires_in - 60), token)
     return token
+
+
+def clear_token_cache() -> None:
+    """토큰 캐시를 비웁니다. 자격증명을 교체한 뒤 확인용으로 다시 받을 때 씁니다."""
+    _token_cache.clear()
 
 
 def _fetch_token() -> tuple[str, int]:
