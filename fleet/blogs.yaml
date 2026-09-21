@@ -161,11 +161,19 @@ blogs:
     labels: [디지털생활]
     overrides: {}
   # --- second 계정 (2026-09-21 추가) ---
+  #
+  # 발행량 램프업 계획
+  #   2026-09-21 ~ : 블로그당 하루 1건 (슬롯 1개). 새 블로그가 만들어지자마자 쏟아내는 패턴이
+  #                  2026-09-20 계정 차단의 직접 원인이었으므로, 글이 쌓일 때까지 천천히 갑니다.
+  #   2주쯤 뒤(10월 초) 각 블로그에 오후 슬롯을 하나씩 추가해 2건으로 올립니다.
+  #     gaganam1  → slots: ["08:00", "14:00"]
+  #     gaganamc1 → slots: ["11:00", "17:00"]
+  #   올린 뒤에는 fleet_cli.py validate 로 간격을 확인하세요.
   - id: gaganam1
     name: "가가남블로그"
     blog_id: "6119386223221067366"
     account: second
-    slots: ["08:00", "12:00"]
+    slots: ["08:00"]
     enabled: true
     content_mode: planned
     subject: "자동차 운전과 차량 관리"
@@ -190,7 +198,9 @@ blogs:
     name: "가가남씨블로그"
     blog_id: "3990482523331361857"
     account: second
-    slots: ["08:20", "12:20"]
+    # 같은 계정의 두 블로그가 20분 간격으로 연달아 올리면 계정 단위로는 한꺼번에 움직이는 것으로 보입니다.
+    # 3시간 벌려 둡니다.
+    slots: ["11:00"]
     enabled: true
     content_mode: planned
     subject: "온라인 쇼핑과 소비자 권리"
