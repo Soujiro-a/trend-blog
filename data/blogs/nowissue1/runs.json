@@ -1,9 +1,4 @@
 {
-  "evergreen:2026-09-21": {
-    "at": "2026-09-21T05:40:20+09:00",
-    "ok": false,
-    "summary": "예외: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'You have reached your specified API usage limits. You will regain access on 2026-10-01 at 00:00 UTC.'}, 'request_id': 'req_011CfFLbjH4Bc4ZojfqdfGRJ'}"
-  },
   "trend:2026-09-21": {
     "at": "2026-09-21T05:40:20+09:00",
     "ok": false,
