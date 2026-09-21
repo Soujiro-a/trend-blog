@@ -49,6 +49,8 @@ fleet:
 # 추가: python scripts/account_cli.py add <이름>   (이후 순서를 안내합니다)
 # 현황: python scripts/account_cli.py list
 accounts:
+  second:
+    max_live_per_day_account: 4
   default:
     # 이 계정이 하루에 공개할 수 있는 총 글 수. 비워 두면 fleet.max_live_per_day_account 를 씁니다.
     # 새 계정은 3~4에서 시작해 몇 주에 걸쳐 올리세요.

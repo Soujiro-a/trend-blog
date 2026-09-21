@@ -287,6 +287,12 @@ def main() -> int:
     blog_id = ""
     if not blogs:
         print("  이 계정에 블로그가 없습니다. https://blogger.com 에서 먼저 만들고 다시 실행하세요.")
+    elif args.account != "default":
+        # 함대 계정은 블로그를 account_cli.py import 로 한꺼번에 등록하므로 하나를 고를 필요가 없습니다.
+        print(f"  이 계정의 블로그 {len(blogs)}개:")
+        for b in blogs:
+            print(f"    - {b['name']}  {b['url']}")
+        print("  → 등록은 다음 단계에서: python scripts/account_cli.py import " + args.account)
     elif len(blogs) == 1:
         blog_id = blogs[0]["id"]
         print(f"  블로그 1개 발견: {blogs[0]['name']} ({blogs[0]['url']})")
