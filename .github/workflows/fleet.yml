@@ -21,6 +21,10 @@ on:
         description: "글 개수 덮어쓰기"
         required: false
         default: ""
+      dry_run:
+        description: "글을 쓰지 않고 대상 슬롯·계정 자격증명만 확인"
+        type: boolean
+        default: false
 
 # 함대 실행이 겹치면 이력·선점 파일이 충돌합니다. 진행 중이면 새 실행은 대기(큐)합니다.
 concurrency:
@@ -73,6 +77,7 @@ jobs:
           if [ -n "${{ github.event.inputs.blog }}" ]; then ARGS="$ARGS --blog ${{ github.event.inputs.blog }}"; fi
           if [ "${{ github.event.inputs.all }}" = "true" ]; then ARGS="$ARGS --all"; fi
           if [ -n "${{ github.event.inputs.count }}" ]; then ARGS="$ARGS --count ${{ github.event.inputs.count }}"; fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           echo "실행: python -m src.fleet_run $ARGS"
           python -m src.fleet_run $ARGS
 

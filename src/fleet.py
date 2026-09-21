@@ -265,7 +265,9 @@ def next_free_slots(fleet: Fleet, count: int = 1, extra_taken: list[str] | None 
     taken += [to_minutes(s) for s in (extra_taken or [])]
 
     out: list[str] = []
-    mine: list[int] = [to_minutes(s) for s in (extra_taken or [])]
+    # extra_taken 은 "아직 blogs.yaml 에 없지만 이미 배정하기로 한 슬롯"입니다.
+    # 같은 블로그의 슬롯 간격(own_gap)은 이번에 새로 뽑는 것들끼리만 따집니다.
+    mine: list[int] = []
     t = start
     while len(out) < count:
         if t > end:

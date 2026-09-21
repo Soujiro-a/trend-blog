@@ -31,13 +31,48 @@ PAGES = [
 ]
 
 
-def _template(file: str, blog_name: str, email: str) -> str:
+def josa(word: str, with_batchim: str, without: str) -> str:
+    """받침 유무에 따라 조사를 고릅니다. '블로그은' / '관리을' 같은 어색한 문장을 막습니다.
+
+    한글 음절은 유니코드에서 (코드 - 0xAC00) % 28 == 0 이면 받침이 없습니다.
+    한글이 아닌 글자로 끝나면(영문·숫자) 받침 없는 쪽을 씁니다.
+    """
+    if not word:
+        return without
+    last = word.rstrip()[-1]
+    if "가" <= last <= "힣":
+        return with_batchim if (ord(last) - 0xAC00) % 28 else without
+    return without
+
+
+def _template(file: str, blog: fleet_mod.Blog, email: str) -> str:
+    """페이지 템플릿에 이 블로그의 주제·독자·하위 축을 채웁니다.
+
+    블로그마다 내용이 달라야 합니다. 7개 블로그가 똑같은 소개 페이지를 쓰면
+    그 자체로 '한 사람이 찍어낸 사이트 묶음' 신호가 됩니다.
+    """
     html = (ROOT / "pages" / file).read_text(encoding="utf-8")
     html = re.sub(r"<!--.*?-->\s*", "", html, count=1, flags=re.DOTALL)  # 맨 위 사용 설명 주석 제거
-    today = datetime.now(KST)
-    html = html.replace("[블로그 이름]", blog_name)
-    html = html.replace("[본인_이메일@example.com]", email)
-    html = re.sub(r"\[\d{4}년 \d{1,2}월 \d{1,2}일\]", today.strftime("%Y년 %m월 %d일"), html)
+
+    pillars = "\n".join(f"    <li>{p}</li>" for p in blog.pillars) or "    <li>주제 관련 정보</li>"
+    audience = blog.audience or "이 주제를 검색해서 들어오는 일반 독자"
+    subject = blog.subject or blog.niche or "생활 정보"
+    values = {
+        "{{BLOG_NAME}}": blog.name,
+        "{{BLOG_NAME_은는_조사}}": josa(blog.name, "은", "는"),
+        "{{SUBJECT}}": subject,
+        "{{SUBJECT_을를_조사}}": josa(subject, "을", "를"),
+        "{{AUDIENCE}}": audience.rstrip("."),
+        "{{PILLARS}}": pillars,
+        "{{EMAIL}}": email,
+        "{{DATE}}": datetime.now(KST).strftime("%Y년 %m월 %d일"),
+    }
+    for token, value in values.items():
+        html = html.replace(token, value)
+
+    left = re.findall(r"\{\{[^}]+\}\}", html)
+    if left:
+        raise ValueError(f"{file}: 채우지 못한 자리표시자 {set(left)}")
     return html.strip()
 
 
@@ -56,7 +91,7 @@ def setup(blog: fleet_mod.Blog, token: str, email: str, update: bool) -> list[st
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=UTF-8"}
     for page in PAGES:
         match = next((existing[t] for t in [page["title"], *page["aliases"]] if t in existing), None)
-        body = {"kind": "blogger#page", "title": page["title"], "content": _template(page["file"], blog.name, email)}
+        body = {"kind": "blogger#page", "title": page["title"], "content": _template(page["file"], blog, email)}
         if match and not update:
             out.append(f"{page['title']}: 이미 있음 ({match.get('status')}) — 건너뜀")
             continue

@@ -186,16 +186,16 @@ def cmd_import(args) -> int:
         print("등록할 새 블로그가 없습니다.")
         return 0
 
-    text = FLEET_PATH.read_text(encoding="utf-8")
-    if not text.endswith("\n"):
-        text += "\n"
     ids = {b.id for b in fleet.blogs}
     added = []
+    # 슬롯은 여기서 한 번에 계산합니다. 중간에 load_fleet 를 다시 부르면
+    # 방금 쓴 subject 없는 항목 때문에 검증에서 막힙니다.
+    taken: list[str] = []
     for b in new:
-        fleet = fleet_mod.load_fleet()
         slug = _slug(b["url"], ids)
         ids.add(slug)
-        slots = fleet_mod.next_free_slots(fleet, args.posts_per_day)
+        slots = fleet_mod.next_free_slots(fleet, args.posts_per_day, extra_taken=taken)
+        taken += slots
         lines = [
             f"  - id: {slug}",
             f"    name: {json.dumps(b['name'], ensure_ascii=False)}",
