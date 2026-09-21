@@ -26,6 +26,22 @@ log = logging.getLogger("fleet")
 REPORT_PATH = fleet_mod.FLEET_DATA / "last_fleet_run.md"
 
 
+# Anthropic 계정 한도/잔액 문제는 블로그를 바꿔 다시 시도해도 똑같이 실패합니다.
+# 이런 경우 남은 슬롯까지 전부 돌며 실패 기록을 남기면, 한도가 풀렸을 때 그 슬롯들이
+# "오늘 이미 처리함"으로 남아 건너뛰게 됩니다. 그래서 함대 실행을 즉시 중단하고 기록도 남기지 않습니다.
+_FATAL_PATTERNS = (
+    "usage limit",          # You have reached your specified API usage limits
+    "credit balance",       # Your credit balance is too low
+    "authentication_error",
+    "invalid x-api-key",
+)
+
+
+def _is_fatal(text: str) -> bool:
+    low = text.lower()
+    return any(p in low for p in _FATAL_PATTERNS)
+
+
 def _run_blog(blog: fleet_mod.Blog, mode: str, extra: list[str]) -> tuple[bool, str]:
     # 슬롯 하나당 글 1건입니다. 하루치를 한 번에 몰아 올리지 않기 위한 설계입니다
     # (2026-09-20: 한 블로그가 2분 30초에 3건 → 계정 API 차단).
@@ -148,6 +164,16 @@ def main(argv: list[str] | None = None) -> int:
         mode = blog_mode(blog)
         log.info("==== [%s] %s 실행 (슬롯 %s) ====", blog.id, mode, slot)
         ok, summary = _run_blog(blog, mode, extra)
+        if not ok and _is_fatal(summary):
+            # 한도·인증 문제. 다른 블로그도 똑같이 실패하므로 여기서 멈추고,
+            # 슬롯은 처리했다고 표시하지 않아 한도가 풀리면 그대로 이어집니다.
+            log.error("Claude API 한도/인증 문제로 함대 실행을 중단합니다: %s", summary[:200])
+            report.append(f"- ⛔ **{blog.name}** ({slot}) — {summary[:200]}")
+            report.append("")
+            report.append("**Claude API 한도 또는 인증 문제입니다. 남은 슬롯은 처리하지 않았고, "
+                          "기록도 남기지 않아 해결되면 그대로 이어집니다.**")
+            _write(report)
+            return 1
         fleet_mod.mark_ran(blog, mode, ok, summary, now, slot=slot)
         if blog.account in account_left and "공개 1건" in summary:
             account_left[blog.account] -= 1
