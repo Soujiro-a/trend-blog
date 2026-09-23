@@ -127,6 +127,8 @@ def propose(
             sources={"planner": rank},
             score=round(1.0 - rank * 0.02, 4),
         )
-        c.headline_hits = [x for x in (t["why"], t["pillar"]) if x]
+        # why/pillar 는 글감 선정 근거일 뿐 글의 소재가 아닙니다.
+        # 리서치 자료에 섞이면 "왜 지금 검색되는가" 같은 도입부 섹션으로 나옵니다.
+        c.note = " · ".join(x for x in (t["pillar"], t["why"]) if x)
         candidates.append(c)
     return candidates

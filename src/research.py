@@ -49,6 +49,38 @@ def gather(cfg: dict, candidate: Candidate) -> list[NewsRef]:
     return unique[:limit]
 
 
+def internal_links_block(history: list[dict], current_keyword: str = "", limit: int = 12) -> str:
+    """같은 블로그에서 이미 공개된 글 목록. 본문에서 내부 링크로 쓸 후보입니다.
+
+    작성 모델과 검수 모델에 **같은 자료로** 넘겨야 합니다. 검수관은 자료에 없는 주소를
+    '지어낸 링크'로 보고 거부하므로, 내부 링크 후보가 자료에 없으면 멀쩡한 글이 반려됩니다.
+    """
+    seen: set[str] = set()
+    rows: list[str] = []
+    for entry in reversed(history):           # 최근 글부터
+        if entry.get("status") != "live":
+            continue
+        url = (entry.get("url") or "").strip()
+        title = (entry.get("title") or "").strip()
+        if not url.startswith("http") or not title or url in seen:
+            continue
+        if current_keyword and entry.get("keyword") == current_keyword:
+            continue                          # 지금 쓰는 글 자신은 제외
+        seen.add(url)
+        rows.append(f"- {title}\n  {url}")
+        if len(rows) >= limit:
+            break
+
+    if not rows:
+        return ""
+    return (
+        "\n\n## 이 블로그의 다른 글 (내부 링크 후보)\n\n"
+        "지금 쓰는 글의 흐름과 정말로 이어지는 자리에만, 최대 2개까지 문장 안에 자연스럽게 겁니다.\n"
+        "넣을 곳이 없으면 하나도 넣지 않아도 됩니다. 주소는 아래 것을 그대로 쓰세요.\n\n"
+        + "\n".join(rows)
+    )
+
+
 def to_context(cfg: dict, candidate: Candidate, refs: list[NewsRef]) -> str:
     """모델에 넘길 리서치 블록을 만듭니다."""
     max_chars = cfg["research"]["max_context_chars"]

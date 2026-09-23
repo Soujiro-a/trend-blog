@@ -434,7 +434,7 @@ def filter_niche(blog: Blog, candidates: list[Candidate]) -> tuple[list[Candidat
         return candidates, []
     kept, dropped = [], []
     for c in candidates:
-        hay = " ".join([c.keyword, *c.variants, *c.headline_hits])
+        hay = " ".join([c.keyword, *c.variants, *c.headline_hits, c.note])
         if any(p in hay for p in blog.include_patterns):
             kept.append(c)
         else:

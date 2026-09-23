@@ -53,6 +53,10 @@ class Candidate:
     score: float = 0.0
     headline_hits: list[str] = field(default_factory=list)
     news: list[NewsRef] = field(default_factory=list)
+    # 기획 단계의 메모(이 글감을 왜 골랐는지). **글쓰기 자료로 넘기지 않습니다.**
+    # 이걸 리서치 컨텍스트에 넣었더니 모델이 "왜 지금 검색되는가" 섹션을 만들어 버렸습니다.
+    # 보고서·로그 표시용입니다.
+    note: str = ""
 
     @property
     def variants(self) -> list[str]:

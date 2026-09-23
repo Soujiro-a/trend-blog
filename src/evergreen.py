@@ -106,6 +106,6 @@ def propose(
             sources={"evergreen": rank},
             score=round(1.0 - rank * 0.05, 4),
         )
-        c.headline_hits = [t["why"]] if t["why"] else []
+        c.note = t["why"]   # 선정 근거. 글쓰기 자료로는 넘기지 않습니다(Candidate.note 주석 참고).
         candidates.append(c)
     return candidates

@@ -191,6 +191,49 @@ def test_context(cfg: dict) -> None:
     check("잘림 표시 있음", "생략" in ctx2)
 
 
+def test_internal_links(cfg: dict) -> None:
+    section("내부 링크 후보")
+    hist = [
+        {"status": "live", "title": "정기검사 준비물", "url": "https://b.blogspot.com/a.html", "keyword": "정기검사"},
+        {"status": "draft", "title": "보류된 글", "url": "https://b.blogspot.com/d.html", "keyword": "보류"},
+        {"status": "rejected", "title": "거부된 글", "url": "", "keyword": "거부"},
+        {"status": "live", "title": "과태료 조회", "url": "https://b.blogspot.com/b.html", "keyword": "과태료"},
+        {"status": "live", "title": "로컬 저장본", "url": "C:\\out\\x.html", "keyword": "로컬"},
+    ]
+    block = research.internal_links_block(hist)
+    check("공개된 글만 포함", "정기검사 준비물" in block and "과태료 조회" in block)
+    check("보류·거부 글 제외", "보류된 글" not in block and "거부된 글" not in block)
+    check("로컬 파일 경로 제외", "로컬 저장본" not in block)
+    check("최근 글이 먼저", block.index("과태료 조회") < block.index("정기검사 준비물"))
+    check("지금 쓰는 글 자신은 제외",
+          "과태료 조회" not in research.internal_links_block(hist, current_keyword="과태료"))
+    check("공개 글 없으면 빈 문자열", research.internal_links_block([{"status": "draft"}]) == "")
+    check("개수 제한", research.internal_links_block(
+        [{"status": "live", "title": f"글{i}", "url": f"https://b/{i}", "keyword": str(i)} for i in range(20)],
+        limit=3).count("https://") == 3)
+
+    dup = [{"status": "live", "title": "같은 글", "url": "https://b/x", "keyword": "a"},
+           {"status": "live", "title": "같은 글 재발행", "url": "https://b/x", "keyword": "b"}]
+    check("같은 주소 중복 제거", research.internal_links_block(dup).count("https://b/x") == 1)
+
+
+def test_no_why_searched(cfg: dict) -> None:
+    section("'왜 검색되는가' 금지")
+    rendered = writer.SYSTEM.format(target_length=1900, date="2026년 09월 23일", footer_rule="- 없음")
+    check("작성 규칙에 금지 문구 있음", "왜 검색되는가" in rendered and "만들지 마세요" in rendered)
+    check("도입부가 답부터", "독자가 찾으러 온 답을 바로" in rendered)
+    check("옛 지시문 제거", "왜 지금 검색되는지부터 파악" not in writer.USER_TEMPLATE)
+    check("검수도 같은 기준", "왜 지금 검색되는가" in reviewer.SYSTEM)
+    check("내부 링크 규칙 있음", "이 블로그의 다른 글" in rendered and "억지로 넣지 마세요" in rendered)
+    check("검수가 내부 링크를 지어낸 링크로 보지 않음", "그 목록에 없는 같은 블로그 주소" in reviewer.SYSTEM)
+
+    # 기획 메모가 글쓰기 자료로 새지 않아야 합니다 (이게 '왜 검색되는가' 섹션의 원인이었습니다)
+    c = mk_candidate("테스트 주제")
+    c.note = "연말정산 시즌이라 검색량이 늘어남"
+    ctx = research.to_context(cfg, c, [NewsRef(title="기사", url="https://e.com/a", source="매체")])
+    check("기획 메모는 자료에 안 들어감", "검색량이 늘어남" not in ctx)
+
+
 def test_writer_parse(cfg: dict) -> None:
     section("모델 응답 파싱")
     raw = (
@@ -651,6 +694,8 @@ def main() -> int:
     test_filters(cfg)
     test_dedupe(cfg)
     test_context(cfg)
+    test_internal_links(cfg)
+    test_no_why_searched(cfg)
     test_writer_parse(cfg)
     test_footer(cfg)
     test_reviewer_parse(cfg)

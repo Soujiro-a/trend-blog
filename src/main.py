@@ -180,7 +180,7 @@ def _collect_planned_candidates(cfg: dict, ctx: RunContext, report: list[str]) -
 
     report.append(f"## 글감 기획 — {ctx.blog.subject}")
     for c in fresh:
-        why = f" — {c.headline_hits[0]}" if c.headline_hits else ""
+        why = f" — {c.note}" if c.note else ""
         report.append(f"- **{c.keyword}**{why}")
     if skipped:
         report.append("")
@@ -199,7 +199,7 @@ def _collect_evergreen_candidates(cfg: dict, ctx: RunContext, report: list[str])
         skipped += claimed
     report.append("## 장수 주제 후보")
     for c in fresh:
-        why = f" — {c.headline_hits[0]}" if c.headline_hits else ""
+        why = f" — {c.note}" if c.note else ""
         report.append(f"- **{c.keyword}**{why}")
     if skipped:
         report.append("")
@@ -343,7 +343,11 @@ def main(argv: list[str] | None = None) -> int:
                 report.append(f"- ⏭️ {candidate.keyword} — 참고 기사 부족({len(refs)}건)")
                 continue
 
+            # 내부 링크 후보(이미 공개된 같은 블로그 글)를 자료에 함께 넣습니다.
+            # 작성 모델과 검수 모델이 **같은 자료**를 봐야 합니다. 검수관은 자료에 없는 주소를
+            # 지어낸 링크로 보고 거부하므로, 여기 없으면 멀쩡한 내부 링크가 반려됩니다.
             context = research.to_context(cfg, candidate, refs)
+            context += research.internal_links_block(history, candidate.keyword)
             article = writer.write(cfg, candidate, context, refs, date_str, mode=mode, persona=ctx.persona)
             cost = article.cost_usd
 
