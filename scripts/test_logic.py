@@ -312,6 +312,28 @@ def test_no_why_searched(cfg: dict) -> None:
     check("기획 메모는 자료에 안 들어감", "검색량이 늘어남" not in ctx)
 
 
+def test_pages() -> None:
+    section("소개·개인정보처리방침 페이지 템플릿")
+    from scripts import setup_pages
+    from src.fleet import Blog
+
+    base = dict(id="t", name="가가남블로그", blog_id="1", subject="자동차 운전과 차량 관리", pillars=["면허"])
+    plain = Blog(**base)
+    about = setup_pages._template("about.html", plain, "a@b.c", "https://t.blogspot.com/p/blog-page_21.html")
+    check("개인정보처리방침 링크가 실제 주소", 'href="/p/blog-page_21.html"' in about, about[-300:])
+    check("page 비우면 기본 문구", "관할 기관에 문의하세요" in about)
+    check("주소 모르면 옛 경로", 'href="/p/privacy-policy.html"' in setup_pages._template("about.html", plain, "a@b.c"))
+
+    custom = Blog(**base, page={"goal": "살림 목표 문구", "gap": "살림 빈틈 문구", "caution": "살림 주의 문구"})
+    about = setup_pages._template("about.html", custom, "a@b.c")
+    check("주제별 문구로 교체", all(s in about for s in ("살림 목표 문구", "살림 빈틈 문구", "살림 주의 문구")))
+    check("기본 문구는 빠짐", "관할 기관에 문의하세요" not in about and "법률·세무·의료 자문" not in about)
+
+    privacy = setup_pages._template("privacy-policy.html", plain, "a@b.c")
+    check("'본 블로그'는 (조사)", '(이하 "본 블로그")는' in privacy)
+    check("개인정보처리방침을 먼저 만듦", setup_pages.PAGES[0]["file"] == "privacy-policy.html")
+
+
 def test_writer_parse(cfg: dict) -> None:
     section("모델 응답 파싱")
     raw = (
@@ -785,6 +807,7 @@ def main() -> int:
     test_context(cfg)
     test_internal_links(cfg)
     test_no_why_searched(cfg)
+    test_pages()
     test_llm_robustness(cfg)
     test_writer_parse(cfg)
     test_footer(cfg)

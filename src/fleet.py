@@ -59,6 +59,8 @@ class Blog:
     exclude_patterns: list[str] = field(default_factory=list)
     labels: list[str] = field(default_factory=lambda: ["실시간이슈"])
     overrides: dict = field(default_factory=dict)
+    # 소개 페이지 문구(goal / gap / caution). scripts/setup_pages.py 가 씁니다. 비우면 기본 문구.
+    page: dict = field(default_factory=dict)
     manager_note: str = ""   # 관리 에이전트가 남긴 이유 (표시용)
 
     @property
@@ -193,6 +195,7 @@ def load_fleet(path: Path = FLEET_PATH, manager_state: dict | None = None) -> Fl
             exclude_patterns=list(entry.get("exclude_patterns") or []),
             labels=list(entry.get("labels") or ["실시간이슈"]),
             overrides=dict(entry.get("overrides") or {}),
+            page=dict(entry.get("page") or {}),
         )
         # 관리 에이전트의 결정 덧씌우기 (파일 주석을 지키기 위해 blogs.yaml 은 건드리지 않음)
         ms = mstate.get(b.id, {})

@@ -25,9 +25,11 @@ from src.config import ROOT, env, load_dotenv  # noqa: E402
 from src.publishers import blogger  # noqa: E402
 from src.state import KST  # noqa: E402
 
+# 개인정보처리방침을 먼저 만듭니다. 소개 페이지가 그 주소로 링크해야 하는데,
+# 한글 제목 페이지는 Blogger 가 /p/blog-page_24.html 같은 주소를 붙이므로 만들어 봐야 압니다.
 PAGES = [
-    {"title": "블로그 소개", "file": "about.html", "aliases": ["소개", "About"]},
     {"title": "개인정보처리방침", "file": "privacy-policy.html", "aliases": ["개인정보 처리방침", "Privacy Policy"]},
+    {"title": "블로그 소개", "file": "about.html", "aliases": ["소개", "About"]},
 ]
 
 
@@ -45,7 +47,27 @@ def josa(word: str, with_batchim: str, without: str) -> str:
     return without
 
 
-def _template(file: str, blog: fleet_mod.Blog, email: str) -> str:
+# 소개 페이지의 주제별 문구 기본값. 절차·제도형 블로그(행정, 세금, 소비자 권리 등)에 맞춰져 있어서
+# 살림·여행처럼 결이 다른 주제는 blogs.yaml 의 page.goal / page.gap / page.caution 으로 바꿉니다.
+PAGE_DEFAULTS = {
+    "goal": (
+        '검색해서 들어온 사람이 <strong>"그래서 내가 무엇을, 언제까지, 어디서 해야 하는지"</strong>를\n'
+        "    알고 나갈 수 있게 정리하는 것을 목표로 합니다."
+    ),
+    "gap": (
+        "관련 정보는 이미 많습니다. 그런데 막상 검색해 보면 조건이 빠져 있거나, 몇 년 전 기준이거나,\n"
+        '    정작 필요한 절차는 "관할 기관에 문의하세요"로 끝나는 경우가 많습니다.\n'
+        "    이 블로그는 그 빈틈을 메우려고 합니다."
+    ),
+    "caution": (
+        "제도·기준·금액은 수시로 바뀌므로, 실제로 신청하거나 결정하기 전에는\n"
+        "    본문에 링크한 공식 기관 안내를 한 번 더 확인해 주세요.\n"
+        "    개별 사안에 대한 법률·세무·의료 자문이 아닙니다."
+    ),
+}
+
+
+def _template(file: str, blog: fleet_mod.Blog, email: str, privacy_url: str = "") -> str:
     """페이지 템플릿에 이 블로그의 주제·독자·하위 축을 채웁니다.
 
     블로그마다 내용이 달라야 합니다. 7개 블로그가 똑같은 소개 페이지를 쓰면
@@ -66,7 +88,11 @@ def _template(file: str, blog: fleet_mod.Blog, email: str) -> str:
         "{{PILLARS}}": pillars,
         "{{EMAIL}}": email,
         "{{DATE}}": datetime.now(KST).strftime("%Y년 %m월 %d일"),
+        # 블로그 안 링크라 경로만 씁니다 (http/https·맞춤 도메인이 바뀌어도 유효)
+        "{{PRIVACY_URL}}": re.sub(r"^https?://[^/]+", "", privacy_url) or "/p/privacy-policy.html",
     }
+    for key, default in PAGE_DEFAULTS.items():
+        values["{{" + key.upper() + "}}"] = str(blog.page.get(key) or default).strip()
     for token, value in values.items():
         html = html.replace(token, value)
 
@@ -89,11 +115,17 @@ def setup(blog: fleet_mod.Blog, token: str, email: str, update: bool) -> list[st
     out = []
     existing = _existing_pages(blog.blog_id, token)
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=UTF-8"}
+    privacy_url = ""
     for page in PAGES:
         match = next((existing[t] for t in [page["title"], *page["aliases"]] if t in existing), None)
-        body = {"kind": "blogger#page", "title": page["title"], "content": _template(page["file"], blog, email)}
+        body = {
+            "kind": "blogger#page", "title": page["title"],
+            "content": _template(page["file"], blog, email, privacy_url),
+        }
         if match and not update:
             out.append(f"{page['title']}: 이미 있음 ({match.get('status')}) — 건너뜀")
+            if page["file"] == "privacy-policy.html":
+                privacy_url = match.get("url", "")
             continue
         # Blogger 의 페이지 쓰기 한도는 낮아서(짧은 시간에 몇 번이면 429) 실패하면 기다렸다 다시 시도합니다.
         # 공용 세션의 자동 재시도는 429 를 연타해서 더 막히므로 여기서는 requests 를 직접 씁니다.
@@ -127,6 +159,8 @@ def setup(blog: fleet_mod.Blog, token: str, email: str, update: bool) -> list[st
             pub = net.session().post(f"{blogger.API_BASE}/blogs/{blog.blog_id}/pages/{data['id']}/publish", headers=headers, timeout=30)
             if pub.status_code == 200:
                 data = pub.json()
+        if page["file"] == "privacy-policy.html":
+            privacy_url = data.get("url", "")
         out.append(f"{page['title']}: {verb} → {data.get('status')} {data.get('url', '')}")
     return out
 
