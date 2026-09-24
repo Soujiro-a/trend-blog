@@ -31,7 +31,7 @@ from datetime import datetime, timedelta
 import anthropic
 
 from . import fleet as fleet_mod
-from . import net, state
+from . import llm, net, state
 from .config import env, load_config
 from .publishers import blogger
 from .state import KST
@@ -95,13 +95,18 @@ def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, use_api: bool, n
     by = Counter(h.get("status") for h in hist)
     scores = [h["review_score"] for h in hist if h.get("review_score") is not None]
     runs = fleet_mod.load_runs(blog)
-    trend_runs = sorted((k, v) for k, v in runs.items() if k.startswith("trend:"))
+    # 실행 기록 키는 "<모드>:<날짜>[:<슬롯>]" 입니다 (planned:2026-09-22:08:00, trend:2026-09-20 …).
+    # 예전엔 "trend:" 로 시작하는 것만 셌는데, 블로그들이 planned 모드로 바뀐 뒤로 실행이 0회로 잡혀
+    # "7일간 실행 기록 없음" 오경보가 났고(2026-09-24), 더 나쁘게는 연속 실패 3회 → 자동 중지
+    # 규칙도 조용히 꺼져 있었습니다. 모드와 상관없이 전부 셉니다.
+    all_runs = sorted(runs.items(), key=lambda kv: kv[1].get("at", ""))
     consecutive_fail = 0
-    for _, r in reversed(trend_runs):
+    for _, r in reversed(all_runs):
         if r.get("ok"):
             break
         consecutive_fail += 1
-    recent_runs = [v for k, v in trend_runs if k.split(":", 1)[1] >= (now - timedelta(days=7)).strftime("%Y-%m-%d")]
+    cutoff = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    recent_runs = [v for k, v in all_runs if k.split(":")[1] >= cutoff]
     ms = fleet_mod.load_manager_state().get("blogs", {}).get(blog.id, {})
 
     m = {
@@ -180,7 +185,7 @@ def _rule_based(metrics: list[dict]) -> list[dict]:
 
 
 def _ask_model(cfg: dict, metrics: list[dict], duplicates: list[str], alerts: list[str]) -> dict:
-    client = anthropic.Anthropic()
+    client = llm.client()
     system = SYSTEM.format(
         pause_fail=RULES["pause_after_consecutive_failures"], zero_days=RULES["pause_if_zero_live_days"],
         ppr_min=RULES["posts_per_run_range"][0], ppr_max=RULES["posts_per_run_range"][1],
@@ -194,12 +199,12 @@ def _ask_model(cfg: dict, metrics: list[dict], duplicates: list[str], alerts: li
     )
     resp = client.messages.create(
         model=cfg.get("manager", {}).get("model", "claude-sonnet-5"),
-        max_tokens=2000,
+        max_tokens=6000,
         system=system,
         output_config={"effort": "medium"},
         messages=[{"role": "user", "content": user}],
     )
-    raw = "".join(b.text for b in resp.content if b.type == "text")
+    raw = llm.text_of(resp, "관리 판단")
     m = re.search(r"\{.*\}", raw, re.DOTALL)
     if not m:
         raise ValueError(f"관리 모델 응답에 JSON 없음: {raw[:200]!r}")

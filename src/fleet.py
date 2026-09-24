@@ -296,16 +296,35 @@ def load_runs(blog: Blog) -> dict:
         return {}
 
 
+# 슬롯 하나를 하루에 몇 번까지 시도할지. 성공하면 그걸로 끝이고, 실패하면 다음 실행 기회에 한 번 더 합니다.
+# 2026-09-23 에 글감 기획 응답이 잘려 한 번 실패한 슬롯이 그날 다시 시도되지 않아 하루치 글이 날아갔습니다.
+# 무한 재시도는 비용 사고가 나므로 2회로 묶습니다. (API 한도·인증 문제는 fleet_run 이 아예 기록하지 않습니다)
+SLOT_MAX_ATTEMPTS = 2
+
+
 def mark_ran(blog: Blog, mode: str, ok: bool, summary: str, now: datetime | None = None, slot: str | None = None) -> None:
     now = now or datetime.now(KST)
     runs = load_runs(blog)
     key = _run_key(mode, now, slot)
-    runs[key] = {"at": now.isoformat(timespec="seconds"), "ok": ok, "summary": summary[:300]}
-    # 최근 60일만 유지
-    keep = sorted(runs.keys())[-120:]
-    runs = {k: runs[k] for k in keep}
+    attempts = int((runs.get(key) or {}).get("attempts", 0)) + 1
+    runs[key] = {
+        "at": now.isoformat(timespec="seconds"),
+        "ok": ok,
+        "attempts": attempts,
+        "summary": summary[:300],
+    }
+    # 최근 120건만 유지 (시각 순으로 — 키 문자열 순으로 자르면 모드별로 엉뚱한 것이 지워집니다)
+    keep = sorted(runs.items(), key=lambda kv: kv[1].get("at", ""))[-120:]
+    runs = dict(keep)
     blog.runs_path.parent.mkdir(parents=True, exist_ok=True)
     blog.runs_path.write_text(json.dumps(runs, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _slot_done(record: dict | None) -> bool:
+    """이 슬롯을 오늘 더 시도하지 않아도 되는지. 성공했거나, 시도 한도를 다 썼으면 끝."""
+    if not record:
+        return False
+    return bool(record.get("ok")) or int(record.get("attempts", 1)) >= SLOT_MAX_ATTEMPTS
 
 
 def _run_key(mode: str, now: datetime, slot: str | None) -> str:
@@ -317,10 +336,10 @@ def ran_today(blog: Blog, mode: str, now: datetime | None = None, slot: str | No
     now = now or datetime.now(KST)
     runs = load_runs(blog)
     if slot is None:
-        # 슬롯을 안 주면 "오늘 한 번이라도 돌았나"
+        # 슬롯을 안 주면 "오늘 끝난 실행이 하나라도 있나"
         prefix = f"{mode}:{now.strftime('%Y-%m-%d')}"
-        return any(k == prefix or k.startswith(prefix + ":") for k in runs)
-    return _run_key(mode, now, slot) in runs
+        return any((k == prefix or k.startswith(prefix + ":")) and _slot_done(v) for k, v in runs.items())
+    return _slot_done(runs.get(_run_key(mode, now, slot)))
 
 
 def due_slots(fleet: Fleet, now: datetime | None = None, mode: str = "planned") -> list[tuple[Blog, str]]:

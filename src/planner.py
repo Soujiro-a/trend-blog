@@ -20,6 +20,7 @@ import re
 
 import anthropic
 
+from . import llm
 from .trends import Candidate, Variant
 
 log = logging.getLogger(__name__)
@@ -56,12 +57,38 @@ USER_TEMPLATE = """## 이 블로그
 위 주제 안에서 글감 {n}개를 고르세요. 하위 축이 골고루 섞이게 하고, 이미 쓴 것과 겹치지 마세요."""
 
 
-def _parse(raw: str) -> list[dict]:
+def _items(raw: str) -> list[dict]:
+    """JSON 배열을 읽습니다. 배열이 중간에 잘렸으면 **완성된 항목만** 건집니다.
+
+    2026-09-23 에 응답이 두 번째 항목 중간에서 끊겨 배열 전체를 버렸고, 그날 슬롯이 날아갔습니다.
+    글감은 하나만 있어도 오늘 글을 쓸 수 있으므로, 온전한 `{...}` 만이라도 살립니다.
+    """
     m = re.search(r"\[.*\]", raw, re.DOTALL)
-    if not m:
-        raise ValueError(f"기획 응답에 JSON 배열이 없습니다: {raw[:200]!r}")
+    if m:
+        try:
+            data = json.loads(m.group(0))
+            if isinstance(data, list):
+                return [x for x in data if isinstance(x, dict)]
+        except json.JSONDecodeError:
+            pass
+    # 잘린 배열: 중괄호가 짝이 맞는 객체만 하나씩 읽습니다. (글감 항목에는 중첩 객체가 없습니다)
+    salvaged = []
+    for chunk in re.findall(r"\{[^{}]*\}", raw):
+        try:
+            obj = json.loads(chunk)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            salvaged.append(obj)
+    if salvaged:
+        log.warning("기획 응답이 온전한 배열이 아니라 완성된 항목 %d개만 건졌습니다.", len(salvaged))
+        return salvaged
+    raise ValueError(f"기획 응답에서 글감을 하나도 읽지 못했습니다: {raw[:200]!r}")
+
+
+def _parse(raw: str) -> list[dict]:
     out = []
-    for it in json.loads(m.group(0)):
+    for it in _items(raw):
         topic = str(it.get("topic", "")).strip()
         if not topic:
             continue
@@ -84,7 +111,7 @@ def propose(
 ) -> list[Candidate]:
     """블로그 주제 안에서 글감 후보를 만듭니다. 기존 파이프라인이 그대로 쓰도록 Candidate 로 돌려줍니다."""
     pl = cfg["planner"]
-    client = client or anthropic.Anthropic()
+    client = client or llm.client()
 
     if not blog.subject:
         raise ValueError(
@@ -94,9 +121,12 @@ def propose(
     done = [h.get("keyword", "") for h in history][-60:]
     done_lines = "\n".join(f"- {k}" for k in done) or "- (없음)"
 
+    # 글감 목록 뽑기는 깊이 생각할 일이 아닙니다. effort 를 낮춰 thinking 이 출력 자리를 먹지 않게 하고,
+    # max_tokens 도 넉넉히 둡니다(thinking 토큰도 이 안에서 씁니다 — src/llm.py 참고).
     response = client.messages.create(
         model=pl["model"],
-        max_tokens=2000,
+        max_tokens=int(pl.get("max_tokens", 8000)),
+        output_config={"effort": pl.get("effort", "low")},
         system=SYSTEM,
         messages=[
             {
@@ -111,7 +141,7 @@ def propose(
             }
         ],
     )
-    raw = "".join(b.text for b in response.content if b.type == "text")
+    raw = llm.text_of(response, f"[{blog.id}] 글감 기획", allow_truncated=True)
     topics = _parse(raw)
     log.info(
         "[%s] 글감 후보 %d개 (주제: %s, 토큰 %d/%d)",

@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 
 import anthropic
 
+from . import llm
 from .writer import PRICES, Article
 
 log = logging.getLogger(__name__)
@@ -158,7 +159,7 @@ def review(
 ) -> Review:
     r = cfg["review"]
     model = r["model"]
-    client = client or anthropic.Anthropic()
+    client = client or llm.client()
 
     user = USER_TEMPLATE.format(
         context=context,
@@ -170,7 +171,7 @@ def review(
 
     response = client.messages.create(
         model=model,
-        max_tokens=r.get("max_tokens", 2000),
+        max_tokens=r.get("max_tokens", 6000),
         system=SYSTEM,
         output_config={"effort": r.get("effort", "medium")},
         messages=[{"role": "user", "content": user}],
@@ -180,7 +181,7 @@ def review(
         # 검수 모델이 내용 자체를 거부했다면 그 글은 올리지 않는 게 맞습니다.
         result = Review(verdict="reject", score=0, issues=["검수 모델이 내용을 거부함"], model=model)
     else:
-        raw = "".join(b.text for b in response.content if b.type == "text")
+        raw = llm.text_of(response, f"[{article.keyword}] 검수")
         result = _parse(raw, model)
 
     result.input_tokens = response.usage.input_tokens

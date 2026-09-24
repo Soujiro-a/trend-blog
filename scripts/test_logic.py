@@ -217,6 +217,84 @@ def test_internal_links(cfg: dict) -> None:
     check("같은 주소 중복 제거", research.internal_links_block(dup).count("https://b/x") == 1)
 
 
+def test_llm_robustness(cfg: dict) -> None:
+    section("모델 응답 잘림 대응")
+    from src import llm, planner
+    from dataclasses import dataclass, field
+
+    @dataclass
+    class _U:
+        output_tokens: int = 2000
+
+    @dataclass
+    class _B:
+        text: str
+        type: str = "text"
+
+    @dataclass
+    class _R:
+        content: list
+        stop_reason: str
+        usage: _U = field(default_factory=_U)
+
+    ok = _R([_B('{"a":1}')], "end_turn")
+    check("정상 응답은 그대로", llm.text_of(ok, "t") == '{"a":1}')
+    cut = _R([_B('[{"topic":"가"},{"topic":')], "max_tokens")
+    try:
+        llm.text_of(cut, "t")
+        check("잘린 응답은 기본적으로 예외", False)
+    except llm.Truncated:
+        check("잘린 응답은 기본적으로 예외", True)
+    check("허용하면 잘린 텍스트 반환", llm.text_of(cut, "t", allow_truncated=True).startswith("[{"))
+
+    # 2026-09-23 실제 사고 응답 형태: 배열이 두 번째 항목 중간에서 끊김
+    raw = ('[\n  {"topic": "택배 파손·배송사고 보상 받는 방법과 신고 절차", "pillar": "배송 사고", '
+           '"why": "많이 검색", "search": "택배 파손 배상 절차"},\n  {"topic": "구매 후 하자 발견 시 환불과 교환 중')
+    topics = planner._parse(raw)
+    check("잘린 배열에서 완성된 글감만 건짐", len(topics) == 1 and topics[0]["topic"].startswith("택배 파손"),
+          f"{topics}")
+    check("정상 배열은 전부", len(planner._parse('[{"topic":"가"},{"topic":"나"}]')) == 2)
+    try:
+        planner._parse("글감을 못 드리겠습니다")
+        check("아무것도 없으면 예외", False)
+    except ValueError:
+        check("아무것도 없으면 예외", True)
+
+    check("재시도 횟수 넉넉히", llm.client().max_retries >= 5)
+    check("기획 max_tokens 여유", cfg["planner"]["max_tokens"] >= 6000)
+    check("검수 max_tokens 여유", cfg["review"]["max_tokens"] >= 4000)
+    check("작성 max_tokens 여유", cfg["writer"]["max_tokens"] >= 24000)
+
+    section("관리 에이전트 실행 집계 (모드 무관)")
+    import tempfile
+    from pathlib import Path
+    from datetime import datetime, timezone, timedelta
+    from src import fleet as fm, manager
+    kst = timezone(timedelta(hours=9))
+    with tempfile.TemporaryDirectory() as tmp:
+        orig = fm.DATA_DIR
+        fm.DATA_DIR = Path(tmp)
+        try:
+            fl = fm.Fleet({"max_live_per_day_account": 6}, {"default": {}},
+                          [fm.Blog(id="p", name="p", blog_id="1", subject="가")])
+            b = fl.blogs[0]
+            now = datetime(2026, 9, 24, 10, 0, tzinfo=kst)
+            for d, ok in ((21, True), (22, True), (23, False)):
+                fm.mark_ran(b, "planned", ok, "x", datetime(2026, 9, d, 8, 0, tzinfo=kst), slot="08:00")
+            m = manager._blog_metrics(fl, b, False, now)
+            check("planned 모드 실행도 집계 (오경보 원인)", m["runs_7d"] == 3, f"{m['runs_7d']}")
+            check("실패 수 집계", m["runs_failed_7d"] == 1)
+            check("연속 실패 계산", m["consecutive_failures"] == 1)
+            fm.mark_ran(b, "planned", False, "x", datetime(2026, 9, 24, 8, 0, tzinfo=kst), slot="08:00")
+            fm.mark_ran(b, "planned", False, "x", datetime(2026, 9, 24, 12, 0, tzinfo=kst), slot="12:00")
+            m2 = manager._blog_metrics(fl, b, False, now)
+            check("연속 실패 3회 → 자동 중지 규칙이 다시 작동",
+                  m2["consecutive_failures"] == 3 and manager._rule_based([{**m2, "enabled": True}]),
+                  f"{m2['consecutive_failures']}")
+        finally:
+            fm.DATA_DIR = orig
+
+
 def test_no_why_searched(cfg: dict) -> None:
     section("'왜 검색되는가' 금지")
     rendered = writer.SYSTEM.format(target_length=1900, date="2026년 09월 23일", footer_rule="- 없음")
@@ -621,6 +699,17 @@ def test_fleet(cfg: dict) -> None:
             due3 = [(b.id, s) for b, s in fm.due_slots(f3, datetime(2026, 9, 20, 9, 3, tzinfo=kst), "planned")]
             due3b = [(b.id, s) for b, s in fm.due_slots(f3, datetime(2026, 9, 20, 9, 50, tzinfo=kst), "planned")]
             check("catch-up 끄면 현재 창만", due3 == [("y", "09:00")] and due3b == [], f"{due3} {due3b}")
+            # 실패한 슬롯은 한 번 더 시도, 두 번째도 실패하면 그날은 끝
+            y = f2.blogs[1]
+            fm.mark_ran(y, "planned", False, "예외: 글감 응답 잘림", now, slot="09:00")
+            check("실패 1회 → 다시 대상", ("y", "09:00") in [(b.id, s) for b, s in fm.due_slots(f2, now, "planned")])
+            fm.mark_ran(y, "planned", False, "예외: 또 실패", now, slot="09:00")
+            check("실패 2회 → 그날은 포기", ("y", "09:00") not in [(b.id, s) for b, s in fm.due_slots(f2, now, "planned")])
+            check("시도 횟수 기록", fm.load_runs(y)["planned:2026-09-20:09:00"]["attempts"] == 2)
+            fm.mark_ran(f2.blogs[0], "planned", True, "ok", now, slot="15:00")
+            check("성공은 1회로 끝", fm.load_runs(f2.blogs[0])["planned:2026-09-20:15:00"]["attempts"] == 1
+                  and ("x", "15:00") not in [(b.id, s) for b, s in fm.due_slots(f2, now, "planned")])
+
         finally:
             fm.DATA_DIR = orig
 
@@ -696,6 +785,7 @@ def main() -> int:
     test_context(cfg)
     test_internal_links(cfg)
     test_no_why_searched(cfg)
+    test_llm_robustness(cfg)
     test_writer_parse(cfg)
     test_footer(cfg)
     test_reviewer_parse(cfg)

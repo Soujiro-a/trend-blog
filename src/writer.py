@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 import anthropic
 
+from . import llm
 from .trends import Candidate
 from .trends.base import NewsRef
 
@@ -183,7 +184,7 @@ def write(
 ) -> Article:
     w = cfg["writer"]
     model = w["model"]
-    client = client or anthropic.Anthropic()
+    client = client or llm.client()
     template = USER_TEMPLATE_EVERGREEN if mode == "evergreen" else USER_TEMPLATE
 
     # 글 맨 아래 안내 문구. config 에서 비워두면 아무것도 붙이지 않습니다.
@@ -217,10 +218,9 @@ def write(
     if response.stop_reason == "refusal":
         detail = getattr(response.stop_details, "explanation", "") or ""
         raise SkippedByModel(f"모델이 작성을 거부했습니다. {detail}")
-    if response.stop_reason == "max_tokens":
-        log.warning("[%s] max_tokens 에 걸려 본문이 잘렸을 수 있습니다.", candidate.keyword)
-
-    raw = "".join(b.text for b in response.content if b.type == "text")
+    # 잘린 글은 FAQ·참고 자료가 빠진 채 끝납니다. 예전엔 경고만 하고 그대로 발행했는데,
+    # 검수관이 못 잡으면 반쪽짜리 글이 공개됩니다. 실패로 처리해 다른 글감으로 넘어갑니다.
+    raw = llm.text_of(response, f"[{candidate.keyword}] 글 작성")
     article = _parse(raw, candidate.keyword, model)
     article.input_tokens = response.usage.input_tokens
     article.output_tokens = response.usage.output_tokens

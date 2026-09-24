@@ -134,7 +134,7 @@ writer:
   # claude-opus-5:    절반 비용 (입력 $5 / 출력 $25, 글당 약 $0.12)
   # claude-sonnet-5:  가장 저렴 (입력 $2 / 출력 $10, 글당 약 $0.05)
   model: claude-fable-5-1
-  max_tokens: 16000
+  max_tokens: 32000     # thinking 토큰 포함. 잘리면 실패 처리되므로 넉넉히 (쓴 만큼만 과금)
   effort: high          # low | medium | high | xhigh | max
   target_length: 1900   # 최소 글자수(한글, 공백 포함). 보통 이보다 조금 길게 나옵니다.
   # 글 맨 아래에 붙는 안내 문구. {date} 자리에 작성일이 들어갑니다.
@@ -150,7 +150,7 @@ review:
   enabled: true
   model: claude-sonnet-5     # 검수는 작성보다 쉬운 일이라 Sonnet 으로 충분합니다 (글당 약 $0.03)
   effort: medium
-  max_tokens: 2000
+  max_tokens: 6000      # thinking 토큰 포함 (2000 이면 JSON 이 잘릴 수 있음)
   # 이 점수 이상 + 판정 publish 여야 공개합니다. 낮추면 더 많이 공개되고 위험도 올라갑니다.
   min_score: 80
 
@@ -185,6 +185,8 @@ monetize:
 # 설계상 발생하지 않고, 글 수명이 길어 하루 2건으로도 누적이 쌓입니다.
 planner:
   model: claude-sonnet-5
+  effort: low           # 목록 뽑기라 깊게 생각할 일이 아닙니다
+  max_tokens: 8000      # thinking 토큰 포함. 2000 일 때 응답이 잘려 슬롯이 날아간 적이 있습니다(2026-09-23)
   candidates: 8          # 한 번에 제안할 글감 수 (이력과 안 겹치는 것부터 씁니다)
 
 # 함대 관리 에이전트 (src/manager.py) — 블로그별 지표를 보고 중지/재개/글 수 조정을 판단합니다.

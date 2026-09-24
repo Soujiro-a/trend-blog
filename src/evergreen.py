@@ -16,6 +16,7 @@ import re
 
 import anthropic
 
+from . import llm
 from .trends import Candidate, Variant
 
 log = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ def propose(
 ) -> list[Candidate]:
     """이력을 재료로 장수 주제 후보를 만듭니다. Candidate 형태로 돌려줘 기존 파이프라인을 그대로 탑니다."""
     ev = cfg["evergreen"]
-    client = client or anthropic.Anthropic()
+    client = client or llm.client()
 
     recent = [h for h in history if h.get("mode", "trend") != "evergreen"][-40:]
     done = [h for h in history if h.get("mode") == "evergreen"][-30:]
@@ -80,7 +81,8 @@ def propose(
 
     response = client.messages.create(
         model=ev["topic_model"],
-        max_tokens=1500,
+        max_tokens=8000,
+        output_config={"effort": "low"},
         system=SYSTEM,
         messages=[
             {
