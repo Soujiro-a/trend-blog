@@ -160,7 +160,10 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return out
 
 
-def load_manager_state(path: Path = MANAGER_STATE_PATH) -> dict:
+def load_manager_state(path: Path | None = None) -> dict:
+    # 경로를 호출할 때 정합니다 (계정 상태와 같게). 기본값에 박아 두면 테스트가 MANAGER_STATE_PATH 를
+    # 임시 파일로 바꿔도 실제 data/fleet/manager_state.json 을 읽고 씁니다.
+    path = path or MANAGER_STATE_PATH
     if not path.exists():
         return {"blogs": {}}
     try:
@@ -170,7 +173,8 @@ def load_manager_state(path: Path = MANAGER_STATE_PATH) -> dict:
         return {"blogs": {}}
 
 
-def save_manager_state(state: dict, path: Path = MANAGER_STATE_PATH) -> None:
+def save_manager_state(state: dict, path: Path | None = None) -> None:
+    path = path or MANAGER_STATE_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 

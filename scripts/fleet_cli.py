@@ -144,8 +144,14 @@ def _toggle(blog_id: str, enabled: bool) -> int:
     fleet = fleet_mod.load_fleet()
     fleet.get(blog_id)
     st = fleet_mod.load_manager_state()
-    st.setdefault("blogs", {}).setdefault(blog_id, {})["enabled"] = enabled
-    st["blogs"][blog_id]["note"] = f"{'수동 켬' if enabled else '수동 끔'} {datetime.now(KST).strftime('%m-%d')}"
+    # by=manual 이라야 관리 에이전트(src/manager.py)가 이 결정을 되돌리지 않습니다. 예전엔 by 를 안 적어서,
+    # 관리자가 멈췄던 블로그를 사람이 다시 끄면 by=manager 가 남아 다음 날 밤 자동으로 켜질 수 있었습니다.
+    # 켤 때도 적습니다 — 켜진 동안은 관리자 판단에 쓰이지 않고(연속 실패면 여전히 중지됨), 누가 켰는지만 남깁니다.
+    st.setdefault("blogs", {}).setdefault(blog_id, {}).update({
+        "enabled": enabled,
+        "by": "manual",
+        "note": f"{'수동 켬' if enabled else '수동 끔'} {datetime.now(KST).strftime('%m-%d')}",
+    })
     fleet_mod.save_manager_state(st)
     print(f"{blog_id}: {'켜짐' if enabled else '꺼짐'} (data/fleet/manager_state.json)")
     return 0

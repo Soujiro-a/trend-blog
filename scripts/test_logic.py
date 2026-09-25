@@ -937,6 +937,64 @@ def test_fleet(cfg: dict) -> None:
     check("규칙 기반 폴백: 연속 3회 실패 → pause", rule and rule[0]["blog"] == "dead")
 
 
+def test_manual_toggle() -> None:
+    section("함대: 사람이 끈 블로그는 관리 에이전트가 다시 켜지 않음")
+    import contextlib
+    import io
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+    from scripts import fleet_cli
+    from src import fleet as fm
+    from src import manager
+
+    # 관리자가 멈춘 블로그를 사람이 fleet_cli disable 로 다시 끄면 by=manager 가 그대로 남아,
+    # 다음 날 밤 관리 모델의 resume 이 규칙을 통과했습니다.
+    kst = timezone(timedelta(hours=9))
+    now = datetime(2026, 9, 25, 23, 35, tzinfo=kst)
+    resume = [{"blog": "p", "action": "resume", "value": None, "reason": "원인 해소"}]
+    pause = [{"blog": "p", "action": "pause", "value": None, "reason": "연속 3회 실패"}]
+    with tempfile.TemporaryDirectory() as tmp:
+        yml = Path(tmp) / "blogs.yaml"
+        yml.write_text('blogs:\n  - {id: p, name: p, blog_id: "1", subject: 가}\n', encoding="utf-8")
+        saved = {k: getattr(fm, k) for k in ("MANAGER_STATE_PATH", "DATA_DIR", "load_fleet")}
+        try:
+            # 실제 data/fleet/manager_state.json·blogs.yaml 대신 임시 파일과 블로그 하나짜리 함대
+            fm.MANAGER_STATE_PATH = Path(tmp) / "manager_state.json"
+            fm.DATA_DIR = Path(tmp)
+            fm.load_fleet = lambda *a, **k: saved["load_fleet"](yml)
+
+            def metrics() -> list[dict]:
+                fl = fm.load_fleet()
+                return [manager._blog_metrics(fl, fl.get("p"), False, now)]
+
+            manager._apply(pause, now)
+            m = metrics()
+            ok, _ = manager._validate_actions(resume, m)
+            check("관리자가 중지 → paused_by=manager, resume 허용 (전제)",
+                  m[0]["paused_by"] == "manager" and len(ok) == 1, f"{m[0]['paused_by']} {ok}")
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                fleet_cli._toggle("p", False)
+            m = metrics()
+            check("그 뒤 사람이 disable → paused_by=manual", m[0]["paused_by"] == "manual", f"{m[0]['paused_by']}")
+            ok, rejected = manager._validate_actions(resume, m)
+            check("사람이 끈 블로그는 관리 모델 resume 거부", ok == [] and any("수동" in r for r in rejected),
+                  f"{ok} {rejected}")
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                fleet_cli._toggle("p", True)
+            ms = fm.load_manager_state()["blogs"]["p"]
+            m = metrics()
+            check("enable 도 사람 조치로 기록 (켜진 동안 by 는 판단에 안 쓰임)",
+                  ms["enabled"] is True and ms.get("by") == "manual" and m[0]["paused_by"] is None, f"{ms}")
+            ok, _ = manager._validate_actions(pause, [{**m[0], "consecutive_failures": 3}])
+            check("사람이 켠 블로그도 연속 실패면 관리자가 중지", len(ok) == 1, f"{ok}")
+        finally:
+            for k, v in saved.items():
+                setattr(fm, k, v)
+
+
 def test_agents(cfg: dict) -> None:
     """Claude Code 서브에이전트(.claude/agents/*.md)가 공식 형식이고, 자동화와 같은 모델·지시문을 쓰는지."""
     section("Claude Code 서브에이전트")
@@ -1015,6 +1073,7 @@ def main() -> int:
     test_evergreen_parse(cfg)
     test_config_shape(cfg)
     test_fleet(cfg)
+    test_manual_toggle()
     test_agents(cfg)
 
     print("\n" + "=" * 50)
