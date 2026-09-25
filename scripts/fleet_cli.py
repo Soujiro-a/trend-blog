@@ -68,11 +68,14 @@ def _append_blog(entry: dict) -> None:
 def cmd_list(_args) -> int:
     fleet = fleet_mod.load_fleet()
     print(fleet_mod.schedule_table(fleet))
-    slots = sum(len(b.slots) for b in fleet.blogs if b.enabled)
+    slots = sum(len(v) for v in fleet_mod.planned_slots(fleet).values())
     print(
         f"\n{len(fleet.blogs)}개 블로그 · 켜짐 {sum(b.enabled for b in fleet.blogs)}개 · "
-        f"하루 {slots}건 · 다음 빈 슬롯 {fleet_mod.next_free_slot(fleet)}"
+        f"오늘 하루 {slots}건 · 다음 빈 슬롯 {fleet_mod.next_free_slot(fleet)}"
     )
+    print("(괄호) 슬롯은 램프업 대기 — 블로그·계정 나이가 차면 자동으로 켜집니다.")
+    for w in fleet_mod.ramp_warnings(fleet):
+        print(f"  ⚠️ {w}")
     return 0
 
 
@@ -150,11 +153,13 @@ def _toggle(blog_id: str, enabled: bool) -> int:
 
 def cmd_validate(_args) -> int:
     fleet = fleet_mod.load_fleet()
-    slots = sum(len(b.slots) for b in fleet.blogs if b.enabled)
+    slots = sum(len(v) for v in fleet_mod.planned_slots(fleet).values())
     print(
-        f"OK — 블로그 {len(fleet.blogs)}개, 하루 {slots}건, 슬롯 간격 ≥ {fleet.step}분, "
+        f"OK — 블로그 {len(fleet.blogs)}개, 오늘 하루 {slots}건(램프업 적용), 슬롯 간격 ≥ {fleet.step}분, "
         f"주제 중복 없음, 계정 {', '.join(fleet.accounts)}"
     )
+    for w in fleet_mod.ramp_warnings(fleet):
+        print(f"  ⚠️ {w}")
     return 0
 
 

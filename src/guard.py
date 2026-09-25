@@ -76,7 +76,10 @@ def account_budget(fleet, account: str, now: datetime | None = None) -> Budget:
     from . import fleet as fleet_mod
 
     now = now or datetime.now(KST)
-    cap = int(fleet.account_setting(account, "max_live_per_day_account", 6))
+    # 램프업이 적용된 오늘의 상한 (계정 나이에 따라 4 → 6 → 8, 최종 상한 이하). 비상정지면 0.
+    if fleet_mod.account_halted(account):
+        return Budget(0, -1, 0, f"계정 '{account}' 비상정지 중")
+    cap = fleet_mod.account_cap(fleet, account, now)
     start = _day_start_iso(now)
 
     total = 0

@@ -28,9 +28,13 @@ from pathlib import Path
 from . import evergreen, filters, guard, monetize, planner, publishers, research, reviewer, state, trends, writer
 from . import fleet as fleet_mod
 from .config import DATA_DIR, load_config
+from .publishers.blogger import BloggerForbidden
 from .state import KST
 
 log = logging.getLogger("trend-blog")
+
+# 종료 코드 3 = 계정이 비상정지됨. 함대 실행기는 이 코드를 보면 같은 계정의 남은 슬롯을 건너뜁니다.
+EXIT_ACCOUNT_HALTED = 3
 
 
 @dataclass
@@ -277,6 +281,13 @@ def main(argv: list[str] | None = None) -> int:
     # 0) 발행 여유 확인 — 로컬 이력이 아니라 Blogger 서버에 직접 묻습니다.
     #    2026-09-20 사고(로컬 이력 손상 → 상한 해제 → 하루 8건 → API 차단) 재발 방지의 핵심입니다.
     budget = None
+    if target_name == "blogger" and ctx.blog:
+        halted = fleet_mod.account_halted(ctx.blog.account)
+        if halted:
+            log.error("계정 '%s' 비상정지 중이라 실행하지 않습니다: %s", ctx.blog.account, halted)
+            report.append(f"- ⛔ 계정 '{ctx.blog.account}' 비상정지 중 — {halted}")
+            _write_report(ctx, report)
+            return EXIT_ACCOUNT_HALTED
     if target_name == "blogger" and not args.dry_run:
         budget = guard.daily_budget(cfg, ctx.blog.blog_id if ctx.blog else None, now)
         if budget.blocked and not args.draft:
@@ -350,6 +361,13 @@ def main(argv: list[str] | None = None) -> int:
             context += research.internal_links_block(history, candidate.keyword)
             article = writer.write(cfg, candidate, context, refs, date_str, mode=mode, persona=ctx.persona)
             cost = article.cost_usd
+            # 라벨 = 블로그 고정 라벨(publish.default_labels) + 하위 축 하나. 작성 모델이 붙이는 태그를
+            # 그대로 쓰면 글마다 새 라벨이 생겨('소비자 권리'·'소비자권리' 같은 중복까지) 라벨 목록이
+            # 글 1개짜리 라벨로 가득 찹니다. 애드센스 심사에서 사이트 탐색이 엉성해 보이는 원인입니다.
+            if candidate.pillar:
+                article.labels = [candidate.pillar]
+            else:
+                article.labels = article.labels[:2]
 
             rv: reviewer.Review | None = None
             if review_on:
@@ -401,6 +419,15 @@ def main(argv: list[str] | None = None) -> int:
 
         try:
             post = publisher.publish(labels_cfg, article, live=(decision == "live"))
+        except BloggerForbidden as exc:
+            # 계정 쓰기 차단 신호. 이 계정의 다른 블로그도 똑같이 막히므로 계정 전체를 멈춥니다.
+            # 계속 두드리면 모델 비용만 나가고, 차단 상태에서 반복 요청하는 것도 좋지 않습니다.
+            account = ctx.blog.account if ctx.blog else "default"
+            fleet_mod.halt_account(account, f"{ctx.blog.id if ctx.blog else '-'} 발행 403: {exc}")
+            report.append(f"- ⛔ **계정 '{account}' 비상정지** — Blogger 가 쓰기를 거부했습니다(403). {exc}")
+            report.append("  원인을 확인한 뒤 `python scripts/account_cli.py resume " + account + "` 로 푸세요.")
+            _write_report(ctx, report)
+            return EXIT_ACCOUNT_HALTED
         except Exception as exc:
             log.exception("[%s] 발행 실패: %s", candidate.keyword, exc)
             report.append(f"- ❌ {article.title} — 발행 실패: {exc}")

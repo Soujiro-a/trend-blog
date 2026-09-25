@@ -22,6 +22,7 @@ import anthropic
 
 from . import llm
 from .trends import Candidate, Variant
+from .trends.base import similarity
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +43,8 @@ SYSTEM = """당신은 한국어 블로그의 콘텐츠 기획자입니다. 주�
 
 ## 출력
 아래 JSON 배열만. 설명이나 코드 펜스는 붙이지 마세요.
-[{"topic": "글 제목이 될 검색어형 주제", "pillar": "어느 하위 축에 속하는지", "why": "왜 검색될지 한 줄", "search": "참고 기사 검색용 키워드 2~3 단어"}]"""
+[{"topic": "글 제목이 될 검색어형 주제", "pillar": "하위 축 목록에 적힌 이름을 글자 그대로 하나", "why": "왜 검색될지 한 줄", "search": "참고 기사 검색용 키워드 2~3 단어"}]
+pillar 는 글 분류 라벨이 되므로 목록의 이름을 바꾸거나 줄이지 말고 그대로 복사하세요."""
 
 USER_TEMPLATE = """## 이 블로그
 
@@ -103,6 +105,24 @@ def _parse(raw: str) -> list[dict]:
     return out
 
 
+def match_pillar(pillar: str, pillars: list[str]) -> str:
+    """모델이 적은 하위 축 이름을 blogs.yaml 의 pillars 중 하나로 맞춥니다. 못 맞추면 빈 문자열.
+
+    이 값이 글의 라벨이 됩니다. 모델이 매번 조금씩 다르게 적은 이름을 그대로 쓰면
+    라벨이 글마다 새로 생겨 블로그 분류가 엉망이 됩니다(2026-09-25: 글 7개에 라벨 25개).
+    """
+    if not pillar or not pillars:
+        return ""
+    if pillar in pillars:
+        return pillar
+    squash = lambda s: re.sub(r"\s+", "", s)  # noqa: E731
+    for p in pillars:
+        if squash(p) == squash(pillar) or squash(pillar) in squash(p) or squash(p) in squash(pillar):
+            return p
+    best = max(pillars, key=lambda p: similarity(p, pillar))
+    return best if similarity(best, pillar) >= 0.3 else ""
+
+
 def propose(
     cfg: dict,
     blog,
@@ -160,5 +180,6 @@ def propose(
         # why/pillar 는 글감 선정 근거일 뿐 글의 소재가 아닙니다.
         # 리서치 자료에 섞이면 "왜 지금 검색되는가" 같은 도입부 섹션으로 나옵니다.
         c.note = " · ".join(x for x in (t["pillar"], t["why"]) if x)
+        c.pillar = match_pillar(t["pillar"], blog.pillars)
         candidates.append(c)
     return candidates

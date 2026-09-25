@@ -7,6 +7,8 @@
 * 블로그별 환경변수 (BLOGGER_BLOG_ID, 계정별 토큰)
 * 블로그별 config 덮어쓰기 (fleet.defaults → blog.overrides)
 * 슬롯 계산: 오늘 아직 안 돌았고 슬롯 시각이 지난 블로그 = 실행 대상
+* 램프업: 블로그·계정 나이에 따라 켜지는 슬롯 수와 계정 하루 상한이 **자동으로** 늘어남
+* 계정 비상정지: Blogger 가 403 을 돌려주면 그 계정의 모든 블로그를 즉시 멈춤
 * 키워드 선점(claims): 같은 날 다른 블로그가 쓴 주제를 건너뛰어 100개 블로그가 같은 글을 찍어내지 않게 함
 """
 
@@ -34,6 +36,15 @@ FLEET_PATH = ROOT / "fleet" / "blogs.yaml"
 FLEET_DATA = DATA_DIR / "fleet"
 MANAGER_STATE_PATH = FLEET_DATA / "manager_state.json"
 CLAIMS_PATH = FLEET_DATA / "claims.json"
+# 계정 비상정지 상태. manager_state 와 파일을 나눈 이유: 함대 실행(비상정지)과 관리 에이전트(매일 밤)가
+# 서로 다른 워크플로에서 쓰므로, 한 파일을 같이 쓰면 깃 병합 충돌이 날 수 있습니다.
+ACCOUNT_STATE_PATH = FLEET_DATA / "account_state.json"
+
+# 램프업 기본값 — [나이(일), 값] 목록. 나이가 그 일수 이상이면 그 값이 적용됩니다.
+# 블로그: 하루에 켜지는 슬롯 수. 계정: 계정 전체의 하루 공개 상한.
+# blogs.yaml 의 fleet.blog_ramp / accounts.<이름>.ramp 로 바꿀 수 있습니다.
+DEFAULT_BLOG_RAMP = [[0, 1], [28, 2]]
+DEFAULT_ACCOUNT_RAMP = [[0, 4], [28, 6], [56, 8]]
 
 
 @dataclass
@@ -45,6 +56,9 @@ class Blog:
     # 여러 건을 한 번에 몰아 올리면(2026-09-20: 2분 30초에 3건) 자동 스팸 신호로 잡히므로
     # 하루 2건이면 아침·오후로 나눠 slots 를 두 개 둡니다.
     slots: list[str] = field(default_factory=lambda: ["06:20"])
+    # 첫 글을 올린 날(YYYY-MM-DD). 램프업 기준입니다. 비우면 '오늘 시작한 블로그'로 봅니다(가장 보수적).
+    # 미래 날짜면 그날까지 글을 올리지 않습니다 — 새 블로그 여러 개를 날짜를 벌려 순서대로 시작할 때 씁니다.
+    since: str = ""
     account: str = "default"
     enabled: bool = True
     # 2026-09-20 사고 이후 기본 운영 방식. planned: 블로그 고유 주제 안에서 글감을 기획(권장).
@@ -183,6 +197,7 @@ def load_fleet(path: Path = FLEET_PATH, manager_state: dict | None = None) -> Fl
             name=str(entry.get("name", entry["id"])),
             blog_id=str(entry["blog_id"]),
             slots=_read_slots(entry, settings),
+            since=str(entry.get("since") or ""),
             account=str(entry.get("account", "default")),
             enabled=bool(entry.get("enabled", True)),
             content_mode=str(entry.get("content_mode", "planned")),
@@ -230,6 +245,8 @@ def validate(fleet: Fleet) -> None:
                 raise ValueError(f"{b.id}: 슬롯 형식 오류 '{s}'") from exc
             if not (0 <= mins < 24 * 60):
                 raise ValueError(f"{b.id}: 슬롯 범위 오류 '{s}'")
+        if b.since and _parse_date(b.since) is None:
+            raise ValueError(f"{b.id}: since 는 YYYY-MM-DD 형식이어야 합니다 ('{b.since}')")
         if b.content_mode not in ("planned", "trend"):
             raise ValueError(f"{b.id}: content_mode 는 planned 또는 trend 여야 합니다 ('{b.content_mode}')")
         if b.enabled and b.content_mode == "planned":
@@ -244,6 +261,16 @@ def validate(fleet: Fleet) -> None:
                         "— 블로그마다 다른 주제를 쓰세요"
                     )
             subjects[b.subject] = b.id
+    # 계정 하나에 블로그를 무한정 붙이지 않습니다. 계정 상한이 있어 글 수는 어차피 안 늘고,
+    # 한 계정이 막히면 그 계정의 블로그가 전부 멈추므로 피해 범위만 커집니다.
+    max_blogs = int(fleet.settings.get("max_blogs_per_account", 6))
+    for acc in fleet.accounts:
+        n = len(fleet.blogs_of(acc))
+        if n > max_blogs:
+            raise ValueError(
+                f"계정 '{acc}' 에 켜진 블로그가 {n}개입니다 (계정당 최대 {max_blogs}개). "
+                "새 블로그는 새 계정에 만드세요 — python scripts/account_cli.py add <이름>"
+            )
     # 함대 전체의 모든 슬롯이 서로 step 분 이상 떨어져 있어야 합니다.
     # 여러 블로그가 같은 시각에 올리면 계정 전체가 한꺼번에 움직이는 것으로 보입니다.
     all_slots = sorted((to_minutes(s), b.id) for b in fleet.blogs if b.enabled for s in b.slots)
@@ -345,20 +372,187 @@ def ran_today(blog: Blog, mode: str, now: datetime | None = None, slot: str | No
     return _slot_done(runs.get(_run_key(mode, now, slot)))
 
 
+# ---------------------------------------------------------------- 계정 비상정지
+#
+# 2026-09-20 차단 때는 403 이 난 뒤에도 실행이 계속 돌았습니다. 글을 쓰는 데 드는 모델 비용은
+# 그대로 나가고, 막힌 계정에 쓰기 요청을 반복하는 것 자체도 좋을 게 없습니다.
+# 그래서 Blogger 가 쓰기 요청에 403 을 돌려주면 그 계정을 즉시 멈추고, **사람이 풀 때까지** 멈춰 둡니다.
+# 푸는 명령(account_cli.py resume)은 램프업도 처음 단계로 되돌립니다.
+
+def load_account_state(path: Path | None = None) -> dict:
+    path = path or ACCOUNT_STATE_PATH
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        # 읽을 수 없으면 멈춘 계정이 있었는지 알 수 없습니다. 모르는 채로 발행하지 않도록 전부 멈춘 것으로 봅니다.
+        log.error("계정 상태 파일을 읽지 못했습니다 — 모든 계정을 멈춘 것으로 봅니다: %s", exc)
+        return {"*": {"halted": True, "reason": f"account_state.json 손상: {exc}"}}
+
+
+def save_account_state(st: dict, path: Path | None = None) -> None:
+    path = path or ACCOUNT_STATE_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def account_halted(account: str, st: dict | None = None) -> str:
+    """멈춘 계정이면 그 이유, 아니면 빈 문자열."""
+    st = load_account_state() if st is None else st
+    for key in ("*", account):
+        entry = st.get(key) or {}
+        if entry.get("halted"):
+            return str(entry.get("reason") or "비상정지")
+    return ""
+
+
+def halt_account(account: str, reason: str, now: datetime | None = None) -> None:
+    now = now or datetime.now(KST)
+    st = load_account_state()
+    entry = st.setdefault(account, {})
+    if not entry.get("halted"):
+        entry["halted_at"] = now.isoformat(timespec="seconds")
+    entry.update({"halted": True, "reason": reason[:300]})
+    save_account_state(st)
+    log.error("계정 '%s' 비상정지: %s", account, reason[:200])
+
+
+def resume_account(account: str, now: datetime | None = None) -> None:
+    """비상정지를 풉니다. 램프업은 오늘부터 다시 시작합니다(가장 낮은 단계)."""
+    now = now or datetime.now(KST)
+    st = load_account_state()
+    entry = st.setdefault(account, {})
+    entry.update({"halted": False, "ramp_from": now.strftime("%Y-%m-%d"), "resumed_at": now.isoformat(timespec="seconds")})
+    save_account_state(st)
+
+
+# ---------------------------------------------------------------- 램프업 (자동 증량)
+#
+# 발행량은 사람이 날짜를 기억했다가 손으로 올리지 않고, 블로그·계정의 **나이**로 정해집니다.
+#   - 블로그: 처음 4주는 하루 1건, 그 뒤 슬롯에 적힌 만큼(최대 2건)
+#   - 계정  : 처음 4주는 하루 4건, 8주까지 6건, 그 뒤 8건 (단, accounts.<이름>.max_live_per_day_account 를 넘지 않음)
+# 그래서 슬롯은 미리 2개씩 적어 둬도 됩니다. 때가 되면 저절로 켜집니다.
+# 계정 상한보다 켜질 슬롯이 많으면 **가장 어린 블로그의 추가 슬롯부터** 꺼서 상한에 맞춥니다.
+# 즉 블로그를 새로 붙여도 계정의 하루 총량은 늘지 않고, 새 블로그는 자리가 날 때까지 기다립니다.
+
+def _parse_date(s: str):
+    try:
+        return datetime.strptime(str(s)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _stage(ramp: list, age_days: int) -> int:
+    value = 0
+    for days, v in sorted(ramp, key=lambda x: int(x[0])):
+        if age_days >= int(days):
+            value = int(v)
+    return value
+
+
+def _ramp_start(fleet: Fleet, account: str, st: dict | None = None):
+    """계정 램프업 기준일: accounts.<이름>.since 와 비상정지 해제일(ramp_from) 중 늦은 날."""
+    st = load_account_state() if st is None else st
+    dates = [
+        _parse_date((fleet.accounts.get(account) or {}).get("since") or ""),
+        _parse_date((st.get(account) or {}).get("ramp_from") or ""),
+    ]
+    dates = [d for d in dates if d]
+    return max(dates) if dates else None
+
+
+def account_cap(fleet: Fleet, account: str, now: datetime | None = None, st: dict | None = None) -> int:
+    """오늘 이 계정이 공개할 수 있는 총 글 수 (램프업 적용, 최종 상한 이하)."""
+    now = now or datetime.now(KST)
+    ceiling = int(fleet.account_setting(account, "max_live_per_day_account", 6))
+    ramp = (fleet.accounts.get(account) or {}).get("ramp") or fleet.settings.get("account_ramp") or DEFAULT_ACCOUNT_RAMP
+    start = _ramp_start(fleet, account, st)
+    age = (now.date() - start).days if start else 0   # 시작일을 모르면 첫 단계
+    return min(ceiling, _stage(ramp, age))
+
+
+def _first_live_date(blog: Blog):
+    """이력에서 처음 공개한 날. since 를 안 적은 블로그의 나이를 여기서 구합니다."""
+    try:
+        entries = json.loads(blog.history_path.read_text(encoding="utf-8"))
+        dates = [_parse_date(e.get("posted_at", "")) for e in entries if e.get("status") == "live"]
+        dates = [d for d in dates if d]
+        return min(dates) if dates else None
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+
+
+def last_live_at(blog: Blog) -> datetime | None:
+    """이력에서 마지막으로 공개한 시각. 같은 계정 발행 간격 계산에 씁니다."""
+    try:
+        entries = json.loads(blog.history_path.read_text(encoding="utf-8"))
+        times = [datetime.fromisoformat(e["posted_at"]) for e in entries if e.get("status") == "live" and e.get("posted_at")]
+        return max(times) if times else None
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return None
+
+
+def blog_age_days(fleet: Fleet, blog: Blog, now: datetime | None = None, st: dict | None = None) -> int:
+    """블로그 나이. since → 없으면 이력의 첫 공개일 → 그것도 없으면 오늘(0일).
+    비상정지가 풀린 계정이면 해제일부터 다시 셉니다."""
+    now = now or datetime.now(KST)
+    start = (_parse_date(blog.since) if blog.since else None) or _first_live_date(blog) or now.date()
+    st = load_account_state() if st is None else st
+    restart = _parse_date((st.get(blog.account) or {}).get("ramp_from") or "")
+    if restart and restart > start:
+        start = restart
+    return (now.date() - start).days
+
+
+def planned_slots(fleet: Fleet, now: datetime | None = None, st: dict | None = None) -> dict[str, list[str]]:
+    """오늘 실제로 켜지는 슬롯 {블로그 id: [슬롯, ...]}. 램프업·계정 상한·비상정지를 모두 반영합니다."""
+    now = now or datetime.now(KST)
+    st = load_account_state() if st is None else st
+    blog_ramp = fleet.settings.get("blog_ramp") or DEFAULT_BLOG_RAMP
+    out: dict[str, list[str]] = {}
+    for acc in fleet.accounts:
+        blogs = fleet.blogs_of(acc)
+        if not blogs:
+            continue
+        if account_halted(acc, st):
+            for b in blogs:
+                out[b.id] = []
+            continue
+        ages = {b.id: blog_age_days(fleet, b, now, st) for b in blogs}
+        active = {
+            b.id: (b.slots[: _stage(blog_ramp, ages[b.id])] if ages[b.id] >= 0 else [])
+            for b in blogs
+        }
+        cap = account_cap(fleet, acc, now, st)
+        # 상한을 넘으면 어린 블로그부터 줄입니다: 먼저 추가 슬롯을, 그래도 넘으면 첫 슬롯까지.
+        youngest_first = sorted(blogs, key=lambda b: (ages[b.id], b.id))
+        for keep_first in (True, False):
+            for b in youngest_first:
+                floor = 1 if keep_first else 0
+                while sum(len(v) for v in active.values()) > cap and len(active[b.id]) > floor:
+                    active[b.id].pop()
+        out.update(active)
+    return out
+
+
 def due_slots(fleet: Fleet, now: datetime | None = None, mode: str = "planned") -> list[tuple[Blog, str]]:
     """지금 처리해야 할 (블로그, 슬롯) 목록. 슬롯 시각 순서대로.
 
     슬롯 하나 = 글 한 건입니다. catch_up 이 켜져 있으면 '시각이 지났고 아직 안 돈' 슬롯 전부,
-    꺼져 있으면 현재 step 분 창 안의 슬롯만.
+    꺼져 있으면 현재 step 분 창 안의 슬롯만. 램프업으로 아직 안 켜진 슬롯과 멈춘 계정은 빠집니다.
     """
     now = now or datetime.now(KST)
     minute_now = now.hour * 60 + now.minute
     catch_up = bool(fleet.settings.get("catch_up", True))
+    active = planned_slots(fleet, now)
     due: list[tuple[int, Blog, str]] = []
     for b in fleet.blogs:
         if not b.enabled:
             continue
-        for s in b.slots:
+        for s in active.get(b.id, []):
             if ran_today(b, mode, now, s):
                 continue
             mins = to_minutes(s)
@@ -561,11 +755,54 @@ def claim(claims: dict, blog: Blog, keyword: str, now: datetime | None = None) -
 
 # ---------------------------------------------------------------- 표시용
 
-def schedule_table(fleet: Fleet) -> str:
-    lines = ["| 슬롯(KST) | id | 이름 | 상태 | 글/일 | 주제 |", "|---|---|---|---|---:|---|"]
-    for b in sorted(fleet.blogs, key=lambda b: b.slot_minutes):
+def schedule_table(fleet: Fleet, now: datetime | None = None) -> str:
+    """슬롯표. 램프업으로 아직 안 켜진 슬롯은 (괄호)로 표시합니다."""
+    now = now or datetime.now(KST)
+    st = load_account_state()
+    plan = planned_slots(fleet, now, st)
+    lines = ["| 슬롯(KST) | id | 이름 | 계정 | 상태 | 나이 | 오늘 글 | 주제 |", "|---|---|---|---|---|---:|---:|---|"]
+    for b in sorted(fleet.blogs, key=lambda b: (b.account, b.slot_minutes)):
+        on = plan.get(b.id, []) if b.enabled else []
+        slots = ", ".join(s if s in on else f"({s})" for s in b.slots)
+        status = "켜짐" if b.enabled else "꺼짐"
+        if b.enabled and account_halted(b.account, st):
+            status = "⛔ 계정 비상정지"
+        age = f"{blog_age_days(fleet, b, now, st)}일" if b.enabled else "-"
         lines.append(
-            f"| {', '.join(b.slots)} | {b.id} | {b.name} | {'켜짐' if b.enabled else '꺼짐'} | "
-            f"{len(b.slots)} | {b.manager_note or b.subject or b.niche} |"
+            f"| {slots} | {b.id} | {b.name} | {b.account} | {status} | {age} | "
+            f"{len(on)} | {b.manager_note or b.subject or b.niche} |"
         )
     return "\n".join(lines)
+
+
+def ramp_warnings(fleet: Fleet, now: datetime | None = None) -> list[str]:
+    """당장 막을 일은 아니지만 사람이 알아야 할 것들 (fleet_cli validate/list 에서 표시)."""
+    now = now or datetime.now(KST)
+    out = []
+    for b in fleet.blogs:
+        if b.enabled and not b.since:
+            out.append(f"{b.id}: since(첫 글 날짜)가 없습니다 — 이력의 첫 공개일로 대신 셉니다")
+    for acc in fleet.accounts:
+        blogs = fleet.blogs_of(acc)
+        if not blogs:
+            continue
+        ceiling = int(fleet.account_setting(acc, "max_live_per_day_account", 6))
+        full = sum(len(b.slots) for b in blogs)
+        if full > ceiling:
+            out.append(
+                f"계정 '{acc}': 적어 둔 슬롯 {full}개 > 최종 상한 {ceiling}건 — "
+                f"램프업이 끝나도 {full - ceiling}개 슬롯은 켜지지 않습니다"
+            )
+        # 새 블로그를 한꺼번에 여러 개 시작하는 패턴 (2026-09-19: 새 블로그 4개가 동시에 시작 → 차단)
+        starts = sorted(
+            d for d in (_parse_date(b.since) for b in blogs if b.since)
+            if d and 0 <= (now.date() - d).days < 14
+        )
+        for a, c in zip(starts, starts[1:]):
+            if (c - a).days < 7:
+                out.append(
+                    f"계정 '{acc}': 새 블로그가 {a}·{c} 에 잇달아 시작했습니다 — "
+                    "다음 블로그는 1주 이상 간격을 두고 시작하세요 (since 를 미래 날짜로 두면 그날부터 돕니다)"
+                )
+                break
+    return out

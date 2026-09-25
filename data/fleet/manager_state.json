@@ -24,14 +24,6 @@
       "enabled": false,
       "by": "manual",
       "note": "계정 'default' 중지"
-    },
-    "gaganamc1": {
-      "overrides": {
-        "run": {
-          "posts_per_run": 2
-        }
-      },
-      "note": "글/일 2 (2026-09-25): 평균 점수 85.0으로 높고 최근 7일 공개가 꾸준하며 비용도 정상 범위(1.21)라 증량 가능"
     }
   },
   "updated_at": "2026-09-25T03:36:32+09:00"

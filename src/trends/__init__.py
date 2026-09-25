@@ -57,6 +57,8 @@ class Candidate:
     # 이걸 리서치 컨텍스트에 넣었더니 모델이 "왜 지금 검색되는가" 섹션을 만들어 버렸습니다.
     # 보고서·로그 표시용입니다.
     note: str = ""
+    # 기획 모드에서 이 글감이 속한 하위 축(blogs.yaml 의 pillars 중 하나). 글의 분류 라벨이 됩니다.
+    pillar: str = ""
 
     @property
     def variants(self) -> list[str]:

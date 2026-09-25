@@ -7,8 +7,11 @@
 2. 함대 전체 이상을 찾습니다 — 같은 날 여러 블로그가 비슷한 제목을 낸 경우(중복 콘텐츠),
    비용 급증, 실행이 안 된 블로그.
 3. Claude(Sonnet 5)에게 지표와 운영 규칙을 주고 **정해진 행동 목록 안에서만** 결정을 받습니다:
-      pause / resume / set_posts_per_run / note
+      pause / resume / note
    코드가 규칙으로 다시 검증한 뒤 data/fleet/manager_state.json 에 적용합니다.
+   **발행량은 올리지 못합니다.** 증량은 블로그·계정 나이로 정해지는 램프업(src/fleet.py)만 합니다.
+   (2026-09-25: 관리 모델이 만 4일 된 블로그를 "꾸준하다"며 하루 2건으로 올리려 했습니다.
+    계정 차단을 부른 것이 바로 새 블로그의 빠른 증량이었으므로, 이 판단은 모델에게 맡기지 않습니다.)
    (blogs.yaml 은 건드리지 않습니다. 사람이 직접 끈 블로그는 다시 켜지 않습니다.)
 4. 보고서를 data/fleet/manager_report.md 에 씁니다. 조치나 경고가 있으면 GitHub 이슈가 됩니다.
 
@@ -44,23 +47,24 @@ REPORT_PATH = fleet_mod.FLEET_DATA / "manager_report.md"
 RULES = {
     "pause_after_consecutive_failures": 3,
     "pause_if_zero_live_days": 7,          # 7일간 공개 0건이고 실행은 5회 이상이면 중지 검토
-    # 2026-09-20 사고 이후 상한을 2로 낮췄습니다. 관리 에이전트가 이보다 올릴 수 없습니다.
-    "posts_per_run_range": (1, 2),
     "max_changes_per_day": 5,
     "cost_alert_per_blog_week_usd": 12.0,  # 글 4개×7일×$0.28 ≈ $8 가 정상
     "duplicate_title_similarity": 0.6,
 }
 
 SYSTEM = """당신은 여러 개의 한국어 이슈 블로그를 운영하는 자동화 시스템의 관리자입니다. \
-사람이 매일 보지 않으므로 당신의 판단이 곧 운영입니다. 다만 할 수 있는 행동은 아래 네 가지뿐이고, \
+사람이 매일 보지 않으므로 당신의 판단이 곧 운영입니다. 다만 할 수 있는 행동은 아래 세 가지뿐이고, \
 코드가 규칙으로 다시 검증하므로 규칙 밖의 제안은 버려집니다.
 
 ## 행동
 - pause: 블로그 실행 중지. 연속 실패가 {pause_fail}회 이상이거나, {zero_days}일간 공개 0건인데 실행은 계속 돈 경우.
 - resume: 이전에 관리자가 중지한 블로그를 다시 켬. 원인이 해소됐다고 볼 근거가 있을 때만.
-- set_posts_per_run: 하루 작성 수 조정 ({ppr_min}~{ppr_max}). 보류·거부가 절반을 넘는 블로그는 줄이고, \
-검수 점수가 높고 공개가 꾸준하며 비용이 정상인 블로그는 늘릴 수 있음. 한 번에 1씩만.
 - note: 사람이 다음 주간 보고에서 봐야 할 메모 (행동은 하지 않음).
+
+발행량(하루 글 수)은 당신이 바꿀 수 없습니다. 블로그·계정 나이에 따른 램프업 규칙이 정하며, \
+지표의 `slots_today`(오늘 켜진 슬롯)와 `ramp`(계정 단계)가 그 결과입니다. 증량을 제안하지 마세요. \
+보류·거부가 많은 블로그가 있으면 note 로 알리세요.
+`account_halted` 가 있는 계정은 Blogger 가 쓰기를 거부해 멈춘 상태입니다. 사람이 풀어야 하므로 note 로 알리기만 하세요.
 
 ## 판단 원칙
 - 하루 최대 {max_changes}건만 바꿉니다. 확신이 없으면 note 로 남기고 바꾸지 않습니다.
@@ -70,12 +74,12 @@ SYSTEM = """당신은 여러 개의 한국어 이슈 블로그를 운영하는 �
 겹치면 더 위험합니다 — 구글의 제한은 계정 단위로 붙습니다.
 - 지표에 `history_error` 가 있는 블로그는 이력 파일이 깨져 실행이 멈춘 상태입니다. 조치 대신 note 로 \
 사람이 복구해야 한다고 알리세요.
-- 비용이 기준을 넘는 블로그는 posts_per_run 을 줄이는 쪽을 우선합니다.
+- 비용이 기준을 넘는 블로그는 note 로 알리세요.
 
 ## 출력
 JSON 하나만. 설명이나 코드 펜스 없이.
 {{"summary": "한 줄 총평",
-  "actions": [{{"blog": "id", "action": "pause|resume|set_posts_per_run|note", "value": 정수 또는 null, "reason": "이유"}}]}}"""
+  "actions": [{{"blog": "id", "action": "pause|resume|note", "value": null, "reason": "이유"}}]}}"""
 
 
 def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, use_api: bool, now: datetime) -> dict:
@@ -85,7 +89,7 @@ def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, use_api: bool, n
         # 이력이 깨진 블로그는 실행이 멈춰 있습니다. 지표 대신 그 사실을 올려 보냅니다.
         return {
             "id": blog.id, "name": blog.name, "slot": blog.slot, "account": blog.account,
-            "enabled": blog.enabled, "paused_by": None, "posts_per_run": 0,
+            "enabled": blog.enabled, "paused_by": None, "slots_today": [],
             "runs_7d": 0, "runs_failed_7d": 0, "consecutive_failures": 99,
             "live_7d": 0, "draft_7d": 0, "rejected_7d": 0, "avg_score_7d": None,
             "cost_7d": 0.0, "titles_today": [], "blogger_live_total": None,
@@ -113,8 +117,9 @@ def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, use_api: bool, n
         "id": blog.id, "name": blog.name, "slot": blog.slot, "account": blog.account,
         "enabled": blog.enabled,
         "paused_by": ms.get("by") if ms.get("enabled") is False else None,
-        "posts_per_run": (blog.overrides.get("run", {}) or {}).get("posts_per_run")
-        or (fleet.settings.get("defaults", {}).get("run", {}) or {}).get("posts_per_run", 4),
+        # 오늘 실제로 켜진 슬롯 (램프업·계정 상한·비상정지 반영). 하루 글 수 = 이 개수.
+        "slots_today": fleet_mod.planned_slots(fleet, now).get(blog.id, []),
+        "blog_age_days": fleet_mod.blog_age_days(fleet, blog, now),
         "runs_7d": len(recent_runs), "runs_failed_7d": sum(not r.get("ok") for r in recent_runs),
         "consecutive_failures": consecutive_fail,
         "live_7d": by.get("live", 0), "draft_7d": by.get("draft", 0), "rejected_7d": by.get("rejected", 0),
@@ -184,15 +189,42 @@ def _rule_based(metrics: list[dict]) -> list[dict]:
     return actions
 
 
-def _ask_model(cfg: dict, metrics: list[dict], duplicates: list[str], alerts: list[str]) -> dict:
+def account_overview(fleet, now: datetime) -> list[dict]:
+    """계정별 램프업 단계와 비상정지 상태. 보고서와 관리 모델 입력에 씁니다."""
+    st = fleet_mod.load_account_state()
+    plan = fleet_mod.planned_slots(fleet, now, st)
+    out = []
+    for acc in fleet.accounts:
+        blogs = fleet.blogs_of(acc)
+        if not blogs:
+            continue
+        start = fleet_mod._ramp_start(fleet, acc, st)
+        out.append({
+            "account": acc,
+            "account_halted": fleet_mod.account_halted(acc, st),
+            "ramp": {
+                "since": start.isoformat() if start else None,
+                "age_days": (now.date() - start).days if start else None,
+                "cap_today": fleet_mod.account_cap(fleet, acc, now, st),
+                "ceiling": int(fleet.account_setting(acc, "max_live_per_day_account", 6)),
+            },
+            "blogs": len(blogs),
+            "slots_today": sum(len(plan.get(b.id, [])) for b in blogs),
+            "slots_configured": sum(len(b.slots) for b in blogs),
+        })
+    return out
+
+
+def _ask_model(cfg: dict, metrics: list[dict], duplicates: list[str], alerts: list[str],
+               accounts: list[dict] | None = None) -> dict:
     client = llm.client()
     system = SYSTEM.format(
         pause_fail=RULES["pause_after_consecutive_failures"], zero_days=RULES["pause_if_zero_live_days"],
-        ppr_min=RULES["posts_per_run_range"][0], ppr_max=RULES["posts_per_run_range"][1],
         max_changes=RULES["max_changes_per_day"],
     )
     user = (
-        "## 블로그별 지표 (최근 7일)\n" + json.dumps(metrics, ensure_ascii=False, indent=1)
+        "## 계정별 램프업·비상정지\n" + json.dumps(accounts or [], ensure_ascii=False, indent=1)
+        + "\n\n## 블로그별 지표 (최근 7일)\n" + json.dumps(metrics, ensure_ascii=False, indent=1)
         + "\n\n## 중복 의심\n" + ("\n".join(f"- {d}" for d in duplicates) or "- 없음")
         + "\n\n## 코드가 찾은 경고\n" + ("\n".join(f"- {a}" for a in alerts) or "- 없음")
         + "\n\n위 규칙 안에서 오늘 할 행동을 JSON 으로 출력하세요."
@@ -216,7 +248,6 @@ def _ask_model(cfg: dict, metrics: list[dict], duplicates: list[str], alerts: li
 def _validate_actions(actions: list[dict], metrics: list[dict]) -> tuple[list[dict], list[str]]:
     """모델 제안을 규칙으로 걸러 실제 적용할 행동만 남깁니다."""
     by_id = {m["id"]: m for m in metrics}
-    lo, hi = RULES["posts_per_run_range"]
     ok, rejected = [], []
     changes = 0
     for a in actions:
@@ -244,17 +275,6 @@ def _validate_actions(actions: list[dict], metrics: list[dict]) -> tuple[list[di
             if m["enabled"] or m.get("paused_by") != "manager":
                 rejected.append(f"{blog}/resume: 관리자가 중지한 블로그가 아님")
                 continue
-        elif act == "set_posts_per_run":
-            try:
-                v = int(a.get("value"))
-            except (TypeError, ValueError):
-                rejected.append(f"{blog}/set_posts_per_run: 값 없음")
-                continue
-            cur = int(m["posts_per_run"])
-            if not (lo <= v <= hi) or abs(v - cur) != 1:
-                rejected.append(f"{blog}/set_posts_per_run: {cur}→{v} 허용 안 됨 (범위 {lo}~{hi}, 한 번에 1)")
-                continue
-            a["value"] = v
         else:
             rejected.append(f"{blog}: 알 수 없는 행동 {act}")
             continue
@@ -275,9 +295,6 @@ def _apply(actions: list[dict], now: datetime) -> None:
             entry.update({"enabled": False, "by": "manager", "note": f"관리자 중지 {stamp}: {a['reason'][:80]}"})
         elif a["action"] == "resume":
             entry.update({"enabled": True, "by": "manager", "note": f"관리자 재개 {stamp}"})
-        elif a["action"] == "set_posts_per_run":
-            entry.setdefault("overrides", {}).setdefault("run", {})["posts_per_run"] = a["value"]
-            entry["note"] = f"글/일 {a['value']} ({stamp}): {a['reason'][:60]}"
     st["updated_at"] = now.isoformat(timespec="seconds")
     fleet_mod.save_manager_state(st)
 
@@ -307,10 +324,19 @@ def main(argv: list[str] | None = None) -> int:
     for acc, missing in cred.items():
         if missing:
             alerts.append(f"계정 '{acc}' 자격증명 없음: {', '.join(missing)} — 이 계정 블로그는 실행되지 않습니다")
+    accounts = account_overview(fleet, now)
+    for a in accounts:
+        if a["account_halted"]:
+            alerts.append(
+                f"계정 '{a['account']}' 비상정지 중: {a['account_halted']} — "
+                f"원인 확인 후 python scripts/account_cli.py resume {a['account']}"
+            )
     for m in metrics:
         if m.get("history_error"):
             alerts.append(f"{m['id']}: 이력 파일 손상 — {m['history_error']}")
-        if m["enabled"] and m["runs_7d"] == 0 and not m.get("history_error"):
+        # 램프업 대기 중(켜진 슬롯 없음)이거나 막 시작한 블로그는 실행 기록이 없는 게 정상입니다.
+        if (m["enabled"] and m["runs_7d"] == 0 and not m.get("history_error")
+                and m.get("slots_today") and m.get("blog_age_days", 99) >= 2):
             alerts.append(f"{m['id']}: 7일간 실행 기록 없음 (슬롯 {m['slot']}) — 함대 실행기가 멈췄는지 확인")
         if m["cost_7d"] > RULES["cost_alert_per_blog_week_usd"]:
             alerts.append(f"{m['id']}: 7일 비용 ${m['cost_7d']} — 기준 ${RULES['cost_alert_per_blog_week_usd']} 초과")
@@ -323,7 +349,7 @@ def main(argv: list[str] | None = None) -> int:
     usage = None
     if not args.no_model and env("ANTHROPIC_API_KEY"):
         try:
-            data = _ask_model(cfg, metrics, duplicates, alerts)
+            data = _ask_model(cfg, metrics, duplicates, alerts, accounts)
             summary = str(data.get("summary", ""))[:300]
             usage = data.get("_usage")
             # 규칙 행동과 모델 행동을 합치되 같은 블로그/행동은 하나만
@@ -359,6 +385,16 @@ def main(argv: list[str] | None = None) -> int:
         lines.append("")
         lines.append("## 규칙에 걸려 버린 제안")
         lines += [f"- {r}" for r in rejected]
+    lines += ["", "## 계정별 발행량 (램프업)", "",
+              "| 계정 | 상태 | 램프업 기준일 | 경과 | 오늘 상한 / 최종 | 켜진 슬롯 / 적어둔 슬롯 | 블로그 |",
+              "|---|---|---|---:|---:|---:|---:|"]
+    for a in accounts:
+        r = a["ramp"]
+        lines.append(
+            f"| {a['account']} | {'⛔ 비상정지' if a['account_halted'] else '정상'} | {r['since'] or '미지정'} | "
+            f"{r['age_days'] if r['age_days'] is not None else '-'}일 | {r['cap_today']} / {r['ceiling']} | "
+            f"{a['slots_today']} / {a['slots_configured']} | {a['blogs']} |"
+        )
     lines += ["", "## 블로그별 지표 (7일)", "",
               "| 계정 | 블로그 | 슬롯 | 상태 | 실행/실패 | 공개/보류/거부 | 검수평균 | 비용 | Blogger 총 글 | GSC 클릭 |",
               "|---|---|---|---|---|---|---:|---:|---:|---:|"]

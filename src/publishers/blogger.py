@@ -29,6 +29,13 @@ API_BASE = "https://www.googleapis.com/blogger/v3"
 _token_cache: dict[str, tuple[float, str]] = {}
 
 
+class BloggerForbidden(RuntimeError):
+    """쓰기 요청이 403 으로 거부됨. 2026-09-20 에 계정의 API 쓰기가 막혔을 때 이 응답이 왔습니다.
+
+    일시적 오류가 아니므로 재시도하지 않고, 호출부는 그 계정 전체를 멈춰야 합니다(fleet.halt_account).
+    """
+
+
 def _credential_key() -> str:
     raw = f"{env('BLOGGER_CLIENT_ID', required=True)}:{env('BLOGGER_REFRESH_TOKEN', required=True)}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
@@ -91,7 +98,8 @@ def publish(cfg: dict, article: Article, live: bool | None = None) -> dict:
         "labels": labels,
     }
 
-    resp = net.session().post(
+    # 재시도 없는 세션: 서버가 글을 만든 뒤 오류를 돌려줬을 때 같은 글이 두 번 올라가는 것을 막습니다.
+    resp = net.once().post(
         f"{API_BASE}/blogs/{blog_id}/posts/",
         params={"isDraft": "true" if draft_only else "false"},
         headers={
@@ -101,6 +109,8 @@ def publish(cfg: dict, article: Article, live: bool | None = None) -> dict:
         json=body,
         timeout=30,
     )
+    if resp.status_code == 403:
+        raise BloggerForbidden(f"Blogger 발행 거부 (403): {resp.text[:500]}")
     if resp.status_code not in (200, 201):
         raise RuntimeError(f"Blogger 발행 실패 ({resp.status_code}): {resp.text[:500]}")
 

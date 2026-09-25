@@ -334,6 +334,145 @@ def test_pages() -> None:
     check("개인정보처리방침을 먼저 만듦", setup_pages.PAGES[0]["file"] == "privacy-policy.html")
 
 
+def test_scale_safety() -> None:
+    section("증량·확장 안전장치 (램프업 · 비상정지 · 계정 발행 간격)")
+    import json
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+    from src import fleet as fm
+    from src import fleet_run, planner
+    from src import main as single
+    from src.guard import Budget
+
+    kst = timezone(timedelta(hours=9))
+    at = lambda d: datetime.strptime(d, "%Y-%m-%d").replace(hour=12, tzinfo=kst)  # noqa: E731
+    settings = {"blog_ramp": [[0, 1], [28, 2]], "account_ramp": [[0, 4], [28, 6], [56, 8]], "slot_step_minutes": 20}
+    accounts = {"acc": {"since": "2026-09-21", "max_live_per_day_account": 8}}
+    blogs = [
+        fm.Blog(id="old1", name="o1", blog_id="1", subject="가", account="acc", since="2026-09-21", slots=["08:00", "14:00"]),
+        fm.Blog(id="old2", name="o2", blog_id="2", subject="나", account="acc", since="2026-09-21", slots=["11:00", "17:00"]),
+        fm.Blog(id="new1", name="n1", blog_id="3", subject="다", account="acc", since="2026-09-25", slots=["09:40", "15:40"]),
+        fm.Blog(id="new2", name="n2", blog_id="4", subject="라", account="acc", since="2026-09-25", slots=["12:40", "18:40"]),
+    ]
+    fl = fm.Fleet(settings, accounts, blogs)
+    empty: dict = {}
+    total = lambda plan: sum(len(v) for v in plan.values())  # noqa: E731
+
+    p = fm.planned_slots(fl, at("2026-09-25"), empty)
+    check("첫 4주: 블로그당 1건, 계정 4건", total(p) == 4 and all(len(v) == 1 for v in p.values()), f"{p}")
+    p = fm.planned_slots(fl, at("2026-10-19"), empty)
+    check("4주 지난 블로그만 2건, 계정 상한 6", total(p) == 6 and len(p["old1"]) == 2 and len(p["new1"]) == 1, f"{p}")
+    p = fm.planned_slots(fl, at("2026-11-16"), empty)
+    check("8주 뒤 전부 2건 (계정 8)", total(p) == 8, f"{p}")
+
+    capped = fm.Fleet(settings, {"acc": {"since": "2026-01-01", "max_live_per_day_account": 5}}, blogs)
+    p = fm.planned_slots(capped, at("2026-11-16"), empty)
+    check("최종 상한이 램프업보다 우선", total(p) == 5, f"{p}")
+    check("상한 초과분은 가장 어린 블로그 슬롯부터 꺼짐",
+          len(p["new1"]) == 1 and len(p["new2"]) == 1 and len(p["old1"]) + len(p["old2"]) == 3, f"{p}")
+
+    crowded = fm.Fleet(settings, accounts, blogs + [
+        fm.Blog(id="new3", name="n3", blog_id="5", subject="마", account="acc", since="2026-09-26", slots=["19:40"]),
+    ])
+    p = fm.planned_slots(crowded, at("2026-09-27"), empty)
+    check("블로그를 붙여도 계정 총량은 그대로, 새 블로그는 대기", total(p) == 4 and p["new3"] == [], f"{p}")
+
+    future = fm.Fleet(settings, accounts, [fm.Blog(id="f", name="f", blog_id="9", subject="바", account="acc", since="2026-10-02", slots=["08:00"])])
+    check("since 가 미래면 그날까지 안 돎", fm.planned_slots(future, at("2026-09-27"), empty)["f"] == [])
+    nosince = fm.Fleet(settings, accounts, [fm.Blog(id="q", name="q", blog_id="8", subject="사", account="acc", slots=["08:00", "14:00"])])
+    check("since 없으면 가장 낮은 단계", len(fm.planned_slots(nosince, at("2027-01-01"), empty)["q"]) == 1)
+
+    # 비상정지
+    with tempfile.TemporaryDirectory() as tmp:
+        orig_path = fm.ACCOUNT_STATE_PATH
+        fm.ACCOUNT_STATE_PATH = Path(tmp) / "account_state.json"
+        try:
+            check("처음엔 멈춘 계정 없음", fm.account_halted("acc") == "")
+            fm.halt_account("acc", "발행 403", at("2026-10-20"))
+            check("403 → 계정 비상정지", "403" in fm.account_halted("acc"))
+            check("비상정지 계정은 슬롯 0개", total(fm.planned_slots(fl, at("2026-10-20"))) == 0)
+            check("다른 계정은 영향 없음", fm.account_halted("other") == "")
+            fm.resume_account("acc", at("2026-10-22"))
+            check("해제 후 램프업은 처음 단계부터", fm.account_cap(fl, "acc", at("2026-10-22")) == 4
+                  and total(fm.planned_slots(fl, at("2026-10-22"))) == 4)
+            check("해제 4주 뒤 다시 한 단계", fm.account_cap(fl, "acc", at("2026-11-19")) == 6)
+            fm.ACCOUNT_STATE_PATH.write_text("{깨짐", encoding="utf-8")
+            check("상태 파일이 깨지면 전부 멈춘 것으로 봄 (fail-closed)", fm.account_halted("acc") != "")
+        finally:
+            fm.ACCOUNT_STATE_PATH = orig_path
+
+    try:
+        fm.validate(fm.Fleet({**settings, "max_blogs_per_account": 3}, accounts, blogs))
+        check("계정당 블로그 수 초과 거부", False)
+    except ValueError as exc:
+        check("계정당 블로그 수 초과 거부", "새 계정" in str(exc), str(exc))
+
+    check("하위 축 이름 그대로", planner.match_pillar("해외직구 통관과 관세", ["청약철회 기준", "해외직구 통관과 관세"]) == "해외직구 통관과 관세")
+    check("띄어쓰기만 다른 하위 축", planner.match_pillar("해외직구통관과 관세", ["청약철회 기준", "해외직구 통관과 관세"]) == "해외직구 통관과 관세")
+    check("엉뚱한 하위 축은 버림", planner.match_pillar("우주 여행", ["청약철회 기준", "해외직구 통관과 관세"]) == "")
+
+    from src import net
+    check("발행 요청은 재시도 없는 세션 (중복 게시 방지)", not net.once().adapters["https://"].max_retries.total)
+
+    # 같은 계정 발행 간격 — 밀린 슬롯 3개가 4분 안에 올라가던 문제 (2026-09-25)
+    clock = [0.0]
+    slept: list[float] = []
+    ran: list[tuple[str, float]] = []
+    two = fm.Fleet({**settings, "account_gap_minutes": 30, "run_budget_minutes": 150},
+                   {"acc": accounts["acc"], "oth": {"since": "2026-09-21"}},
+                   blogs[:3] + [fm.Blog(id="x1", name="x1", blog_id="7", subject="아", account="oth", since="2026-09-21", slots=["10:00"])])
+    due = [(two.get("old1"), "08:00"), (two.get("new1"), "09:40"), (two.get("x1"), "10:00"), (two.get("old2"), "11:00")]
+
+    def fake_run(blog, mode, extra):
+        ran.append((blog.id, clock[0]))
+        clock[0] += 180
+        return True, "공개 1건 / 임시저장 0건", 0
+
+    saved = {k: getattr(fm, k) for k in ("load_fleet", "due_slots", "credential_report", "mark_ran", "last_live_at", "account_halted")}
+    saved_run = (fleet_run._run_blog, fleet_run._clock, fleet_run._sleep, fleet_run._write, fleet_run.guard.account_budget)
+    try:
+        fm.load_fleet = lambda *a, **k: two
+        fm.due_slots = lambda f, now=None, mode="planned": due
+        fm.credential_report = lambda f: {}
+        fm.mark_ran = lambda *a, **k: None
+        fm.last_live_at = lambda b: None
+        fm.account_halted = lambda *a, **k: ""
+        fleet_run._run_blog = fake_run
+        fleet_run._clock = lambda: clock[0]
+        fleet_run._sleep = lambda s: (slept.append(s), clock.__setitem__(0, clock[0] + s))
+        fleet_run._write = lambda lines: None
+        fleet_run.guard.account_budget = lambda f, acc, now=None: Budget(9, 0, 9)
+        fleet_run.main([])
+        order = [r[0] for r in ran]
+        check("다른 계정 슬롯은 기다리지 않고 사이에 처리", order[:2] == ["old1", "x1"], f"{order}")
+        acc_times = [t for bid, t in ran if bid in ("old1", "new1", "old2")]
+        gaps = [b - a for a, b in zip(acc_times, acc_times[1:])]
+        check("같은 계정 발행 사이 30분 이상", len(acc_times) == 3 and all(g >= 30 * 60 for g in gaps), f"{gaps}")
+
+        # 예산을 넘기면 남은 슬롯은 다음 실행으로 (처리했다고 기록하지 않음)
+        ran.clear(); clock[0] = 0.0
+        two.settings["run_budget_minutes"] = 20
+        fleet_run.main([])
+        check("실행 시간 예산 넘으면 남은 슬롯은 넘김", [r[0] for r in ran] == ["old1", "x1"], f"{[r[0] for r in ran]}")
+        two.settings["run_budget_minutes"] = 150
+
+        # 403 → 같은 계정의 남은 슬롯은 건너뜀
+        ran.clear(); clock[0] = 0.0
+        fleet_run._run_blog = lambda b, m, e: (ran.append((b.id, 0)), (False, "계정 비상정지", single.EXIT_ACCOUNT_HALTED))[1]
+        orig_alert = fleet_run.HALT_ALERT_PATH
+        with tempfile.TemporaryDirectory() as tmp:
+            fleet_run.HALT_ALERT_PATH = Path(tmp) / "halt.md"
+            fleet_run.main([])
+            check("비상정지 뒤 같은 계정 남은 슬롯은 실행 안 함", [r[0] for r in ran] == ["old1", "x1"], f"{ran}")
+            check("비상정지 알림 파일 생성", fleet_run.HALT_ALERT_PATH.exists())
+        fleet_run.HALT_ALERT_PATH = orig_alert
+    finally:
+        for k, v in saved.items():
+            setattr(fm, k, v)
+        (fleet_run._run_blog, fleet_run._clock, fleet_run._sleep, fleet_run._write, fleet_run.guard.account_budget) = saved_run
+
+
 def test_writer_parse(cfg: dict) -> None:
     section("모델 응답 파싱")
     raw = (
@@ -404,7 +543,8 @@ def fm_for_guard():
     """
     from src import fleet as fm
     return fm.Fleet(
-        {"max_live_per_day_account": 6},
+        # 램프업을 사실상 끄고 계정별 최종 상한만 봅니다 (램프업은 test_ramp 에서 따로)
+        {"max_live_per_day_account": 6, "account_ramp": [[0, 99]]},
         {"default": {}, "second": {"max_live_per_day_account": 3}},
         [fm.Blog(id="a", name="a", blog_id="1", subject="가"),
          fm.Blog(id="b", name="b", blog_id="2", subject="나"),
@@ -705,8 +845,8 @@ def test_fleet(cfg: dict) -> None:
         fm.DATA_DIR = Path(tmp)
         try:
             f2 = fm.Fleet({**fleet.settings, "catch_up": True}, fleet.accounts, [
-                fm.Blog(id="x", name="x", blog_id="1", slots=["06:20", "15:00"], subject="가"),
-                fm.Blog(id="y", name="y", blog_id="2", slots=["09:00"], subject="나"),
+                fm.Blog(id="x", name="x", blog_id="1", slots=["06:20", "15:00"], subject="가", since="2026-01-01"),
+                fm.Blog(id="y", name="y", blog_id="2", slots=["09:00"], subject="나", since="2026-01-01"),
                 fm.Blog(id="z", name="z", blog_id="3", slots=["12:00"], subject="다", enabled=False),
             ])
             now = datetime(2026, 9, 20, 16, 0, tzinfo=kst)
@@ -779,8 +919,7 @@ def test_fleet(cfg: dict) -> None:
         {"blog": "ok", "action": "pause", "value": None, "reason": "그냥"},
         {"blog": "dead", "action": "pause", "value": None, "reason": "연속 실패"},
         {"blog": "manual", "action": "resume", "value": None, "reason": "켜자"},
-        {"blog": "ok", "action": "set_posts_per_run", "value": 4, "reason": "상한 초과"},
-        {"blog": "ok", "action": "set_posts_per_run", "value": 1, "reason": "한 칸 내림"},
+        {"blog": "ok", "action": "set_posts_per_run", "value": 2, "reason": "꾸준해서 증량"},
         {"blog": "ghost", "action": "pause", "value": None, "reason": "?"},
         {"blog": "ok", "action": "note", "value": None, "reason": "메모"},
     ]
@@ -789,8 +928,8 @@ def test_fleet(cfg: dict) -> None:
     check("근거 없는 pause 거부", ("ok", "pause", None) not in got)
     check("연속 실패 pause 허용", ("dead", "pause", None) in got)
     check("수동 중지 블로그 resume 거부", ("manual", "resume", None) not in got)
-    check("상한(2) 초과 제안 거부, 한 칸 내리기 허용",
-          ("ok", "set_posts_per_run", 4) not in got and ("ok", "set_posts_per_run", 1) in got)
+    check("발행량 변경은 관리 모델이 못 함 (램프업만)", not any(a[1] == "set_posts_per_run" for a in got))
+    check("관리 모델 지시문에 증량 행동 없음", "set_posts_per_run" not in manager.SYSTEM)
     check("없는 블로그 거부", not any(a["blog"] == "ghost" for a in actions))
     check("note 는 항상 통과", ("ok", "note", None) in got)
     check("거부 사유 기록", len(rejected) == 4, f"{len(rejected)}")
@@ -799,6 +938,12 @@ def test_fleet(cfg: dict) -> None:
 
 
 def main() -> int:
+    # 실제 data/fleet/account_state.json(비상정지 기록)이 테스트에 섞이지 않게 임시 파일로 돌립니다.
+    import tempfile
+    from pathlib import Path as _P
+    from src import fleet as _fm
+    _tmp = tempfile.TemporaryDirectory()
+    _fm.ACCOUNT_STATE_PATH = _P(_tmp.name) / "account_state.json"
     cfg = load_config()
     test_tokenize()
     test_aggregate(cfg)
@@ -808,6 +953,7 @@ def main() -> int:
     test_internal_links(cfg)
     test_no_why_searched(cfg)
     test_pages()
+    test_scale_safety()
     test_llm_robustness(cfg)
     test_writer_parse(cfg)
     test_footer(cfg)

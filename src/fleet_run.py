@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+import random
 import sys
+import time
 from datetime import datetime
 
 from . import fleet as fleet_mod
@@ -42,7 +44,14 @@ def _is_fatal(text: str) -> bool:
     return any(p in low for p in _FATAL_PATTERNS)
 
 
-def _run_blog(blog: fleet_mod.Blog, mode: str, extra: list[str]) -> tuple[bool, str]:
+HALT_ALERT_PATH = fleet_mod.FLEET_DATA / "halt_alert.md"
+
+# 테스트에서 바꿔 끼울 수 있게 모듈 변수로 둡니다.
+_clock = time.monotonic
+_sleep = time.sleep
+
+
+def _run_blog(blog: fleet_mod.Blog, mode: str, extra: list[str]) -> tuple[bool, str, int]:
     # 슬롯 하나당 글 1건입니다. 하루치를 한 번에 몰아 올리지 않기 위한 설계입니다
     # (2026-09-20: 한 블로그가 2분 30초에 3건 → 계정 API 차단).
     argv = ["--blog", blog.id, "--mode", mode, "--count", "1", *extra]
@@ -52,13 +61,13 @@ def _run_blog(blog: fleet_mod.Blog, mode: str, extra: list[str]) -> tuple[bool, 
         code = int(exc.code or 0)
     except Exception as exc:  # noqa: BLE001 — 한 블로그의 예외가 함대를 멈추면 안 됩니다
         log.exception("[%s] 실행 중 예외", blog.id)
-        return False, f"예외: {exc}"
+        return False, f"예외: {exc}", 1
     summary = ""
     if blog.report_path.exists():
         for line in blog.report_path.read_text(encoding="utf-8").splitlines():
-            if line.startswith("**"):
-                summary = line.strip("* ")
-    return code == 0, summary or f"종료 코드 {code}"
+            if line.startswith("**") or line.startswith("- ⛔"):
+                summary = line.strip("*- ")
+    return code == 0, summary or f"종료 코드 {code}", code
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -136,6 +145,18 @@ def main(argv: list[str] | None = None) -> int:
             _write(report)
             return 1
 
+    # 비상정지된 계정 — 모델 비용이 나가기 전에 뺍니다. (due_slots 가 이미 빼지만 --blog/--all 경로도 막습니다)
+    halted = {b.account: why for b, _ in targets if (why := fleet_mod.account_halted(b.account))}
+    if halted:
+        report.append("## ⛔ 비상정지된 계정 (해당 계정 블로그는 건너뜁니다)")
+        for acc, why in sorted(halted.items()):
+            report.append(f"- **{acc}**: {why} — 풀기: `python scripts/account_cli.py resume {acc}`")
+        report.append("")
+        targets = [(b, s) for b, s in targets if b.account not in halted]
+        if not targets:
+            _write(report)
+            return 0
+
     # 계정별 상한 — 구글의 제한은 계정에 붙습니다. 계정을 나누면 상한도 따로 계산됩니다.
     # 2026-09-20 차단 당시 블로그별로는 상한 안팎이었지만 계정 합계가 하루 16건이었습니다.
     account_left: dict[str, int] = {}
@@ -154,8 +175,45 @@ def main(argv: list[str] | None = None) -> int:
             _write(report)
             return 0
 
+    # 같은 계정의 발행 사이 간격. GitHub 예약 실행은 실제로 4~5시간마다 오기 때문에(10분이 아니라),
+    # 밀린 슬롯을 한 번에 따라잡으면 **같은 계정 블로그 3곳이 4분 안에** 글을 올립니다(2026-09-25 14:02~14:06).
+    # 슬롯을 20분씩 벌려 둔 의미가 사라지고, 새 블로그들이 몇 분 안에 몰아 올린 2026-09-19 패턴과 같아집니다.
+    # 그래서 한 실행 안에서도 같은 계정은 account_gap_minutes(+무작위 0~10분) 이상 기다렸다 올립니다.
+    # 다른 계정의 슬롯은 기다리지 않고 그 사이에 처리합니다. 실행 시간 예산을 넘기면 남은 슬롯은 다음 실행으로.
+    gap_s = int(fleet.settings.get("account_gap_minutes", 30)) * 60
+    budget_s = int(fleet.settings.get("run_budget_minutes", 150)) * 60
+    started = _clock()
+    next_ok: dict[str, float] = {}   # 계정 → 이 시각(_clock) 이후에 다음 글을 올려도 됨
+    # 직전 실행이 방금 올렸을 수도 있으니, 이력의 마지막 공개 시각부터 셉니다.
+    wall = datetime.now(KST)
+    for acc in {b.account for b, _ in targets}:
+        last = max((t for b in fleet.blogs_of(acc) if (t := fleet_mod.last_live_at(b))), default=None)
+        if last:
+            remain = gap_s - (wall - last).total_seconds()
+            if remain > 0:
+                next_ok[acc] = started + remain
+
     failures = 0
-    for blog, slot in targets:
+    processed = 0
+    newly_halted: dict[str, str] = {}
+    pending = list(targets)
+    while pending:
+        t_now = _clock()
+        pick = next((t for t in pending if next_ok.get(t[0].account, 0.0) <= t_now), None)
+        if pick is None:
+            wait = min(next_ok[b.account] for b, _ in pending) - t_now
+            if t_now + wait - started > budget_s:
+                for b, s in pending:
+                    report.append(f"- ⏳ {b.name} ({s}) — 같은 계정 발행 간격 대기 중 실행 시간 예산 초과, 다음 실행으로")
+                break
+            log.info("같은 계정 발행 간격 확보를 위해 %d분 기다립니다.", round(wait / 60))
+            _sleep(wait)
+            continue
+        pending.remove(pick)
+        blog, slot = pick
+        if blog.account in newly_halted:
+            report.append(f"- ⏸️ {blog.name} ({slot}) — 계정 '{blog.account}' 비상정지로 건너뜀")
+            continue
         left = account_left.get(blog.account)
         if left is not None and left <= 0:
             log.info("[%s] 계정 '%s' 상한 도달 — 이 슬롯은 다음 기회로 미룹니다.", blog.id, blog.account)
@@ -163,7 +221,14 @@ def main(argv: list[str] | None = None) -> int:
             continue
         mode = blog_mode(blog)
         log.info("==== [%s] %s 실행 (슬롯 %s) ====", blog.id, mode, slot)
-        ok, summary = _run_blog(blog, mode, extra)
+        ok, summary, code = _run_blog(blog, mode, extra)
+        processed += 1
+        if code == single.EXIT_ACCOUNT_HALTED:
+            # 슬롯은 처리했다고 표시하지 않습니다. 사람이 원인을 보고 풀면 그날 안에 이어서 돕니다.
+            newly_halted[blog.account] = summary
+            report.append(f"- ⛔ **{blog.name}** ({slot}) — {summary[:300]}")
+            failures += 1
+            continue
         if not ok and _is_fatal(summary):
             # 한도·인증 문제. 다른 블로그도 똑같이 실패하므로 여기서 멈추고,
             # 슬롯은 처리했다고 표시하지 않아 한도가 풀리면 그대로 이어집니다.
@@ -174,17 +239,32 @@ def main(argv: list[str] | None = None) -> int:
                           "기록도 남기지 않아 해결되면 그대로 이어집니다.**")
             _write(report)
             return 1
-        fleet_mod.mark_ran(blog, mode, ok, summary, now, slot=slot)
-        if blog.account in account_left and "공개 1건" in summary:
-            account_left[blog.account] -= 1
+        fleet_mod.mark_ran(blog, mode, ok, summary, datetime.now(KST), slot=slot)
+        if "공개 1건" in summary:
+            if blog.account in account_left:
+                account_left[blog.account] -= 1
+            next_ok[blog.account] = _clock() + gap_s + random.uniform(0, 600)
         icon = "✅" if ok else "❌"
         report.append(f"- {icon} **{blog.name}** ({blog.id} {slot}, {mode}, 계정 {blog.account}) — {summary}")
         if not ok:
             failures += 1
 
-    report += ["", f"**슬롯 {len(targets)}개 처리 · 실패 {failures}건**"]
+    report += ["", f"**슬롯 {processed}/{len(targets)}개 처리 · 실패 {failures}건**"]
     _write(report)
-    return 1 if failures and failures == len(targets) else 0
+    if newly_halted:
+        # 워크플로가 이 파일을 보고 즉시 GitHub 이슈를 엽니다 (밤 관리 보고까지 기다리지 않음).
+        lines = [f"# ⛔ 계정 비상정지 — {now.strftime('%Y-%m-%d %H:%M')} KST", ""]
+        for acc, why in newly_halted.items():
+            lines += [
+                f"## 계정 `{acc}`", "", f"- 원인: {why[:500]}",
+                "- 이 계정의 모든 블로그가 멈췄습니다. 글 작성(모델 비용)도 하지 않습니다.",
+                "- Blogger 에 로그인해 경고·정책 알림을 확인하세요. API 쓰기 제한이면 이의신청 결과를 기다려야 합니다.",
+                f"- 해결된 뒤: `python scripts/account_cli.py resume {acc}` → 커밋·푸시 (램프업은 처음 단계부터 다시 시작)",
+                "",
+            ]
+        HALT_ALERT_PATH.write_text("\n".join(lines), encoding="utf-8")
+        return 1
+    return 1 if failures and failures == processed else 0
 
 
 def _write(lines: list[str]) -> None:

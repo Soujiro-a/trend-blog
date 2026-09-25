@@ -33,11 +33,14 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write   # 계정 비상정지 알림
 
 jobs:
   fleet:
     runs-on: ubuntu-latest
-    timeout-minutes: 55   # 밀린 블로그 여러 개를 한 번에 처리할 수 있게 넉넉히
+    # 밀린 슬롯을 처리할 때 같은 계정 글 사이를 30~40분씩 벌리므로 길게 둡니다.
+    # fleet/blogs.yaml 의 run_budget_minutes(150) 보다 커야 합니다. 공개 저장소라 Actions 시간은 무료입니다.
+    timeout-minutes: 200
 
     steps:
       - uses: actions/checkout@v4
@@ -87,6 +90,18 @@ jobs:
             for f in data/blogs/*/last_run.md; do
               if [ -f "$f" ] && [ -n "$(find "$f" -mmin -50)" ]; then echo "" >> "$GITHUB_STEP_SUMMARY"; cat "$f" >> "$GITHUB_STEP_SUMMARY"; fi
             done
+          fi
+
+      - name: 계정 비상정지 알림
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f data/fleet/halt_alert.md ]; then
+            gh label create fleet-halt --color B60205 --description "계정 비상정지" 2>/dev/null || true
+            gh issue create --title "⛔ 계정 비상정지 $(date -u -d '+9 hours' +'%Y-%m-%d %H:%M') KST" \
+              --body-file data/fleet/halt_alert.md --label fleet-halt
+            rm data/fleet/halt_alert.md
           fi
 
       - name: 이력 커밋

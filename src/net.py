@@ -34,6 +34,22 @@ def session() -> requests.Session:
     return s
 
 
+_once: requests.Session | None = None
+
+
+def once() -> requests.Session:
+    """재시도하지 않는 세션. 글 발행처럼 **두 번 실행되면 안 되는** 요청에 씁니다.
+
+    Blogger 가 글을 만든 뒤 5xx 를 돌려주면 자동 재시도가 같은 글을 한 번 더 올립니다.
+    중복 게시는 그 자체로 스팸 신호이고, 429(한도)에 곧바로 다시 두드리는 것도 좋을 게 없습니다.
+    """
+    global _once
+    if _once is None:
+        _once = requests.Session()
+        _once.headers.update({"User-Agent": USER_AGENT, "Accept-Language": "ko-KR,ko;q=0.9"})
+    return _once
+
+
 def get(url: str, **kwargs) -> requests.Response:
     kwargs.setdefault("timeout", 20)
     resp = session().get(url, **kwargs)

@@ -20,6 +20,8 @@
     python scripts/account_cli.py import <이름>         # 그 계정의 블로그를 함대에 등록
     python scripts/account_cli.py retire <이름>         # 그 계정 블로그를 전부 중지 (계정 갈아탈 때)
     python scripts/account_cli.py remove <이름>         # 계정 제거 (블로그가 없을 때만)
+    python scripts/account_cli.py halt <이름> --reason "..."   # 비상정지 (403 이 나면 자동으로 걸립니다)
+    python scripts/account_cli.py resume <이름>         # 비상정지 해제 — 램프업은 처음 단계부터 다시
 
 계정을 갈아탈 때
 ----------------
@@ -34,6 +36,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -42,6 +45,7 @@ from src import fleet as fleet_mod  # noqa: E402
 from src import net  # noqa: E402
 from src.config import ROOT, load_dotenv  # noqa: E402
 from src.publishers import blogger  # noqa: E402
+from src.state import KST  # noqa: E402
 
 FLEET_PATH = ROOT / "fleet" / "blogs.yaml"
 
@@ -71,15 +75,20 @@ def _blogs_of_account(fleet: fleet_mod.Fleet, account: str) -> list[dict]:
 def cmd_list(_args) -> int:
     fleet = fleet_mod.load_fleet()
     accounts = list(fleet.accounts) or ["default"]
-    print("| 계정 | 자격증명 | 블로그 | 하루 슬롯 | 계정 상한 |")
-    print("|---|---|---:|---:|---:|")
+    st = fleet_mod.load_account_state()
+    plan = fleet_mod.planned_slots(fleet, st=st)
+    print("| 계정 | 자격증명 | 상태 | 블로그 | 오늘 켜진 슬롯 / 적어둔 슬롯 | 오늘 상한 / 최종 상한 |")
+    print("|---|---|---|---:|---:|---:|")
     for acc in accounts:
         missing = fleet_mod.missing_credentials(fleet, acc)
         blogs = fleet.blogs_of(acc, enabled_only=False)
         slots = sum(len(b.slots) for b in blogs if b.enabled)
-        cap = fleet.account_setting(acc, "max_live_per_day_account", 6)
+        active = sum(len(plan.get(b.id, [])) for b in blogs if b.enabled)
+        ceiling = fleet.account_setting(acc, "max_live_per_day_account", 6)
+        cap = fleet_mod.account_cap(fleet, acc, st=st)
+        halted = fleet_mod.account_halted(acc, st)
         cred = "✅ 있음" if not missing else f"❌ {', '.join(missing)}"
-        print(f"| {acc} | {cred} | {len(blogs)} | {slots} | {cap} |")
+        print(f"| {acc} | {cred} | {'⛔ ' + halted[:40] if halted else '정상'} | {len(blogs)} | {active} / {slots} | {cap} / {ceiling} |")
     print()
     for acc in accounts:
         blogs = fleet.blogs_of(acc, enabled_only=False)
@@ -102,16 +111,21 @@ def cmd_add(args) -> int:
         if marker not in text:
             print("blogs.yaml 에서 accounts: 블록을 찾지 못했습니다. 직접 추가하세요.")
             return 1
-        entry = f"  {name}:\n    max_live_per_day_account: {args.cap}\n"
+        today = datetime.now(KST).strftime("%Y-%m-%d")
+        entry = (
+            f"  {name}:\n"
+            f"    since: {today}   # 램프업 기준일 (첫 글 올리는 날로 고치세요)\n"
+            f"    max_live_per_day_account: {args.cap}   # 최종 상한. 오늘 상한은 램프업이 정합니다\n"
+        )
         idx = text.index(marker) + len(marker)
         FLEET_PATH.write_text(text[:idx] + entry + text[idx:], encoding="utf-8")
-        print(f"blogs.yaml 의 accounts 에 '{name}' 추가 (계정 상한 {args.cap}건/일)")
+        print(f"blogs.yaml 의 accounts 에 '{name}' 추가 (최종 상한 {args.cap}건/일, 처음 4주는 램프업으로 더 낮음)")
 
     v = _vars(name)
     print(f"""
 다음에 할 일
 
- 1. 새 구글 계정으로 blogger.com 에서 블로그를 만듭니다 (처음엔 2~3개).
+ 1. 새 구글 계정으로 blogger.com 에서 블로그를 만듭니다 (처음엔 2개. 나머지는 몇 주 뒤에 하나씩).
 
  2. **그 계정으로** Google Cloud 프로젝트를 새로 만듭니다.
     - Blogger API v3 사용 설정 (주간 보고용으로 Search Console·AdSense API 도)
@@ -135,7 +149,12 @@ def cmd_add(args) -> int:
 
  7. GitHub Secrets 에 같은 이름으로 3개 등록:
        {v[0]} / {v[1]} / {v[2]}
-    (워크플로는 BLOGGER_ 로 시작하는 시크릿을 전부 자동으로 넘기므로 워크플로 수정은 필요 없습니다)
+
+ 8. 워크플로 두 곳(.github/workflows/fleet.yml, manager.yml)의 env 에 같은 세 줄을 추가합니다:
+       {v[0]}: ${{{{ secrets.{v[0]} }}}}
+       {v[1]}: ${{{{ secrets.{v[1]} }}}}
+       {v[2]}: ${{{{ secrets.{v[2]} }}}}
+    (저장소가 공개라 시크릿을 한꺼번에 넘기지 않고 필요한 것만 적어 둡니다)
 """)
     return 0
 
@@ -229,6 +248,30 @@ def cmd_import(args) -> int:
     return 0
 
 
+def cmd_halt(args) -> int:
+    fleet_mod.load_fleet().accounts  # 설정 검증
+    fleet_mod.halt_account(args.name, args.reason or "수동 비상정지")
+    print(f"계정 '{args.name}' 비상정지. 이 계정의 블로그는 글을 쓰지도 올리지도 않습니다.")
+    print("커밋·푸시해야 GitHub Actions 에도 적용됩니다: data/fleet/account_state.json")
+    return 0
+
+
+def cmd_resume(args) -> int:
+    why = fleet_mod.account_halted(args.name)
+    if not why:
+        print(f"계정 '{args.name}' 은 멈춰 있지 않습니다.")
+        return 0
+    print(f"비상정지 사유: {why}")
+    if not args.yes:
+        print("\nBlogger 에서 원인(정책 알림, API 제한)이 풀린 것을 확인했다면 --yes 를 붙여 다시 실행하세요.")
+        return 1
+    fleet_mod.resume_account(args.name)
+    fleet = fleet_mod.load_fleet()
+    print(f"계정 '{args.name}' 재개. 램프업은 오늘부터 다시 시작합니다 — 오늘 상한 {fleet_mod.account_cap(fleet, args.name)}건.")
+    print("커밋·푸시해야 GitHub Actions 에도 적용됩니다: data/fleet/account_state.json")
+    return 0
+
+
 def cmd_retire(args) -> int:
     """계정의 블로그를 전부 중지합니다. 계정을 갈아탈 때 옛 계정을 멈추는 용도.
 
@@ -281,11 +324,13 @@ def main() -> int:
     p = argparse.ArgumentParser(description="구글 계정 관리 (여러 계정의 블로그를 한 저장소에서)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list").set_defaults(fn=cmd_list)
-    a = sub.add_parser("add"); a.add_argument("name"); a.add_argument("--cap", type=int, default=4)
+    a = sub.add_parser("add"); a.add_argument("name"); a.add_argument("--cap", type=int, default=8, help="최종 하루 상한 (램프업이 4→6→8 로 천천히 올림)")
     a.set_defaults(fn=cmd_add)
     c = sub.add_parser("check"); c.add_argument("name"); c.set_defaults(fn=cmd_check)
     i = sub.add_parser("import"); i.add_argument("name"); i.add_argument("--posts-per-day", type=int, default=2)
     i.set_defaults(fn=cmd_import)
+    h = sub.add_parser("halt"); h.add_argument("name"); h.add_argument("--reason", default=""); h.set_defaults(fn=cmd_halt)
+    u = sub.add_parser("resume"); u.add_argument("name"); u.add_argument("--yes", action="store_true"); u.set_defaults(fn=cmd_resume)
     t = sub.add_parser("retire"); t.add_argument("name"); t.set_defaults(fn=cmd_retire)
     r = sub.add_parser("remove"); r.add_argument("name"); r.set_defaults(fn=cmd_remove)
     args = p.parse_args()
