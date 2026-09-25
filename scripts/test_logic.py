@@ -937,6 +937,55 @@ def test_fleet(cfg: dict) -> None:
     check("규칙 기반 폴백: 연속 3회 실패 → pause", rule and rule[0]["blog"] == "dead")
 
 
+def test_agents(cfg: dict) -> None:
+    """Claude Code 서브에이전트(.claude/agents/*.md)가 공식 형식이고, 자동화와 같은 모델·지시문을 쓰는지."""
+    section("Claude Code 서브에이전트")
+    import re
+
+    import yaml
+
+    from scripts import agent_brief
+    from src import fleet as fm
+    from src import planner
+    from src.config import ROOT
+
+    agents: dict[str, dict] = {}
+    for path in sorted((ROOT / ".claude" / "agents").glob("*.md")):
+        m = re.match(r"---\r?\n(.*?)\r?\n---\r?\n(.*)", path.read_text(encoding="utf-8"), re.DOTALL)
+        meta = (yaml.safe_load(m.group(1)) or {}) if m else {}
+        ok = (
+            bool(m) and bool(m.group(2).strip())
+            and bool(re.fullmatch(r"[a-z0-9][a-z0-9-]*", str(meta.get("name", ""))))
+            and bool(str(meta.get("description", "")).strip())
+            and set(re.split(r",\s*", str(meta.get("tools", "")))) <= {"Read", "Write", "Edit", "Bash", "Grep", "Glob", "WebFetch", "WebSearch"}
+            and (meta.get("model") in ("sonnet", "opus", "haiku", "fable", "inherit") or str(meta.get("model", "")).startswith("claude-"))
+            and meta.get("effort", "high") in ("low", "medium", "high", "xhigh", "max")
+            and meta.get("color", "red") in ("red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan")
+        )
+        check(f"{path.name} 프론트매터 형식", ok, f"{meta}")
+        agents[str(meta.get("name"))] = meta
+
+    # 모델·effort 가 config.yaml 과 어긋나면 Claude Code 에서 쓴 글과 자동화가 쓴 글의 기준이 달라집니다.
+    for name, key, with_effort in (
+        ("topic-planner", "planner", True), ("post-writer", "writer", True),
+        ("post-reviewer", "review", True), ("fleet-manager", "manager", False),
+    ):
+        meta = agents.get(name, {})
+        check(f"{name}: 모델 = config {key}.model", meta.get("model") == cfg[key]["model"], f"{meta.get('model')} ≠ {cfg[key]['model']}")
+        if with_effort:
+            check(f"{name}: effort = config {key}.effort", meta.get("effort") == cfg[key].get("effort"), f"{meta.get('effort')}")
+
+    # 작업 지시서는 자동화 함수를 그대로 불러 모델에 가기 직전의 요청을 가로챕니다 (모델 호출 없음).
+    blog = fm.Blog(id="t", name="시험", blog_id="1", subject="세금 기초", pillars=["연말정산", "종합소득세"])
+    req = agent_brief.capture(planner.propose, cfg, blog, [])
+    check("지시서: 기획 = planner.SYSTEM + 블로그 주제", req["system"] == planner.SYSTEM and "연말정산" in req["messages"][0]["content"])
+    req = agent_brief.capture(writer.write, cfg, mk_candidate("연말정산 의료비 공제"), "자료", [], "2026년 09월 25일", persona="표로 정리합니다.")
+    check("지시서: 작성 = 자동화 모델 + 블로그 성격", req["model"] == cfg["writer"]["model"] and "표로 정리합니다." in req["system"])
+    art = writer.Article(keyword="k", title="시험 제목", description="요약", labels=["연말정산"], body_html="<p>본문</p>")
+    req = agent_brief.capture(reviewer.review, cfg, art, "자료")
+    check("지시서: 검수 = reviewer.SYSTEM + 심사 대상 글", req["system"] == reviewer.SYSTEM and "시험 제목" in req["messages"][0]["content"])
+
+
 def main() -> int:
     # 실제 data/fleet/account_state.json(비상정지 기록)이 테스트에 섞이지 않게 임시 파일로 돌립니다.
     import tempfile
@@ -966,6 +1015,7 @@ def main() -> int:
     test_evergreen_parse(cfg)
     test_config_shape(cfg)
     test_fleet(cfg)
+    test_agents(cfg)
 
     print("\n" + "=" * 50)
     if failures:

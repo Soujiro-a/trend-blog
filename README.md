@@ -271,6 +271,7 @@ Claude Code 안에서는 **`fleet-manager` 에이전트**([.claude/agents/fleet-
 다시 걸러 `data/fleet/manager_state.json` 에 적용합니다. 조치나 경고가 있으면 GitHub 이슈(`fleet` 라벨)가 열려
 메일이 옵니다. 모델 호출이 실패해도 규칙 기반 최소 조치는 적용됩니다.
 **발행량을 올리는 권한은 없습니다** — 2026-09-25 에 만 4일 된 블로그를 "꾸준하다"며 2건으로 올리려 해서 없앴습니다.
+Claude Code 에서는 `fleet-manager` 에이전트가 같은 기준으로 판단합니다(2-3 참고).
 
 ### 계정 비상정지
 Blogger 가 발행에 403 을 돌려주면(2026-09-20 차단 때 받은 응답) 그 계정의 모든 블로그를 즉시 멈추고
@@ -353,6 +354,29 @@ python scripts/fleet_cli.py enable <블로그id>   # 되살리기
 
 자격증명이 없는 계정의 블로그는 **실행되지 않고 보고서에 경고로 남습니다.** 이전 계정 토큰으로
 엉뚱한 블로그에 글이 올라가는 것을 막기 위해, 자격증명이 비면 표준 변수를 지워 인증 오류로 실패시킵니다.
+
+---
+
+## 2-3. Claude Code 서브에이전트 — `.claude/agents/`
+
+매일 글을 쓰고 올리는 것은 GitHub Actions 가 실행하는 파이썬 코드(`src/`)입니다. 같은 역할을 Claude Code 안에서
+사람이 불러 쓸 수 있도록 [공식 서브에이전트 형식](https://code.claude.com/docs/en/sub-agents)(프론트매터가 있는
+마크다운)으로 정의해 두었습니다.
+
+| 에이전트 | 모델 | 자동화에서 같은 일을 하는 코드 | 이렇게 부릅니다 |
+|---|---|---|---|
+| `fleet-manager` | Sonnet 5 | `src/manager.py` · `scripts/*_cli.py` | "함대 상태 봐줘", "블로그 추가해" |
+| `topic-planner` | Sonnet 5 | `src/planner.py` | "gaganam1 다음 글감 뽑아줘" |
+| `post-writer` | Fable 5.1 | `src/writer.py` | "이 글감으로 초안 써줘" |
+| `post-reviewer` | Sonnet 5 | `src/reviewer.py` | "방금 쓴 초안 검수해줘" |
+
+- **자동화는 그대로입니다.** 워크플로는 `.claude/` 를 읽지 않습니다. 에이전트 파일을 고쳐도 매일 도는 글쓰기는 달라지지 않습니다.
+- **규칙은 한 곳에만 있습니다.** 에이전트는 `scripts/agent_brief.py` 로 자동화가 모델에 보내는 지시문 원문을 받아 씁니다.
+  `src/writer.py` 같은 프롬프트를 고치면 에이전트도 따로 손대지 않아도 같은 기준으로 움직입니다.
+- **에이전트는 발행하지 않습니다.** 초안·검수 결과·미리보기는 `out/agents/<블로그>/<시각>/` 에만 남고(깃에 안 올라감),
+  `data/` 의 이력도 건드리지 않습니다. 발행은 안전장치(하루·계정 상한, 발행 간격, 비상정지)를 거치는 자동화만 합니다.
+- 에이전트의 모델·effort 는 `config.yaml` 과 맞춰 두었습니다. 한쪽만 바꾸면 `python scripts/test_logic.py` 가 알려 줍니다.
+- 장수 글(`src/evergreen.py`)은 함대에서 꺼져 있어(`evergreen_weekday: -1`) 에이전트로 만들지 않았습니다.
 
 ---
 
@@ -482,14 +506,17 @@ python scripts/weekly_report.py
 
 ```
 config.yaml                 설정 (여기만 만지면 됩니다)
+.claude/agents/             Claude Code 서브에이전트 — 관리·기획·작성·검수 (2-3 참고)
 src/
   main.py                   전체 흐름: 후보 → 리서치 → 작성 → 검수 → 판정 → 발행
   trends/                   실시간 검색어 수집기 5종
   filters.py                민감 주제·부적합 키워드 차단
   state.py                  작성 이력 / 중복 방지
+  planner.py                Claude 글감 기획 — 블로그 고유 주제 안에서
   research.py               키워드별 참고 기사 수집
   writer.py                 Claude 글 작성 (실시간 / 장수 프롬프트)
   reviewer.py               Claude 검수 — publish / hold / reject + 구매 의도 판단
+  manager.py                함대 관리 — 매일 23:35 KST 중지/재개/메모 판단
   evergreen.py              장수 해설 주제 생성
   monetize/
     coupang.py              쿠팡파트너스 상품 검색·카드 삽입
@@ -502,6 +529,7 @@ scripts/
   check_blogger.py          Blogger 연결만 확인
   test_logic.py             네트워크 없이 도는 로직 테스트
   selftest.py               실제 사이트까지 붙여서 파이프라인 점검
+  agent_brief.py            서브에이전트용 작업 지시서 (자동화가 모델에 보내는 요청 원문)
 .github/workflows/
   draft.yml                 매일 04:30 KST 실시간 글
   evergreen.yml             매주 월 05:40 KST 장수 글
