@@ -21,13 +21,13 @@ permissions:
 
 jobs:
   manage:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # fleet.yml 과 같은 이유로 고정 (ubuntu-latest 는 2026-10-19 에 바뀜)
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -40,7 +40,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PYTHONUTF8: "1"
-          # 계정을 추가하면 여기에도 세 줄 추가 (fleet.yml 과 같은 목록)
+          # 계정을 추가하면 여기에도 세 줄 추가 (fleet.yml·weekly_report.yml 과 같은 목록)
           BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
           BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
           BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
@@ -80,3 +80,13 @@ jobs:
           gh issue list --label fleet --state open --json number --jq '.[].number' \
             | xargs -r -I{} gh issue close {} --comment "새 관리 보고로 대체" || true
           gh issue create --title "함대 관리 $(date -u -d '+9 hours' +'%Y-%m-%d')" --body-file data/fleet/manager_report.md --label fleet
+
+      # 오늘 볼 것이 없으면, 열려 있는 지난 보고는 닫습니다. 예전엔 새 보고가 나올 때까지 며칠이고
+      # 열려 있어서 이미 끝난 조치(예: 없어진 증량 제안)가 할 일처럼 남아 있었습니다.
+      - name: 볼 것이 없으면 지난 관리 이슈 닫기
+        if: steps.manage.outputs.exit == '0' && github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue list --label fleet --state open --json number --jq '.[].number' \
+            | xargs -r -I{} gh issue close {} --comment "$(date -u -d '+9 hours' +'%Y-%m-%d') 관리 보고: 조치·경고 없음" || true

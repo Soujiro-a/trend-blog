@@ -50,11 +50,10 @@ python scripts/setup_pages.py --all                  # 소개·개인정보처�
 python scripts/test_logic.py                         # 로직 테스트 (설정을 고친 뒤 꼭)
 ```
 
-`python -m src.fleet_run --blog <id> --target local` (글 1건, 약 $0.4)은 파이프라인 전체를 시험하지만
-`data/blogs/<id>/history.json`·`runs.json` 과 `data/fleet/claims.json` 에 기록을 남깁니다. 그대로 커밋되면
-그 슬롯이 그날 돈 것으로 잡히고 시험 글감이 중복 방지에 걸립니다. 시험이 끝나면 `git status` 로 시험 외의 변경이
-없는지 확인하고 `git checkout -- data/` 로 되돌리세요. 글 미리보기만 필요하면 topic-planner → post-writer →
-post-reviewer 를 쓰세요. 이쪽은 `data/` 를 건드리지 않습니다.
+`python -m src.fleet_run --blog <id> --target local` (글 1건, 약 $0.4)은 기획부터 검수까지 파이프라인 전체를
+시험하고 결과를 Blogger 대신 `out/` 에 HTML 로 저장합니다. 이력·실행 기록·선점(`data/`)은 남기지 않으므로
+실제 슬롯과 중복 방지에 영향이 없습니다. 글 미리보기만 필요하면 topic-planner → post-writer → post-reviewer 를
+쓰세요. 비용은 같지만 단계마다 결과를 보고 멈출 수 있습니다.
 
 ## 2026-09-20 사고 — 이 파일에서 가장 중요한 부분
 
@@ -110,8 +109,8 @@ post-reviewer 를 쓰세요. 이쪽은 `data/` 를 건드리지 않습니다.
    사람이 한 조치로 남는다는 점을 함께 알려 주세요.
 
 ## 블로그 추가 절차 (사용자가 "블로그 N개 추가해" 라고 하면)
-1. 사용자가 Blogger 에서 블로그를 만들었는지 확인 (`discover --account <계정>` 으로 계정의 블로그 목록을 봅니다).
-2. `discover --add --account <계정>` 으로 일괄 등록 → 슬롯 자동 배정(블로그당 2개).
+1. 사용자가 Blogger 에서 블로그를 만들었는지 확인 (`discover --account <계정>` 으로 그 계정의 블로그 목록을 봅니다).
+2. `discover --add --account <계정>` 으로 일괄 등록 → 슬롯 자동 배정(블로그당 2개). 비상정지된 계정에는 등록되지 않습니다.
 3. 블로그마다 `subject`/`pillars`/`audience`/`persona` 초안을 **서로 다르게** 제안하고 blogs.yaml 에 채웁니다.
    주제는 서로 멀수록 좋습니다(예: 세금·공제 / 주거 계약 / 직장 규정 / 정부 지원 / 디지털 사용법).
    특정 인물·사건·속보를 다루는 주제는 피합니다.
@@ -121,6 +120,7 @@ post-reviewer 를 쓰세요. 이쪽은 `data/` 를 건드리지 않습니다.
    `fleet_cli.py list` 로 오늘 실제로 켜지는 슬롯(괄호 = 대기)을 사용자에게 보여줍니다.
    계정의 켜진 블로그가 `max_blogs_per_account` 를 넘으면 validate 가 막습니다 → 새 계정 안내.
 6. `setup_pages.py --blog <id>` 로 소개·개인정보처리방침 페이지를 만들고, `adsense_check.py --blog <id>` 로 확인합니다.
+   Search Console 속성 추가는 사람이 그 계정으로 로그인해 해야 합니다(빠지면 주간 보고가 경고). 사용자에게 알려 주세요.
 7. 비용 영향을 숫자로 알려줍니다.
 8. 커밋·푸시 (사용자가 허용한 경우). 푸시되면 다음 슬롯부터 자동으로 돕니다.
 
@@ -132,8 +132,9 @@ post-reviewer 를 쓰세요. 이쪽은 `data/` 를 건드리지 않습니다.
 계정 추가: `python scripts/account_cli.py add <이름>` 이 출력하는 순서를 그대로 안내합니다. 요점은
 새 구글 계정 + **새 Cloud 프로젝트**(기존 것 재사용 금지) → `.env` 에 계정별 클라이언트 입력 →
 `get_blogger_token.py --full --from-env --write-env --account <이름>` 승인 → `account_cli.py check` →
-`import` → blogs.yaml 에 subject 채우기 → `fleet_cli.py validate` → `setup_pages.py --all` → GitHub Secrets 등록.
-워크플로는 `BLOGGER_` 로 시작하는 시크릿을 전부 자동으로 넘기므로 수정하지 않습니다.
+`import` → blogs.yaml 에 subject 채우기 → `fleet_cli.py validate` → `setup_pages.py --all` → GitHub Secrets 등록 →
+워크플로 세 곳(`fleet.yml`·`manager.yml`·`weekly_report.yml`)의 env 에 계정별 세 줄 추가.
+저장소가 공개라 워크플로는 시크릿을 한꺼번에 넘기지 않습니다. 한 곳이라도 빠뜨리면 `test_logic.py` 가 실패합니다.
 
 계정 갈아타기: 새 계정을 add/import 한 뒤 `account_cli.py retire <옛계정>` 으로 멈춥니다.
 이력·설정은 남으므로 `fleet_cli.py enable <블로그id>` 로 되살릴 수 있습니다.

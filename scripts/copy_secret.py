@@ -16,14 +16,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ENV_PATH = ROOT / ".env"
 
-# GitHub Secrets 에 등록해야 하는 이름들 (순서대로)
-SECRET_NAMES = [
-    "ANTHROPIC_API_KEY",
-    "BLOGGER_CLIENT_ID",
-    "BLOGGER_CLIENT_SECRET",
-    "BLOGGER_REFRESH_TOKEN",
-    "BLOGGER_BLOG_ID",
-]
+CREDENTIAL_VARS = ("BLOGGER_CLIENT_ID", "BLOGGER_CLIENT_SECRET", "BLOGGER_REFRESH_TOKEN")
+
+
+def secret_names() -> list[str]:
+    """GitHub Secrets 에 등록할 이름들 (순서대로). 계정은 fleet/blogs.yaml 의 accounts 에서 읽습니다.
+
+    default 계정은 접미사 없는 표준 이름, 그 외 계정은 _<계정이름대문자> 가 붙습니다 (src/fleet.py env_name).
+    """
+    import yaml
+
+    names = ["ANTHROPIC_API_KEY"]
+    try:
+        raw = yaml.safe_load((ROOT / "fleet" / "blogs.yaml").read_text(encoding="utf-8")) or {}
+        accounts = list(raw.get("accounts") or {"default": {}})
+    except (OSError, yaml.YAMLError):
+        accounts = ["default"]
+    for acc in accounts:
+        names += [base if acc == "default" else f"{base}_{acc.upper()}" for base in CREDENTIAL_VARS]
+    return names + ["COUPANG_ACCESS_KEY", "COUPANG_SECRET_KEY"]
 
 
 def read_env() -> dict[str, str]:
@@ -63,14 +74,15 @@ def main() -> int:
     if len(sys.argv) > 1:
         name = sys.argv[1].strip()
     else:
-        print("GitHub Secrets 에 등록할 항목:\n")
-        for i, key in enumerate(SECRET_NAMES, start=1):
+        names = secret_names()
+        print("GitHub Secrets 에 등록할 항목 (쿠팡은 선택):\n")
+        for i, key in enumerate(names, start=1):
             value = values.get(key, "")
             mark = f"{len(value)}자" if value else "비어있음"
             print(f"  {i}. {key}  ({mark})")
         choice = input("\n번호 또는 이름: ").strip()
-        if choice.isdigit() and 1 <= int(choice) <= len(SECRET_NAMES):
-            name = SECRET_NAMES[int(choice) - 1]
+        if choice.isdigit() and 1 <= int(choice) <= len(names):
+            name = names[int(choice) - 1]
         else:
             name = choice
 

@@ -1,367 +1,175 @@
-# 실시간 이슈 블로그 자동화
+# Blogger 블로그 함대 자동화
 
-실시간 검색어를 모아 글을 쓰고, **AI 가 검수한 뒤 스스로 공개**합니다.
-사람은 매일 볼 것이 없고, 월요일 아침에 오는 **주간 보고 메일 한 통**만 읽으면 됩니다.
+여러 개의 Blogger 블로그를 **블로그마다 다른 주제로**, GitHub Actions 가 사람 없이 운영합니다.
+글감 기획 → 참고 기사 수집 → 글 작성 → AI 검수 → 공개까지 자동이고, 발행량은 블로그·계정 나이에 맞춰 스스로 늘어납니다.
+사람은 **월요일 아침 주간 보고 메일**과, 문제가 생겼을 때 오는 **경고 이슈**만 보면 됩니다.
 
 ```
- 실시간 검색어 5개 소스        필터            Claude Opus       Claude Sonnet         Blogger
- ┌────────────────┐     ┌───────────┐     ┌──────────┐     ┌──────────────┐     ┌──────────┐
- │ 구글 트렌드     │     │ 14일 중복  │     │ 리서치    │     │ 사실 대조     │ 통과 │ 공개      │──▶ 애드센스
- │ 시그널          │─합산▶│ 민감 주제  │─상위▶│ 글 작성   │────▶│ 법적 위험     │────▶│ (하루 ≤3) │    (트래픽 광고)
- │ 네이트          │ 점수 │ 기사 부족  │ 4개 │ 제목/태그 │     │ 광고 정책     │     ├──────────┤
- │ 네이버 뉴스     │     └───────────┘     └──────────┘     │ 구매 의도 판단 │ 보류 │ 임시저장  │
- │ 구글 뉴스       │                                        └──────┬───────┘     └──────────┘
- └────────────────┘                                               │ 구매 의도 있음
-                                                                   ▼
-                                                            쿠팡파트너스 상품 링크 삽입 (제휴 수수료)
+GitHub Actions (공개 저장소 · 무료)
 
- 매일 04:30 KST   실시간 이슈 글 4개 작성 → 검수 → 공개          (.github/workflows/draft.yml)
- 매주 월 05:40    장수 해설 글 2개 작성 → 검수 → 공개            (.github/workflows/evergreen.yml)
- 매주 월 09:20    주간 운영·수익 보고서 → GitHub 이슈 → 메일     (.github/workflows/weekly_report.yml)
+ fleet.yml           10분마다 예약 ─▶ src/fleet_run.py  "슬롯 시각이 지났고 오늘 아직 안 돈" 슬롯을 차례로
+                                        └▶ src/main.py --blog <id>   슬롯 하나 = 글 한 건
+                                             ① 글감 기획  Sonnet 5   블로그 고유 주제(subject·pillars) 안에서
+                                             ② 참고 기사  구글 뉴스 검색 (제목·요약·출처만)
+                                             ③ 작성      Fable 5.1  블로그별 문체(persona) + 같은 블로그 글 내부 링크
+                                             ④ 검수      Sonnet 5   publish / hold / reject
+                                             ⑤ 발행      안전장치를 통과하면 공개, 아니면 임시저장
+ manager.yml         매일 23:35 KST ─▶ src/manager.py   블로그별 7일 지표 → 중지/재개/메모 → 경고 있으면 이슈
+ weekly_report.yml   월 09:20 KST   ─▶ scripts/weekly_report.py  주간 운영·수익 보고 → 이슈(메일)
 ```
 
-**수익 구조**는 두 갈래입니다.
-
-| 수익원 | 방식 | 코드에서 하는 일 | 사람이 1회 해야 하는 일 |
-|---|---|---|---|
-| **구글 애드센스** | 방문자에게 광고 노출 | 글을 꾸준히 공개해 트래픽을 만듦 | 공개 글 20~30개 쌓이면 Blogger → 수익 메뉴에서 신청 (5분) |
-| **쿠팡파트너스** | 글 속 상품 링크로 구매 시 수수료 | 검수관이 '구매 의도 있는 주제'로 본 글에만 상품 카드 삽입 | [partners.coupang.com](https://partners.coupang.com) 가입 → API 키 발급 → Secrets 등록 |
-
-돈이 되는 정도는 트래픽에 달려 있고, 이 시스템은 트래픽을 **만들어 볼 기회를 매일 자동으로 만드는 것**까지입니다.
-보통 실시간 이슈 블로그는 3~6개월 지나야 애드센스 승인과 유의미한 유입이 시작됩니다. 그 전에는 API 비용(월 $15 안팎)만 나갑니다.
+**수익 구조** — 글이 쌓여 검색 유입이 생기면 **구글 애드센스** 광고 수익이 납니다. 검수관이 '구매 의도가 있는 주제'로 본
+글에는 **쿠팡파트너스** 상품 링크를 넣을 수 있습니다(키를 등록했을 때만. 지금은 등록 안 됨 → 꺼져 있음).
+새 블로그가 애드센스 승인과 의미 있는 유입을 얻기까지는 보통 몇 달이 걸리고, 그동안은 API 비용만 나갑니다.
 
 ---
 
-## 1. 준비 (최초 1회, 30~40분)
+## 지금 운영 중인 함대 (2026-09-26)
 
-> 이미 세팅이 끝난 저장소라면 이 절은 건너뛰고 [2. 남은 사람 일](#2-남은-사람-일)로 가세요.
+| 계정 | 상태 | 블로그 (고유 주제) |
+|---|---|---|
+| `second` | 운영 중 · 2026-09-21 시작 | 가가남블로그 `gaganam1` (자동차 운전과 차량 관리) · 가가남씨블로그 `gaganamc1` (온라인 쇼핑과 소비자 권리) · 가가남소식통 `gaganamissue` (해외여행 준비와 출입국 절차, 09-25 시작) · 가가남의블로그 `gaganams1` (집안 살림과 가전·생활용품 관리, 09-25 시작) |
+| `default` | ⛔ 은퇴 · 비상정지 | 픽토픽 · 이슈캐치 · 발빠른토픽 · 지금이슈 · 이슈픽 — 2026-09-20 Blogger API 쓰기 차단 이후 계정을 바꾸고 멈춤 (이력은 남아 있음) |
 
-### 1단계 — Blogger 블로그 만들기 (5분, 무료)
-
-[blogger.com](https://www.blogger.com) 에서 구글 계정으로 블로그를 만듭니다.
-주소는 `원하는이름.blogspot.com` 이 됩니다. 나중에 개인 도메인으로 바꿔도
-주소가 자동 연결되니 지금은 아무 이름이나 괜찮습니다.
-
-### 2단계 — Blogger API 권한 받기 (15분)
-
-[Google Cloud Console](https://console.cloud.google.com) 에서:
-
-1. 새 프로젝트 생성
-2. **API 및 서비스 → 라이브러리** → "Blogger API v3" 검색 → **사용 설정**
-   - 주간 보고서에 검색 유입·광고 수익까지 표시하려면 **Google Search Console API** 와
-     **AdSense Management API** 도 같이 사용 설정하세요 (선택).
-3. **OAuth 동의 화면**(최신 콘솔에서는 *Google 인증 플랫폼*) → User Type **외부** → 앱 이름 아무거나 → 저장
-   → 그다음 **대상(Audience)** 페이지에서 **앱 게시 → 프로덕션으로 전환**
-
-   게시하려면 **브랜딩** 페이지에 아래가 모두 채워져 있어야 합니다.
-   앱 이름 / 사용자 지원 이메일 / 개발자 연락처 이메일 /
-   **애플리케이션 홈페이지 URL** / **개인정보처리방침 URL**
-
-   뒤의 두 URL 은 블로그에 페이지를 만들어 쓰면 됩니다. 붙여넣기용 템플릿을
-   [`pages/`](pages) 에 넣어뒀습니다 (`about.html`, `privacy-policy.html`).
-   개인정보처리방침은 **애드센스 심사에도 어차피 필수**라 미리 만들어 두면 두 번 일하지 않습니다.
-
-   > **이 단계를 건너뛰지 마세요.** 게시 상태가 '테스트'인 동안 발급된 refresh token 은
-   > **7일 뒤 만료**됩니다([구글 문서](https://developers.google.com/identity/protocols/oauth2)).
-   > 그러면 매주 인증을 다시 해야 해서 자동화가 무너집니다. 프로덕션으로 바꾸면 만료되지 않습니다.
-   >
-   > 게시해도 구글 심사를 받는 게 아니라서 로그인할 때 '확인되지 않은 앱' 경고는 계속 뜹니다.
-   > 본인만 쓰는 용도라 그대로 진행하면 됩니다(미인증 앱은 사용자 100명까지 허용).
-4. **사용자 인증 정보 → 사용자 인증 정보 만들기 → OAuth 클라이언트 ID**
-   → 애플리케이션 유형 **데스크톱 앱** → 만들기
-   > 기본값인 '웹 애플리케이션'으로 만들면 인증 단계에서 `400 오류: redirect_uri_mismatch`
-   > 가 납니다. 구글은 임의 포트로 돌아오는 주소를 **데스크톱 앱 유형에만** 허용합니다.
-   > 이미 웹 유형으로 만드셨다면 [아래](#redirect_uri_mismatch-오류가-난다면) 참고.
-5. 나온 **클라이언트 ID** 와 **클라이언트 보안 비밀번호**를 복사
-
-그다음 이 폴더에서:
+발행량은 램프업이 자동으로 올립니다. `second` 계정은 **~10/18 하루 4건**(블로그당 1건) → **10/19~11/15 6건** →
+**11/16~ 8건**(블로그당 2건)입니다. 지금 켜진 슬롯은 언제든 이 명령으로 봅니다(괄호 = 램프업 대기).
 
 ```bash
-pip install -r requirements.txt
-python scripts/get_blogger_token.py          # Blogger 권한만
-python scripts/get_blogger_token.py --full   # + Search Console·애드센스 읽기 권한 (주간 보고서용, 권장)
+python scripts/fleet_cli.py list
 ```
-
-브라우저가 열리면 블로그 소유 계정으로 승인하세요.
-끝나면 **GitHub Secrets 에 넣을 값 4개**가 터미널에 출력됩니다.
-
-> 이 값들은 비밀번호와 같습니다. 채팅창이나 공개 저장소에 붙여넣지 마세요.
-
-#### `redirect_uri_mismatch` 오류가 난다면
-
-클라이언트를 '웹 애플리케이션' 유형으로 만든 경우입니다. 둘 중 하나로 해결합니다.
-
-- **(권장) 데스크톱 앱 유형으로 새로 만들기** — 사용자 인증 정보에서 클라이언트 ID를
-  하나 더 만들면 됩니다. OAuth 동의 화면은 다시 설정하지 않아도 됩니다.
-- **지금 클라이언트를 그대로 쓰기** — 해당 클라이언트를 열어 **승인된 리디렉션 URI**에
-  `http://localhost:8080` 을 추가하고 저장한 뒤 (반영에 1~2분 걸릴 수 있습니다):
-
-  ```bash
-  python scripts/get_blogger_token.py --port 8080
-  ```
-
-#### "Google에서 확인하지 않은 앱입니다" 경고
-
-본인이 만든 테스트 앱이라 정상입니다. **고급** → **{앱이름}(으)로 이동(안전하지 않음)**.
-
-#### `403 오류: access_denied` / "앱이 Google의 인증 절차를 완료하지 않았습니다"
-
-앱이 아직 **테스트** 상태이고 로그인하려는 계정이 테스트 사용자 목록에 없습니다.
-**테스트 사용자를 추가하지 말고, 2단계 3번대로 앱을 프로덕션으로 게시하세요.**
-게시한 *뒤에* 토큰 발급 스크립트를 다시 실행해야 만료되지 않는 토큰을 받습니다.
-
-### 3단계 — Claude API 키 발급 (5분)
-
-[console.anthropic.com](https://console.anthropic.com) → **API Keys** → 새 키 생성.
-결제 수단을 등록하고 **사용량 한도(Usage limit)를 월 $30 정도로 걸어두세요.**
-설정 실수로 비용이 폭주하는 걸 막아줍니다.
-
-### 4단계 — GitHub 저장소에 올리기 (10분)
-
-```bash
-git init
-git add .
-git commit -m "feat: 실시간 이슈 블로그 자동화"
-```
-
-GitHub 에서 **비공개(Private)** 저장소를 만들고 푸시합니다.
-(비공개여도 Actions 무료 한도 월 2,000분 안에서 충분히 돌아갑니다. 이 작업은 월 40분 정도 씁니다.)
-
-그다음 저장소 **Settings → Secrets and variables → Actions** 에서
-`New repository secret` 으로 등록합니다:
-
-| 이름 | 값 | 필수 |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | 3단계에서 만든 키 | ✅ |
-| `BLOGGER_CLIENT_ID` | 2단계 출력값 | ✅ |
-| `BLOGGER_CLIENT_SECRET` | 2단계 출력값 | ✅ |
-| `BLOGGER_REFRESH_TOKEN` | 2단계 출력값 | ✅ |
-| `BLOGGER_BLOG_ID` | 2단계 출력값 | ✅ |
-| `COUPANG_ACCESS_KEY` | 쿠팡파트너스 API 키 | 선택 — 없으면 제휴 링크 없이 동작 |
-| `COUPANG_SECRET_KEY` | 쿠팡파트너스 API 시크릿 | 선택 |
-
-### 5단계 — 첫 실행 확인
-
-저장소 **Actions** 탭 → `실시간 이슈 글 작성·공개` → **Run workflow** → `count` 에 `1`.
-3~4분 뒤 블로그에 글이 하나 공개돼 있으면 (또는 검수에서 보류돼 임시저장함에 있으면) 성공입니다.
-각 실행의 **Summary** 에 어떤 키워드를 골랐고, 검수 점수가 몇 점이었고, 왜 보류됐는지가 다 적힙니다.
-
-이후로는 **매일 04:30 KST 에 자동 실행**됩니다. PC는 꺼져 있어도 됩니다.
-
-> **왜 6시가 아니라 4시 30분인가** — GitHub 무료 예약 실행은 지연이 큽니다.
-> 실제로 06:00 예약이 **08:02 에 돈 적**이 있습니다. 정시(`0분`)는 전 세계가 몰리는
-> 가장 혼잡한 슬롯이라 더 밀립니다. 그래서 정시를 피하고 1시간 30분 여유를 뒀습니다.
 
 ---
 
-## 2. 남은 사람 일
+## 사람이 하는 일
 
-자동화가 대신할 수 없는 것은 **계정과 돈에 관한 결정**뿐입니다. 시간순으로:
-
-| 시점 | 할 일 | 소요 |
-|---|---|---|
-| 지금 | (선택) [쿠팡파트너스](https://partners.coupang.com) 가입 → **링크 생성 → API 키 발급** → GitHub Secrets 에 `COUPANG_ACCESS_KEY`, `COUPANG_SECRET_KEY` 등록 | 15분 |
-| 지금 | (선택) `python scripts/get_blogger_token.py --full` 로 토큰 재발급 → `BLOGGER_REFRESH_TOKEN` Secret 교체. 주간 보고서에 검색 유입이 표시됩니다 | 5분 |
-| 공개 글 20~30개 (약 1~2주 뒤) | Blogger 관리 화면 → **수익** → 애드센스 신청. 주간 보고서가 "신청 가능" 이라고 알려줍니다 | 5분 + 심사 1~4주 |
-| 애드센스 승인 후 | Blogger → 수익 → 광고 표시 켜기. 그러면 템플릿이 광고를 자동 배치합니다 | 2분 |
-| 유입이 붙기 시작하면 (선택) | 개인 도메인 구입(연 1.5~2만원) → Blogger 설정 → 맞춤 도메인. 애드센스 승인률과 SEO 에 유리하지만 **트래픽이 확인된 뒤에** 사세요 | 20분 |
-| 매주 월요일 | GitHub 이슈로 오는 **주간 보고** 메일 읽기. `✅ 이상 없음` 이면 끝. `⚠️ 확인 필요` 항목이 있으면 그것만 봅니다 | 2분 |
-
-주간 보고가 경고를 띄우는 조건은 `scripts/weekly_report.py` 맨 위에 있습니다
-(주간 API 비용 $6 초과 / 공개 5건 미만 / 보류·거부 절반 초과 / 이력 없음 = 실행 중단 의심).
-
-### 그 외에는 정말 안 봐도 되나
-
-- **실행 실패** → GitHub 이 자동으로 메일을 보냅니다.
-- **검수에서 보류된 글** → 임시저장함에 쌓입니다. 봐도 되고 안 봐도 됩니다. 15개 넘으면 주간 보고가 알려주니 그때 한 번에 지우면 됩니다.
-- **색인** → Blogger 는 구글 서비스라 새 글이 자동으로 구글에 전달됩니다. 따로 요청할 필요 없습니다.
-- **60일 무활동 자동 중지** → 매 실행마다 이력을 커밋하므로 해당 없습니다.
-- **refresh token 만료** → OAuth 앱이 프로덕션 상태면 만료되지 않습니다. 만약 실패 메일에 `액세스 토큰 발급 실패` 가 보이면 [7. 문제가 생기면](#7-문제가-생기면).
-
----
-
-## 2-1. 블로그 함대 — 블로그마다 고유 주제, 서로 다른 시각
-
-한 저장소에서 여러 Blogger 블로그를 **같은 파이프라인, 다른 주제, 다른 시각**에 운영합니다. 목록은
-[`fleet/blogs.yaml`](fleet/blogs.yaml) 하나에 있고, 블로그마다 이력·보고서가 `data/blogs/<id>/` 에 따로 쌓입니다.
-
-```
- fleet.yml (10분마다)  ─▶  src/fleet_run.py  ─▶  계정 상한 확인 → "시각이 지났고 아직 안 돈" 슬롯을 순서대로
-                                                    └▶ src/main.py --blog <id> --count 1
-                                                         기획(주제 안에서 글감) → 리서치 → 작성 → 검수 → 공개
- manager.yml (매일 23:35) ─▶ src/manager.py   ─▶  블로그별 지표 → Sonnet 5 판단 → 중지/재개/메모 → 이슈 (증량은 램프업이 자동으로)
-```
-
-**슬롯 하나 = 글 한 건**입니다. 하루 2건이면 아침·오후 슬롯을 하나씩 둬서, 몇 분 안에 여러 건이 몰리지 않게 합니다.
-
-| 하고 싶은 일 | 명령 |
+| 언제 | 할 일 |
 |---|---|
-| 블로그 추가 (슬롯 자동 배정) | `python scripts/fleet_cli.py add --name "이름" --blog-id <ID> --subject "고유 주제"` |
-| 계정의 블로그 전부 등록 | `python scripts/fleet_cli.py discover --add` |
-| 슬롯표 / 상태 | `python scripts/fleet_cli.py list` · `status` |
-| 켜기/끄기 | `python scripts/fleet_cli.py enable <id>` · `disable <id>` |
-| 설정 검사 (주제 중복·슬롯 간격) | `python scripts/fleet_cli.py validate` |
-| 지금 돌 슬롯 확인 | `python -m src.fleet_run --dry-run` |
-| 한 블로그 테스트 | `python -m src.fleet_run --blog <id> --target local` |
-| **Blogger 계정 교체** | `python scripts/switch_account.py` (안내) · `--check` · `--plan` · `--apply` |
+| 매주 월요일 | GitHub 이슈로 오는 **주간 보고** 메일을 읽습니다. `✅ 이상 없음` 이면 끝, `⚠️ 확인이 필요한 항목` 이 있으면 그것만 봅니다. |
+| `⛔ 계정 비상정지` 이슈가 오면 | Blogger 가 발행을 403 으로 거부했다는 뜻입니다. 그 계정 블로그는 이미 전부 멈췄습니다. Blogger 에 로그인해 정책 알림을 확인하고, 풀린 뒤에 `python scripts/account_cli.py resume <계정> --yes` → 커밋·푸시. |
+| `함대 관리` 이슈가 오면 | 매일 밤 관리 판단에서 조치나 경고가 나온 날만 옵니다. 경고 항목만 확인합니다. 다음 날 볼 것이 없으면 자동으로 닫힙니다. |
+| GitHub 에서 실패 메일이 오면 | 대부분 토큰 만료나 일시 장애입니다. [문제가 생기면](#8-문제가-생기면) 표를 보세요. |
+| 블로그 운영 4주 · 공개 글 25개 이후 | `python scripts/adsense_check.py` 로 확인 → Blogger 관리 화면 **수익** 에서 애드센스 신청. `second` 계정 블로그는 10월 하순부터 해당합니다. 승인 뒤 광고 표시를 켜면 템플릿이 광고를 자동 배치합니다. |
+| 블로그·계정을 늘릴 때 | [4. 블로그·계정 늘리기](#4-블로그계정-늘리기) |
+| (선택) | [쿠팡파트너스](https://partners.coupang.com) API 키 → GitHub Secrets `COUPANG_ACCESS_KEY` · `COUPANG_SECRET_KEY` |
 
-Claude Code 안에서는 **`fleet-manager` 에이전트**([.claude/agents/fleet-manager.md](.claude/agents/fleet-manager.md))에게
-"블로그 5개 추가해", "함대 상태 봐줘", "어느 블로그가 안 돌아?" 처럼 말하면 위 명령을 대신 실행하고 판단해 줍니다.
+그 외에는 보지 않아도 됩니다.
 
-### 주제 특화 — 블로그마다 다른 subject
+- **검수에서 보류된 글**은 각 블로그의 임시저장함에 쌓입니다. 봐도 되고 안 봐도 됩니다.
+- **색인**: Blogger 는 구글 서비스라 새 글이 자동으로 구글에 전달됩니다.
+- **60일 무활동 자동 중지**: 실행마다 이력을 커밋하므로 해당 없습니다.
+- **refresh token 만료**: OAuth 앱이 '프로덕션' 상태면 만료되지 않습니다.
 
-블로그마다 `subject`(고유 주제)와 `pillars`(하위 축)를 정하고, [`src/planner.py`](src/planner.py) 가
-**그 주제 안에서만** 글감을 기획합니다. 실시간 검색어를 보지 않으므로 블로그 간 주제 충돌이 설계상 일어나지 않습니다.
+---
+
+## 1. 동작 방식
+
+### 슬롯 — 슬롯 하나에 글 한 건
+블로그마다 하루에 글을 올리는 시각(`slots`)이 있고, 슬롯 하나가 글 한 건입니다. 하루 2건이면 아침·오후처럼 4시간 이상
+벌려 둡니다. 함대 전체의 모든 슬롯은 서로 20분 이상 떨어져 있어야 합니다(`validate` 가 검사).
+
+`fleet.yml` 은 10분마다 예약돼 있지만, GitHub 은 부하가 많으면 예약 실행을 건너뜁니다. 2026-09 에는 실제로 **3~5시간에
+한 번꼴**로 돌았습니다. 그래서 실행기는 그날 밀린 슬롯을 모두 따라잡고, 같은 계정의 글 사이는 30분 이상 벌립니다.
+**슬롯 시각은 '이 시각 이후 첫 실행'** 이라는 뜻이고, 실제 발행은 몇 시간 늦을 수 있습니다. 하루 글 수는 그대로입니다.
+
+슬롯이 실패하면(예: 모델 응답 오류) 그날 한 번 더 시도하고, 두 번째도 실패하면 그날은 넘어갑니다.
+Anthropic 사용 한도나 인증 문제는 모든 블로그가 똑같이 실패하므로, 실행을 바로 멈추고 슬롯을 처리했다고 기록하지 않습니다.
+한도를 올리면 그날 안에 이어서 돕니다.
+
+### 글감 기획 — 블로그마다 고유 주제
+블로그마다 **겹치지 않는 고유 주제**(`subject`)와 하위 축(`pillars`)이 있고, [`src/planner.py`](src/planner.py) 가
+그 안에서만 검색될 만한 글감을 8개 뽑습니다. 최근 14일 안에 쓴 글감과 비슷한 것은 버리고, 남은 것부터 씁니다.
+실시간 검색어를 쫓지 않으므로 블로그끼리 같은 사건을 쓰는 일이 설계상 없고, 글 수명이 길어 몇 달 뒤에도 검색 유입이 남습니다.
+주제가 비었거나 다른 블로그와 비슷하면 `fleet_cli.py validate` 가 막습니다.
 
 ```yaml
-  - id: issuecatch1
-    content_mode: planned            # planned(기본) | trend(실시간 검색어, 비권장)
-    subject: "세금과 공제 기초"        # 다른 블로그와 겹치면 validate 가 막습니다
-    pillars: [연말정산 항목별 공제 조건, 종합소득세 신고 기초, ...]
-    audience: "연말정산을 앞두고 검색하는 직장인"
+  - id: gaganam1
+    subject: "자동차 운전과 차량 관리"          # 다른 블로그와 겹치면 validate 가 거부
+    pillars: [운전면허 취득·갱신과 적성검사, 자동차보험 가입과 사고 처리 절차, ...]
+    audience: "차를 사거나 몰면서 생기는 절차·비용을 검색하는 일반 운전자"
+    persona: >-                                 # 이 블로그의 문체·관점 (작성 모델에게 전달)
+      운전자가 실제로 처리해야 하는 일을 순서대로 알려주는 글입니다. ...
+    labels: [자동차생활]                        # 고정 라벨. 글마다 여기에 하위 축 라벨 하나가 붙습니다
 ```
 
-주제가 비어 있거나 다른 블로그와 비슷하면 `validate` 가 실행을 거부합니다. 글 수명이 길어 하루 2건으로도
-누적이 쌓이고, 실시간 이슈와 달리 몇 달 뒤에도 검색 유입이 남습니다.
+### 작성과 검수
+- **참고 기사**: 글감으로 구글 뉴스를 검색해 제목·요약·출처만 모읍니다(본문을 긁지 않음). 2건 미만이면 그 글감은 건너뜁니다.
+- **작성**(Fable 5.1): 참고 자료에 있는 사실만 쓰고, 금액·기한·법 조항은 자료에 그대로 있을 때만 적습니다. 첫 문단부터 답을 주고,
+  같은 블로그의 이미 공개된 글이 문맥에 맞으면 내부 링크를 최대 2개 겁니다.
+- **검수**(Sonnet 5): 작성과 다른 세션에서 참고 자료와 본문을 대조합니다.
+  - `reject` — 사생활·의혹, 자료에 없는 사실이나 지어낸 링크, 비하·선정 표현, 투자·의료·법률의 직접 권유 → 올리지 않음
+  - `hold` — 근거 약한 문장, 과장 제목, 분량 채우기, 깨진 HTML, 정치적 편향 등 → 임시저장
+  - `publish` 이고 **80점 이상**이어야 공개합니다(`review.min_score`).
 
 ### 발행 안전장치 (2026-09-20 사고 이후)
-
-[`src/guard.py`](src/guard.py) 가 매 발행 직전에 **Blogger 서버에 직접** "오늘 몇 건 올렸나"를 물어 상한을 계산합니다.
-로컬 이력 파일이 깨지거나 같은 날 여러 번 실행돼도 상한을 넘을 수 없습니다.
+[`src/guard.py`](src/guard.py) 가 매 발행 직전에 **Blogger 서버에 직접** 오늘 몇 건 올렸는지 물어 상한을 계산합니다.
+로컬 이력 파일이 깨지거나 같은 날 여러 번 실행돼도 상한을 넘을 수 없고, 서버 조회가 실패하면 **발행하지 않습니다**(fail-closed).
 
 | 장치 | 값 | 무엇을 막나 |
 |---|---|---|
-| `publish.max_live_per_day` | 2 | 블로그 하나의 하루 공개 수 |
-| `fleet.max_live_per_day_account` | 6 | **계정 전체** 하루 공개 수의 최종 상한 (구글이 보는 단위) |
-| `fleet.account_ramp` | 4→6→8 | 계정 나이 4주마다 한 단계. 오늘 실제 상한 |
-| `fleet.blog_ramp` | 1→2 | 블로그 나이 4주 전에는 첫 슬롯만 |
-| `fleet.account_gap_minutes` | 30 | 같은 계정 블로그끼리 연달아 올리는 것 (밀린 슬롯 몰아치기) |
+| `publish.max_live_per_day` | 2 | 블로그 하나의 하루 공개 수 (서버 기준) |
+| `fleet.account_ramp` | 4 → 6 → 8 | 계정 전체의 오늘 상한. 계정 나이 4주마다 한 단계 (구글이 보는 단위는 계정) |
+| `max_live_per_day_account` | 기본 6 · `second` 8 | 계정 상한의 최종값. 램프업이 이 값을 넘지 않음 |
+| `fleet.blog_ramp` | 1 → 2 | 블로그 나이 4주 전에는 첫 슬롯만. 계정 상한을 넘으면 가장 어린 블로그의 슬롯부터 꺼짐 |
+| `fleet.account_gap_minutes` | 30 (+0~10분) | 같은 계정 블로그들이 밀린 슬롯을 연달아 올리는 것 |
+| `publish.min_gap_minutes` | 45 | 같은 블로그가 몇 분 사이에 연속 공개 (걸리면 임시저장) |
 | `fleet.max_blogs_per_account` | 6 | 한 계정이 막혔을 때 함께 멈추는 블로그 수 |
-| 계정 비상정지 | — | Blogger 403 이 나면 그 계정 전체를 즉시 멈추고 이슈를 엶 |
-| `publish.min_gap_minutes` | 45 | 몇 분 사이 연속 발행 |
-| `fleet.own_slot_gap_minutes` | 240 | 같은 블로그 슬롯 간 간격 |
-| 이력 손상 감지 | — | 깨진 이력을 '이력 없음'으로 넘기던 문제 (사고의 직접 원인) |
+| 계정 비상정지 | — | Blogger 가 403 을 돌려주면 그 계정 전체를 즉시 멈추고(글 작성 비용도 안 씀) `⛔` 이슈를 엶 |
+| 이력 손상 감지 | — | 깨진 이력을 '이력 없음'으로 넘겨 중복 방지가 풀리던 문제 (사고의 직접 원인) |
+| 동시 실행 방지 | `concurrency: fleet` | 실행이 겹쳐 이력 파일이 충돌하는 것 (진행 중이면 다음 실행은 대기) |
 
-서버 조회가 실패하면 **발행하지 않습니다**(fail-closed). 모르는 상태에서 올리는 것이 이번 사고의 원인이었습니다.
+### 매일 밤 관리 — `src/manager.py`
+매일 23:35 KST 에 블로그별 7일 지표(공개/보류/거부, 비용, 검수 평균, 연속 실패, Blogger 글 수, Search Console 클릭)를 모아
+Sonnet 5 에게 넘기고, **중지 / 재개 / 메모** 세 가지 행동 안에서만 판단을 받습니다. 코드가 규칙(연속 3회 실패 → 중지,
+하루 변경 5건까지, 사람이 끈 블로그는 안 건드림)으로 다시 걸러 `data/fleet/manager_state.json` 에 적용합니다.
+모델 호출이 실패해도 규칙 기반 최소 조치는 적용됩니다.
+**발행량을 올리는 권한은 없습니다.** 2026-09-25 에 관리 모델이 만 4일 된 블로그를 하루 2건으로 올리려 해서 없앴고, 증량은 램프업만 합니다.
 
-### 블로그가 많아질 때 꼭 알아야 할 세 가지
-
-1. **계정 단위 총량이 먼저 걸리고, 그 총량은 나이로 자랍니다.** 구글이 보는 단위는 블로그가 아니라 계정입니다.
-   2026-09-20 차단 당시 블로그별로는 2~8건이었지만 **계정 합계가 하루 16건**이었습니다. 지금은 사람이 손으로
-   올리지 않습니다 — 계정은 4건에서 시작해 4주마다 6, 8건으로(램프업), 블로그는 4주가 지나야 두 번째 슬롯이
-   켜집니다. 블로그를 더 붙여도 계정 총량은 그대로이고, 새 블로그는 **가장 어린 순서로** 자리가 날 때까지 기다립니다.
-   블로그를 늘리는 방법은 "계정에 더 붙이기"가 아니라 **새 계정을 만들어 그 계정의 램프업을 새로 시작**하는 것입니다
-   (`max_blogs_per_account` 6개가 한도). 지금 켜진 슬롯은 `python scripts/fleet_cli.py list` — (괄호)는 대기 중.
-2. **비용은 블로그 수에 비례합니다.** 블로그 1개 = 하루 약 $0.6 (Fable 작성 2건 + Sonnet 기획·검수).
-   10개면 월 약 $180, 100개면 월 약 $1,800 입니다. 블로그별 `overrides: {writer: {model: claude-sonnet-5}}` 로
-   두면 1/3 로 줍니다. Anthropic Console 의 사용량 한도를 함대 규모에 맞게 올려두세요.
-3. **GitHub Actions 무료 한도(비공개 저장소 월 2,000분)는 블로그 10개 근처에서 넘습니다.** 셋 중 하나를 고르세요:
-   - 저장소를 **공개(Public)** 로 전환 — Actions 무제한 (코드·이력만 공개되고 시크릿은 노출되지 않습니다)
-   - GitHub 유료 플랜/추가 분 구매
-   - PC 에서 돌리기 — `scripts/fleet_local.ps1` 을 작업 스케줄러에 등록 (PC 가 켜져 있어야 함)
-
-> **자동 dispatch 스크립트는 끄세요.** `scripts/fleet_dispatch.ps1` 을 10분마다 돌리면 GitHub cron 과 겹쳐
-> 하루 17회가 실행됩니다(2026-09-20 실제). 그게 동시 실행 → 이력 손상 → 과다 발행의 출발점이었습니다.
-> 작업 스케줄러 `TrendBlogFleetDispatch` 는 비활성 상태로 두는 것이 기본입니다.
-
-### 관리 에이전트가 하는 일
-매일 23:35 KST 에 블로그별 7일 지표(공개/보류/거부, 비용, 검수 평균, 연속 실패, Blogger 글 수, Search Console
-클릭)를 모아 Sonnet 5 에게 넘기고, **정해진 세 가지 행동**(중지 / 재개 / 메모) 안에서만 결정을
-받습니다. 코드가 규칙(연속 3회 실패 → 중지, 하루 최대 5건 변경, 사람이 끈 블로그는 안 건드림)으로
-다시 걸러 `data/fleet/manager_state.json` 에 적용합니다. 조치나 경고가 있으면 GitHub 이슈(`fleet` 라벨)가 열려
-메일이 옵니다. 모델 호출이 실패해도 규칙 기반 최소 조치는 적용됩니다.
-**발행량을 올리는 권한은 없습니다** — 2026-09-25 에 만 4일 된 블로그를 "꾸준하다"며 2건으로 올리려 해서 없앴습니다.
-Claude Code 에서는 `fleet-manager` 에이전트가 같은 기준으로 판단합니다(2-3 참고).
-
-### 계정 비상정지
-Blogger 가 발행에 403 을 돌려주면(2026-09-20 차단 때 받은 응답) 그 계정의 모든 블로그를 즉시 멈추고
-`⛔ 계정 비상정지` 이슈를 엽니다. 글 작성(모델 비용)도 하지 않습니다. 원인을 확인한 뒤:
-
-    python scripts/account_cli.py resume <계정> --yes     # 램프업은 처음 단계부터 다시
-
-### 애드센스 심사 준비
-    python scripts/adsense_check.py                        # 블로그별 점검 + 사람이 할 설정 목록
-    python scripts/adsense_check.py --fix-labels --apply   # 라벨을 '고정 라벨 + 하위 축'으로 정리
+### 주간 보고 — `scripts/weekly_report.py`
+월요일 09:20 KST 에 블로그별 이번 주 작성·공개·보류·거부·비용·검수 평균, 켜진 슬롯으로 계산한 기대 글 수,
+Blogger 누적 글 수, 검색 유입, 계정별 애드센스 수익을 한 장으로 모아 이슈로 올립니다(지난주 이슈는 자동으로 닫힘).
+경고 기준은 블로그마다 켜진 슬롯에 맞춰 잡습니다 — 기대 글 수의 절반도 공개되지 않았거나, 글 1건당 $0.8 를 넘게 썼거나,
+보류·거부가 절반을 넘거나, Search Console 에 등록되지 않은 블로그가 있으면 `⚠️` 로 올라옵니다. 꺼진 블로그는 슬롯표에만 나옵니다.
 
 ---
 
-## 2-2. 여러 구글 계정 — 저장소는 하나로
-
-**저장소를 복사하지 않습니다.** 한 `fleet/blogs.yaml` 안에서 여러 구글 계정의 블로그를 함께 운영합니다.
-블로그마다 `account:` 를 적으면 그 계정의 자격증명으로 글이 올라갑니다.
-
-왜 계정을 나누나: 구글의 제한은 **계정 단위**로 붙습니다(2026-09-20에 한 계정이 차단됐습니다).
-계정을 나누면 하루 상한도 계정마다 따로 계산되고, 한 계정이 막혀도 나머지는 계속 돕니다.
-
-```yaml
-accounts:
-  second:
-    since: 2026-09-21               # 첫 글 날짜 — 램프업 기준 (4건 → 4주 뒤 6건 → 8주 뒤 8건)
-    max_live_per_day_account: 8     # 최종 상한. 램프업이 이 값을 넘지 않음
-
-blogs:
-  - id: taxbasic
-    account: second                  # ← 이 한 줄로 second 계정에 올라갑니다
-    subject: "세금과 공제 기초"
-```
-
-환경변수는 계정 이름을 접미사로 붙입니다. `default` 만 접미사 없이 표준 이름을 씁니다.
-
-| 계정 | 변수 이름 |
-|---|---|
-| `default` | `BLOGGER_CLIENT_ID` / `BLOGGER_CLIENT_SECRET` / `BLOGGER_REFRESH_TOKEN` |
-| `second` | `BLOGGER_CLIENT_ID_SECOND` / `BLOGGER_CLIENT_SECRET_SECOND` / `BLOGGER_REFRESH_TOKEN_SECOND` |
-
-워크플로는 `BLOGGER_` 로 시작하는 시크릿을 **전부 자동으로 넘기므로**, 계정을 추가해도 워크플로는 고치지 않습니다.
-
-### 계정 추가 절차
+## 2. 로컬 명령 모음
 
 ```bash
-python scripts/account_cli.py add second      # 이후 해야 할 일을 순서대로 출력합니다
+pip install -r requirements.txt
+cp .env.example .env        # 값 채우기 (Windows: copy .env.example .env)
 ```
 
-| 단계 | 누가 | 내용 |
+한국어 Windows 콘솔에서 글자가 깨지면 앞에 `PYTHONUTF8=1` 을 붙이거나(Git Bash) PowerShell 에서 `$env:PYTHONUTF8=1` 을 먼저 실행하세요.
+
+| 하고 싶은 일 | 명령 | 비용 |
 |---|---|---|
-| 1 | 사람 | 새 구글 계정으로 blogger.com 에서 블로그 생성 (**처음엔 2~3개만**) |
-| 2 | 사람 | 그 계정으로 **새 Google Cloud 프로젝트** → Blogger API 사용 설정 → OAuth 앱 게시(프로덕션) → 데스크톱 앱 클라이언트 |
-| 3 | 사람 | `.env` 에 `BLOGGER_CLIENT_ID_SECOND` / `BLOGGER_CLIENT_SECRET_SECOND` 입력 |
-| 4 | 사람 | `python scripts/get_blogger_token.py --full --from-env --write-env --account second` → 브라우저에서 **그 계정으로** 승인 |
-| 5 | 자동 | `python scripts/account_cli.py check second` → `import second` (블로그를 함대에 등록, 슬롯 자동 배정) |
-| 6 | 사람 | `blogs.yaml` 에서 새 블로그의 `subject` 를 채움 → `python scripts/fleet_cli.py validate` |
-| 7 | 자동 | `python scripts/setup_pages.py --all` (소개·개인정보처리방침 페이지) |
-| 8 | 사람 | GitHub Secrets 에 3개 등록 (이름은 `.env` 와 동일) |
+| 로직 테스트 (설정·코드를 고친 뒤 꼭) | `python scripts/test_logic.py` | 0 · 네트워크 불필요 |
+| 슬롯표 · 켜진 슬롯 | `python scripts/fleet_cli.py list` | 0 |
+| 블로그별 오늘 완료 / 7일 성과 / 마지막 결과 | `python scripts/fleet_cli.py status` | 0 |
+| 설정 검사 (주제 중복·슬롯 간격·계정당 블로그 수) | `python scripts/fleet_cli.py validate` | 0 |
+| 지금 돌 차례인 슬롯 | `python -m src.fleet_run --dry-run` | 0 |
+| 오늘 밤 관리 판단과 같은 지표·경고 | `python -m src.manager --dry-run --no-model` | 0 |
+| 계정별 자격증명·상한 현황 / 토큰 확인 | `python scripts/account_cli.py list` · `check <계정>` | 0 |
+| 블로그 켜기/끄기 (사람 조치로 기록) | `python scripts/fleet_cli.py enable <id>` · `disable <id>` → 커밋·푸시 | 0 |
+| 주간 보고 미리 보기 | `python scripts/weekly_report.py` | 0 |
+| 애드센스 준비 점검 | `python scripts/adsense_check.py [--blog <id>]` | 0 |
+| 자동화가 모델에 보내는 요청 원문 보기 | `python scripts/agent_brief.py planner --blog <id>` | 0 |
+| **글 1건 시험** — Blogger 대신 `out/` 에 HTML 저장 | `python -m src.fleet_run --blog <id> --target local` | 약 $0.4 |
 
-> **기존 Cloud 프로젝트를 재사용하지 마세요.** 제한은 계정에 붙고, 같은 프로젝트의 OAuth 클라이언트를 쓰면
-> 새 블로그가 제한된 계정과 엮입니다. 프로젝트도 계정마다 새로 만드세요.
+`--target local` 시험은 이력·실행 기록·선점(`data/`)을 남기지 않아 실제 슬롯과 중복 방지에 영향이 없습니다.
+**실제 발행은 GitHub Actions 에만 맡기세요.** 로컬에서 `--target local` 없이 돌리면 진짜로 글이 올라가고, 같은 날 Actions 가
+기록을 모른 채 또 돌 수 있습니다. `enable`/`disable` 처럼 `data/` 를 바꾸는 명령은 먼저 `git pull` 하고, 끝나면 커밋·푸시합니다.
 
-### 계정 갈아타기
-
-새 계정을 붙인 뒤 옛 계정만 멈추면 됩니다. 이력과 설정은 남아 있어 나중에 되살릴 수 있습니다.
-
-```bash
-python scripts/account_cli.py retire default   # default 계정 블로그를 전부 중지
-python scripts/fleet_cli.py enable <블로그id>   # 되살리기
-```
-
-| 명령 | 하는 일 |
-|---|---|
-| `account_cli.py list` | 계정별 자격증명·블로그·슬롯·상한 현황 |
-| `account_cli.py add <이름>` | 계정 등록 + 다음 순서 안내 |
-| `account_cli.py check <이름>` | 그 계정 토큰으로 실제 블로그 조회 (설정과 실제가 맞는지) |
-| `account_cli.py import <이름>` | 그 계정 블로그를 함대에 등록 |
-| `account_cli.py retire <이름>` | 그 계정 블로그 전부 중지 |
-| `account_cli.py remove <이름>` | 계정 항목 삭제 (블로그가 없을 때만) |
-
-자격증명이 없는 계정의 블로그는 **실행되지 않고 보고서에 경고로 남습니다.** 이전 계정 토큰으로
-엉뚱한 블로그에 글이 올라가는 것을 막기 위해, 자격증명이 비면 표준 변수를 지워 인증 오류로 실패시킵니다.
+GitHub 에서 직접 돌리려면 Actions 탭 → **블로그 함대 실행** → Run workflow (`blog` 에 id 를 넣으면 그 블로그만, `dry_run` 은 확인만).
+슬롯을 무시하고 도는 수동 실행도 안전장치(하루·계정 상한, 발행 간격)는 그대로 거칩니다. 다만 그 블로그의 **첫 슬롯을 쓴 것으로
+기록**되므로, 그날 그 슬롯은 예약 실행에서 다시 돌지 않습니다.
 
 ---
 
-## 2-3. Claude Code 서브에이전트 — `.claude/agents/`
+## 3. Claude Code 서브에이전트 — `.claude/agents/`
 
 매일 글을 쓰고 올리는 것은 GitHub Actions 가 실행하는 파이썬 코드(`src/`)입니다. 같은 역할을 Claude Code 안에서
-사람이 불러 쓸 수 있도록 [공식 서브에이전트 형식](https://code.claude.com/docs/en/sub-agents)(프론트매터가 있는
-마크다운)으로 정의해 두었습니다.
+사람이 불러 쓸 수 있게 [공식 서브에이전트 형식](https://code.claude.com/docs/en/sub-agents)(프론트매터가 있는 마크다운)으로 정의해 두었습니다.
 
 | 에이전트 | 모델 | 자동화에서 같은 일을 하는 코드 | 이렇게 부릅니다 |
 |---|---|---|---|
@@ -370,171 +178,203 @@ python scripts/fleet_cli.py enable <블로그id>   # 되살리기
 | `post-writer` | Fable 5.1 | `src/writer.py` | "이 글감으로 초안 써줘" |
 | `post-reviewer` | Sonnet 5 | `src/reviewer.py` | "방금 쓴 초안 검수해줘" |
 
-- **자동화는 그대로입니다.** 워크플로는 `.claude/` 를 읽지 않습니다. 에이전트 파일을 고쳐도 매일 도는 글쓰기는 달라지지 않습니다.
-- **규칙은 한 곳에만 있습니다.** 에이전트는 `scripts/agent_brief.py` 로 자동화가 모델에 보내는 지시문 원문을 받아 씁니다.
-  `src/writer.py` 같은 프롬프트를 고치면 에이전트도 따로 손대지 않아도 같은 기준으로 움직입니다.
-- **에이전트는 발행하지 않습니다.** 초안·검수 결과·미리보기는 `out/agents/<블로그>/<시각>/` 에만 남고(깃에 안 올라감),
-  `data/` 의 이력도 건드리지 않습니다. 발행은 안전장치(하루·계정 상한, 발행 간격, 비상정지)를 거치는 자동화만 합니다.
-- 에이전트의 모델·effort 는 `config.yaml` 과 맞춰 두었습니다. 한쪽만 바꾸면 `python scripts/test_logic.py` 가 알려 줍니다.
-- 장수 글(`src/evergreen.py`)은 함대에서 꺼져 있어(`evergreen_weekday: -1`) 에이전트로 만들지 않았습니다.
+- **자동화는 에이전트와 무관하게 돕니다.** 워크플로는 `.claude/` 를 읽지 않습니다.
+- **규칙은 한 곳에만 있습니다.** 에이전트는 [`scripts/agent_brief.py`](scripts/agent_brief.py) 로 자동화가 모델에 보내는 지시문 원문을
+  받아 씁니다. `src/writer.py` 의 프롬프트를 고치면 에이전트도 같은 기준으로 움직입니다.
+- **에이전트는 발행하지 않습니다.** 초안·검수 결과·미리보기는 `out/agents/<블로그>/<시각>/` 에만 남고(깃에 안 올라감) `data/` 도 건드리지 않습니다.
+- 에이전트의 모델·effort 는 `config.yaml` 과 맞춰 두었습니다. 한쪽만 바꾸면 `test_logic.py` 가 알려 줍니다.
 
 ---
 
-## 3. 왜 이렇게 만들었나 (정책과 위험)
+## 4. 블로그·계정 늘리기
 
-구글은 **"검색 순위만 노린 대량 생산 콘텐츠"** 를 정책 위반(scaled content abuse)으로 봅니다.
-AI 로 썼다는 것 자체는 문제가 아니지만, 요약 글을 하루 수십 개씩 올리면 색인 제외나 애드센스 반려로 이어집니다.
-그래서 이 시스템은:
+**블로그를 늘리는 방법은 '계정에 더 붙이기'가 아니라 '새 계정을 만들어 그 계정의 램프업을 새로 시작하기'입니다.**
+계정 상한이 먼저 걸리므로 한 계정에 블로그를 더 붙여도 하루 글 수는 늘지 않고, 새 블로그는 자리가 날 때까지 기다립니다.
+한 계정에는 켜진 블로그를 6개까지만 둘 수 있습니다(`max_blogs_per_account`). **저장소는 복사하지 않습니다** — 한 `fleet/blogs.yaml`
+안에서 여러 구글 계정을 함께 운영하고, 블로그마다 `account:` 로 어느 계정의 자격증명을 쓸지 정합니다.
 
-- **하루 공개 상한 3개** (`publish.max_live_per_run`). 4개를 써서 검수 점수 순이 아니라 통과 순으로 3개까지만 공개합니다.
-- **AI 검수관이 별도로 봅니다** (`src/reviewer.py`). 작성 모델과 다른 세션에서 참고 기사와 본문을 대조해
-  지어낸 사실·링크, 사생활·의혹, 낚시 제목, 분량 채우기를 잡습니다. 80점 미만이거나 `hold` 면 공개하지 않습니다.
-- **사건사고·사생활·의혹 키워드는 작성 전에 차단**합니다 (`config.yaml` 의 `sensitive_patterns`).
-- 글에 **배경·용어·FAQ** 를 넣어 기사에 없는 값을 더하고, 참고 기사를 **출처로 명시**합니다.
-- **장수 글**(`--mode evergreen`)을 주 2개 따로 씁니다. 실시간 글은 유입 수명이 1~3일이라
-  이것만으로는 광고 수익이 매일 0에서 시작합니다. 해설·안내 글이 바닥을 만듭니다.
-- 쿠팡 링크에는 법이 요구하는 **고지 문구**를 항상 붙이고, `rel="sponsored"` 를 씁니다.
+### 새 구글 계정 추가 (처음 세팅도 같은 순서)
 
-그래도 남는 위험은 **검수관도 AI 라는 점**입니다. 틀린 사실이 공개될 확률이 0은 아닙니다.
-불안하면 `publish.mode: draft` 로 바꾸면 예전처럼 임시저장까지만 하고 사람이 공개합니다.
+```bash
+python scripts/account_cli.py add third     # blogs.yaml 의 accounts 에 추가하고 아래 순서를 출력합니다
+```
+
+| 단계 | 누가 | 내용 |
+|---|---|---|
+| 1 | 사람 | 새 구글 계정으로 [blogger.com](https://www.blogger.com) 에서 블로그 생성. **처음엔 2개만**, 나머지는 1주 이상 간격을 두고 |
+| 2 | 사람 | **그 계정으로 새 Google Cloud 프로젝트** → Blogger API v3 사용 설정(주간 보고용으로 Search Console API · AdSense Management API 도) |
+| 3 | 사람 | Google 인증 플랫폼(OAuth 동의 화면) → User Type **외부** → 브랜딩(앱 이름, 지원 이메일, 홈페이지 URL, 개인정보처리방침 URL) → 대상 → **앱 게시(프로덕션)** |
+| 4 | 사람 | 사용자 인증 정보 → OAuth 클라이언트 ID → 유형 **데스크톱 앱** |
+| 5 | 사람 | `.env` 에 `BLOGGER_CLIENT_ID_THIRD` · `BLOGGER_CLIENT_SECRET_THIRD` 입력 |
+| 6 | 사람 | `python scripts/get_blogger_token.py --full --from-env --write-env --account third` → 브라우저에서 **그 계정으로** 승인 |
+| 7 | 자동 | `python scripts/account_cli.py check third` → `import third` (블로그를 함대에 등록, 슬롯 자동 배정) |
+| 8 | 사람 | `blogs.yaml` 에서 새 블로그마다 `subject`·`pillars`·`audience`·`persona`·`labels`·`since` 를 채움 → `python scripts/fleet_cli.py validate` |
+| 9 | 자동 | `python scripts/setup_pages.py --blog <id>` (소개·개인정보처리방침 페이지. `.env` 의 `CONTACT_EMAIL` 필요) |
+| 10 | 사람 | [Search Console](https://search.google.com/search-console) 에 **그 계정으로** 로그인 → 블로그 주소로 속성 추가 (Blogger 블로그는 소유권이 자동 확인됨). 빠뜨리면 주간 보고가 경고합니다 |
+| 11 | 사람 | GitHub Secrets 에 3개 등록 (`python scripts/copy_secret.py` 가 값을 화면에 띄우지 않고 클립보드로 복사) |
+| 12 | 사람 | 워크플로 세 곳(`fleet.yml` · `manager.yml` · `weekly_report.yml`)의 env 에 세 줄씩 추가 → `python scripts/test_logic.py` |
+| 13 | 사람 | 커밋·푸시. 다음 슬롯부터 자동으로 돕니다 |
+
+- 환경변수 이름: `default` 계정만 접미사 없는 표준 이름(`BLOGGER_REFRESH_TOKEN`), 그 외는 `_<계정이름대문자>`(`BLOGGER_REFRESH_TOKEN_SECOND`).
+- 저장소가 공개라 워크플로는 시크릿을 한꺼번에 넘기지 않고 필요한 것만 적어 둡니다. 한 곳이라도 빠뜨리면 `test_logic.py` 가 실패합니다.
+- **기존 Cloud 프로젝트를 재사용하지 마세요.** 제한은 계정에 붙는데, 같은 프로젝트의 OAuth 클라이언트를 쓰면 새 블로그가 제한된 계정과 엮입니다.
+- **앱을 '프로덕션'으로 게시하지 않으면** refresh token 이 7일 뒤 만료됩니다. 게시해도 '확인되지 않은 앱' 경고는 뜨는데,
+  본인만 쓰는 앱이라 **고급 → (앱 이름)으로 이동** 을 누르면 됩니다.
+- 브랜딩에 넣을 홈페이지·개인정보처리방침 URL 은 블로그 페이지로 만들면 됩니다. 템플릿이 [`pages/`](pages) 에 있고 애드센스 심사에도 필요합니다.
+- `redirect_uri_mismatch` 오류는 클라이언트를 '웹 애플리케이션' 유형으로 만든 경우입니다. 데스크톱 앱 유형으로 하나 더 만들거나,
+  그 클라이언트의 승인된 리디렉션 URI 에 `http://localhost:8080` 을 넣고 `get_blogger_token.py --port 8080` 으로 실행합니다.
+
+### 기존 계정에 블로그 추가
+
+```bash
+python scripts/fleet_cli.py add --name "이름" --blog-id <ID> --subject "고유 주제" --account second
+python scripts/fleet_cli.py discover --account second [--add]   # 그 계정의 Blogger 블로그 조회 / 미등록 블로그 일괄 등록
+```
+
+슬롯은 자동 배정(블로그당 2개)되고, 두 번째 슬롯은 램프업이 4주 뒤에 켭니다. 새 블로그에는 `since:`(첫 글 날짜)를 적고,
+같은 계정에서 여러 개를 동시에 시작하지 말고 `since` 를 1주 이상 벌리세요(미래 날짜면 그날부터 돕니다).
+비상정지된 계정에는 블로그를 추가할 수 없습니다. 등록한 뒤에는 위 표의 8~10단계(주제 채우기 → `validate`,
+`setup_pages.py --blog <id>`, Search Console 속성 추가)를 하고 커밋·푸시합니다.
+
+### 계정 멈추기 · 갈아타기
+
+```bash
+python scripts/account_cli.py retire default    # 그 계정 블로그를 전부 멈춤 (이력·설정은 남음)
+python scripts/fleet_cli.py enable <블로그id>    # 되살리기
+python scripts/account_cli.py resume <계정> --yes   # 비상정지 해제 — 사람이 원인을 확인한 뒤에만. 램프업은 처음 단계부터
+```
 
 ---
 
-## 4. 비용
+## 5. 비용
 
 | 항목 | 비용 |
 |---|---|
-| Blogger / GitHub Actions / 검색어 수집 | 무료 |
-| 도메인 | 선택 — 연 1.5~2만원 |
-| **Claude API** | **아래 표 참고** |
+| Blogger · GitHub Actions(공개 저장소) · 뉴스 검색 | 무료 |
+| **Claude API** | 글 1건 약 **$0.35~0.40** (Fable 작성 + Sonnet 기획·검수, 2026-09 실측) |
 
-기본 설정(실시간 4개/일 + 장수 2개/주) 기준. 검수(Sonnet) 비용 포함.
+- 지금(하루 4건) 약 $1.5/일 · **월 $45 안팎**. `second` 계정이 11/16 에 하루 8건이 되면 월 $90 안팎입니다.
+- 블로그 하나가 램프업을 마치면(하루 2건) 월 약 $24 입니다. 10개면 월 $240, 100개면 월 $2,400 수준입니다.
+- 블로그별로 `overrides: {writer: {model: claude-sonnet-5}}` 를 두면 그 블로그의 비용이 약 1/3 로 줍니다(품질은 조금 낮아짐).
+- [console.anthropic.com](https://console.anthropic.com) 에서 **월 사용 한도**를 예상 비용의 두 배쯤으로 걸어 두세요.
+  한도에 걸리면 함대 실행은 슬롯을 기록하지 않고 멈추므로, 한도를 올리면 그날 안에 이어서 돕니다.
+- 저장소가 **공개**라 GitHub Actions 는 무료·무제한입니다(코드와 이력만 공개되고 시크릿은 노출되지 않습니다).
+  비공개로 바꾸면 월 2,000분 한도가 생기니 그 전에 사용량을 확인하세요.
 
-| 작성 모델 | 글 1개 (작성+검수) | 월 예상 |
+---
+
+## 6. 설정
+
+모든 블로그에 같은 것은 [`config.yaml`](config.yaml), 블로그마다 다른 것은 [`fleet/blogs.yaml`](fleet/blogs.yaml) 에 있습니다.
+함대로 돌 때는 `config.yaml` 위에 `fleet.defaults` → 블로그별 `overrides` 가 차례로 덧씌워집니다. 고친 뒤에는
+`python scripts/fleet_cli.py validate` 와 `python scripts/test_logic.py` 를 돌리고 커밋·푸시합니다.
+
+| 설정 | 파일 | 의미 |
 |---|---|---|
-| `claude-opus-5` (기본) | 약 $0.13 | **약 $17** |
-| `claude-sonnet-5` | 약 $0.07 | **약 $9** |
+| `writer.model` · `effort` · `target_length` | config | 작성 모델(Fable 5.1) · 생각 깊이 · 최소 글자 수(1,900자) |
+| `review.min_score` | config | 공개 기준 점수(80). 낮추면 더 많이 공개되고 위험도 올라갑니다 |
+| `review.model` · `planner.model` · `manager.model` | config | 검수·기획·관리 모델(Sonnet 5) |
+| `publish.mode` | config | `auto` 검수 통과 시 공개 / `draft` 전부 임시저장 (불안하면 draft) |
+| `publish.max_live_per_day` · `min_gap_minutes` | config | 블로그 하루 공개 상한(2) · 같은 블로그 연속 공개 간격(45분). 상한 2는 테스트로 고정돼 있습니다 |
+| `dedupe.history_days` | config | 같은 글감을 다시 쓰지 않을 기간(14일) |
+| `monetize.coupang.enabled` | config | 쿠팡 상품 링크 (키가 없으면 자동으로 건너뜀) |
+| `slots` · `since` · `account` · `enabled` | blogs | 블로그의 발행 시각들 · 첫 글 날짜(램프업 기준) · 계정 · 켜짐 |
+| `subject` · `pillars` · `audience` · `persona` · `labels` | blogs | 고유 주제 · 하위 축(라벨이 됨) · 독자 · 문체 · 고정 라벨 |
+| `overrides` | blogs | 이 블로그만 `config.yaml` 값을 바꿈 (예: 작성 모델) |
+| `fleet.blog_ramp` · `account_ramp` | blogs | 램프업 표 `[[나이(일), 값], ...]` |
+| `accounts.<이름>.since` · `max_live_per_day_account` | blogs | 계정 램프업 기준일 · 계정 최종 상한 |
+| `fleet.account_gap_minutes` · `run_budget_minutes` | blogs | 같은 계정 발행 간격(30분) · 한 실행이 간격을 기다리며 쓸 최대 시간(150분) |
 
-비용을 줄이려면 `config.yaml` 에서:
-
-```yaml
-run:
-  posts_per_run: 3        # 하루 4개 → 3개
-writer:
-  model: claude-sonnet-5  # 품질을 조금 낮추고 비용 절반
-```
-
----
-
-## 5. 로컬에서 직접 돌려보기
-
-```bash
-cp .env.example .env     # 값 채우기 (Windows: copy .env.example .env)
-
-# 로직 테스트 — 네트워크도 API 키도 필요 없음 (몇 초). config.yaml 고친 뒤 먼저 돌려보세요
-python scripts/test_logic.py
-
-# Blogger 인증만 확인 (글 안 씀, 비용 0원)
-python scripts/check_blogger.py
-
-# 실제 사이트까지 붙여서 파이프라인 전체 점검 (API 키 불필요)
-python scripts/selftest.py
-
-# 오늘 어떤 키워드가 뽑히는지만 확인 (비용 0원)
-python -m src.main --dry-run
-
-# 글 1개를 써서 검수까지 하고 Blogger 대신 out/ 폴더에 저장 (약 $0.13)
-python -m src.main --target local --count 1
-
-# 실제로 Blogger 에 (검수 통과 시) 공개
-python -m src.main --count 1
-
-# 검수 결과와 무관하게 임시저장만
-python -m src.main --count 1 --draft
-
-# 장수 해설 글
-python -m src.main --mode evergreen --count 1
-
-# 주간 보고서 미리 보기
-python scripts/weekly_report.py
-```
-
-> **로컬에서 돌릴 때는 반드시 `git pull` 을 먼저 하세요.** 예약 실행과 겹치면
-> 서로의 작성 이력을 모른 채 같은 주제로 글을 두 번 쓰게 됩니다.
+관리 판단(중지/재개)은 `data/fleet/manager_state.json`, 계정 비상정지는 `data/fleet/account_state.json` 에 저장되고 실행할 때
+`blogs.yaml` 위에 덧씌워집니다. 두 파일과 `data/blogs/<id>/history.json`·`runs.json`, `data/fleet/claims.json` 은 반드시 커밋됩니다.
 
 ---
 
-## 6. 설정 조정
+## 7. 왜 이렇게 만들었나 — 2026-09-20 사고
 
-전부 `config.yaml` 에 있습니다. 자주 만질 만한 것들:
+처음에는 모든 블로그가 같은 실시간 검색어를 보고 하루 여러 건을 썼습니다. 2026-09-20 에 `default` 계정의
+Blogger API 쓰기가 정책 위반으로 차단됐습니다(403). 원인은 셋이 겹친 것이었습니다.
 
-| 설정 | 의미 |
-|---|---|
-| `run.posts_per_run` | 하루에 쓸 글 개수 |
-| `publish.mode` | `auto` 검수 통과 시 공개 / `draft` 전부 임시저장 |
-| `publish.max_live_per_run` | 하루 자동 공개 상한. **3을 넘기지 마세요** |
-| `review.min_score` | 공개 기준 점수(기본 80). 낮추면 더 많이 공개되고 위험도 올라감 |
-| `review.enabled` | `false` 면 검수 없이 바로 공개. 권장하지 않음 |
-| `monetize.coupang.enabled` | 쿠팡 상품 링크 삽입 여부 |
-| `evergreen.posts_per_run` | 주 1회 장수 글 개수 |
-| `trends.sources` | 소스별 가중치. `0` 으로 두면 그 소스를 끕니다 |
-| `filters.sensitive_patterns` | 차단 키워드 |
-| `dedupe.history_days` | 같은 주제를 다시 안 쓸 기간 (기본 14일) |
-| `writer.model` | `claude-opus-5` / `claude-sonnet-5` |
+1. PC 스케줄러(`scripts/fleet_dispatch.ps1`)와 GitHub 예약이 겹쳐 하루 17회 실행 → 동시 실행이 이력 파일에 깃 충돌 마커를 남김
+2. 깨진 이력을 '이력 없음'으로 읽어 중복 방지와 상한이 풀림 → 한 블로그 하루 8건, **계정 합계 하루 16건**
+3. 새 블로그 4개가 20분 안에 12건을 올림 — 구글의 '대량 생산 콘텐츠(scaled content abuse)' 신호
 
-어떤 키워드가 왜 걸러졌고 검수가 왜 보류했는지는 실행마다 `data/last_run.md` 와 Actions Summary 에 적힙니다.
+그래서 지금 구조가 됐습니다: 블로그마다 고유 주제(같은 사건을 여러 블로그가 쓰지 않음), 슬롯 하나에 글 한 건,
+서버 기준 상한, 계정 단위 상한과 램프업, 403 비상정지, 이력 손상 감지, 동시 실행 방지.
+AI 가 썼다는 것 자체는 정책 위반이 아니지만 검색 순위만 노린 대량 생산은 위반이므로, 발행량은 천천히 늘리고
+**검수관이 따로 사실·링크·위험 표현을 대조**합니다. 그래도 검수관도 AI 라 틀린 사실이 공개될 확률이 0은 아닙니다.
+불안하면 `publish.mode: draft` 로 두면 임시저장까지만 하고 사람이 공개합니다.
+
+> `scripts/fleet_dispatch.ps1`(PC 가 GitHub 실행을 깨우는 알람 시계)과 `scripts/fleet_local.ps1`(PC 에서 직접 실행)은
+> 기본적으로 꺼 둡니다. 작업 스케줄러의 `TrendBlogFleetDispatch` 는 비활성 상태가 정상입니다. PC 실행으로 옮길 때는
+> `fleet.yml` 의 schedule 을 지워 두 쪽이 동시에 돌지 않게 해야 합니다.
 
 ---
 
-## 7. 문제가 생기면
+## 8. 문제가 생기면
 
 | 증상 | 원인과 해결 |
 |---|---|
-| `액세스 토큰 발급 실패` | refresh token 만료. OAuth 앱이 **프로덕션으로 게시**돼 있는지 확인(테스트 상태면 7일마다 만료). `python scripts/get_blogger_token.py --full` 재실행 후 Secret 갱신 |
-| `환경변수 ... 설정되지 않았습니다` | GitHub Secrets 이름 오타 확인 (대소문자 구분) |
-| `키워드 수집 부족` | 소스 사이트가 일시적으로 막힌 경우. 다음 실행에 대개 복구됩니다 |
-| 글이 전부 보류됨 | Summary 의 검수 사유 확인. 특정 유형이 반복되면 `writer.py` 의 SYSTEM 프롬프트에 규칙 추가 |
-| 글이 하나도 안 써짐 | 필터가 다 걸러낸 경우. Summary 의 '걸러낸 키워드' 확인 |
-| 주간 보고에 Search Console 권한 없음 | `get_blogger_token.py --full` 로 재발급. Google Cloud 에 Search Console API 사용 설정 필요 |
-| 쿠팡 API 오류 | 키 확인. 쿠팡파트너스는 **최근 실적이 없으면 API 를 막기도** 합니다. 실패해도 글은 정상 공개됩니다 |
-| 예약 실행이 멈춤 | 60일 무활동으로 비활성화됨. Actions 탭에서 `Enable workflow` |
-| 매번 같은 키워드 | `data/history.json` 이 커밋되는지 확인 (Actions 권한 `contents: write`) |
+| `⛔ 계정 비상정지` 이슈 | Blogger 가 발행을 403 으로 거부. Blogger 에 로그인해 정책 알림 확인 → 해결된 뒤 `account_cli.py resume <계정> --yes` → 커밋·푸시. 제한이 풀리지 않으면 새 계정으로 갈아탑니다([4](#4-블로그계정-늘리기)) |
+| `액세스 토큰 발급 실패` | refresh token 만료·폐기. OAuth 앱이 **프로덕션**인지 확인 → `get_blogger_token.py --full --from-env --write-env --account <계정>` → `.env` 와 GitHub Secret 교체 |
+| `계정 'x' 자격증명 없음` | GitHub Secrets 이름 오타(대소문자 구분)이거나 워크플로 env 에 그 계정 세 줄이 없음. `test_logic.py` 로 확인 |
+| `이력 파일 손상` | `data/blogs/<id>/history.json` 이 깨져 그 블로그가 멈춤(발행하지 않음). 깃 기록에서 복구 |
+| 글이 보류·거부만 됨 | Actions 실행 화면의 Summary 에 검수 사유가 있습니다. 같은 유형이 반복되면 블로그 `persona` 나 `src/writer.py` 의 지시문을 고칩니다 |
+| `참고 기사 부족` 으로 건너뜀 | 뉴스가 거의 없는 글감. 계속되면 `pillars` 를 검색 수요가 있는 쪽으로 조정 |
+| 슬롯보다 몇 시간 늦게 올라감 | GitHub 예약 지연입니다(정상). 하루 글 수는 같습니다 |
+| Claude API 한도·잔액 오류 | 함대 실행이 슬롯을 기록하지 않고 멈춤. Console 에서 한도를 올리면 이어서 돕니다 |
+| 예약 실행이 아예 멈춤 | 60일 무활동이면 GitHub 이 비활성화합니다. Actions 탭에서 `Enable workflow` |
+| 설정을 고쳤더니 전체가 멈춤 | `blogs.yaml` 검증 실패(주제 없음·중복, 슬롯 간격 등)면 실행기가 아무것도 하지 않습니다. `fleet_cli.py validate` 로 확인 |
 
 ---
 
 ## 구조
 
 ```
-config.yaml                 설정 (여기만 만지면 됩니다)
-.claude/agents/             Claude Code 서브에이전트 — 관리·기획·작성·검수 (2-3 참고)
+config.yaml                    공통 설정 (모델·검수 기준·상한)
+fleet/blogs.yaml               함대: 계정, 블로그별 주제·슬롯·램프업
+.claude/agents/                Claude Code 서브에이전트 — 관리·기획·작성·검수 (3 참고)
 src/
-  main.py                   전체 흐름: 후보 → 리서치 → 작성 → 검수 → 판정 → 발행
-  trends/                   실시간 검색어 수집기 5종
-  filters.py                민감 주제·부적합 키워드 차단
-  state.py                  작성 이력 / 중복 방지
-  planner.py                Claude 글감 기획 — 블로그 고유 주제 안에서
-  research.py               키워드별 참고 기사 수집
-  writer.py                 Claude 글 작성 (실시간 / 장수 프롬프트)
-  reviewer.py               Claude 검수 — publish / hold / reject + 구매 의도 판단
-  manager.py                함대 관리 — 매일 23:35 KST 중지/재개/메모 판단
-  evergreen.py              장수 해설 주제 생성
-  monetize/
-    coupang.py              쿠팡파트너스 상품 검색·카드 삽입
-  publishers/
-    blogger.py              Blogger 공개/임시저장
-    local.py                로컬 HTML 저장 (테스트용)
+  fleet_run.py                 함대 실행기 — 돌 차례인 슬롯을 계정 간격을 지키며 차례로 실행
+  main.py                      블로그 한 곳: 글감 → 리서치 → 작성 → 검수 → 판정 → 발행
+  fleet.py                     함대 설정·슬롯·램프업·계정 자격증명·비상정지·선점
+  guard.py                     발행 안전장치 (Blogger 서버 기준 하루·계정 상한, 발행 간격)
+  planner.py                   글감 기획 — 블로그 고유 주제 안에서 (Sonnet)
+  research.py                  참고 기사 수집 · 내부 링크 후보
+  writer.py                    글 작성 (Fable)
+  reviewer.py                  검수 — publish / hold / reject + 구매 의도 판단 (Sonnet)
+  manager.py                   매일 밤 관리 — 중지/재개/메모 (Sonnet)
+  state.py                     작성 이력 · 중복 방지 · 이력 손상 감지
+  llm.py · net.py · config.py  모델 호출 공통(재시도·잘림 감지) · HTTP · 설정 로딩
+  publishers/                  blogger.py (공개/임시저장) · local.py (시험용 HTML 저장)
+  monetize/coupang.py          쿠팡파트너스 상품 카드
+  trends/ · filters.py         실시간 검색어 수집·필터 (옛 trend 모드)
+  evergreen.py                 장수 해설 글 (함대에서는 꺼 둠)
 scripts/
-  get_blogger_token.py      최초 1회 인증 (--full: 보고서용 권한 포함)
-  weekly_report.py          주간 운영·수익 보고서
-  check_blogger.py          Blogger 연결만 확인
-  test_logic.py             네트워크 없이 도는 로직 테스트
-  selftest.py               실제 사이트까지 붙여서 파이프라인 점검
-  agent_brief.py            서브에이전트용 작업 지시서 (자동화가 모델에 보내는 요청 원문)
+  fleet_cli.py                 블로그 목록·추가·켜기/끄기·검증·현황
+  account_cli.py               구글 계정 추가·확인·등록·은퇴·비상정지 해제
+  get_blogger_token.py         계정별 OAuth refresh token 발급 (--full: 보고서용 권한 포함)
+  copy_secret.py               .env 값을 화면에 띄우지 않고 클립보드로 (Secrets 등록용)
+  setup_pages.py               소개·개인정보처리방침 페이지 생성 (pages/ 템플릿)
+  adsense_check.py             애드센스 심사 준비 점검 · 라벨 정리
+  weekly_report.py             주간 운영·수익 보고서
+  agent_brief.py               서브에이전트용 작업 지시서 (자동화가 모델에 보내는 요청 원문)
+  test_logic.py                네트워크 없이 도는 로직 테스트
+  selftest.py · check_blogger.py   실제 사이트 연결 점검 (옛 단일 블로그용)
+  fleet_local.ps1 · fleet_dispatch.ps1   PC 에서 돌리기 · PC 알람 시계 (기본 꺼 둠)
+pages/                         about.html · privacy-policy.html 템플릿
 .github/workflows/
-  draft.yml                 매일 04:30 KST 실시간 글
-  evergreen.yml             매주 월 05:40 KST 장수 글
-  weekly_report.yml         매주 월 09:20 KST 보고서 → 이슈
-data/
-  history.json              작성 이력 (커밋됨)
-  last_run.md               마지막 실행 보고서
+  fleet.yml                    함대 실행 (10분마다 예약, 수동 실행 가능)
+  manager.yml                  매일 23:35 KST 관리 → 이슈
+  weekly_report.yml            매주 월 09:20 KST 주간 보고 → 이슈
+data/                          (커밋됨) 실행 상태
+  blogs/<id>/history.json      블로그별 작성 이력 — 중복 방지 · 내부 링크 후보
+  blogs/<id>/runs.json         블로그별 슬롯 실행 기록
+  fleet/manager_state.json     관리 판단(중지/재개) · 사람 조치
+  fleet/account_state.json     계정 비상정지
+  fleet/claims.json            블로그 간 글감 선점
+  history.json                 옛 단일 블로그 이력
 ```
+
+`data/blogs/<id>/last_run.md`, `data/fleet/last_fleet_run.md`, `manager_report.md` 같은 실행 보고서는 깃에 올라가지 않고
+Actions 실행 화면의 Summary 에 붙습니다. `out/` 은 로컬 시험·서브에이전트 결과물입니다.

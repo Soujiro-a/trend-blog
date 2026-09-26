@@ -48,7 +48,7 @@ RULES = {
     "pause_after_consecutive_failures": 3,
     "pause_if_zero_live_days": 7,          # 7일간 공개 0건이고 실행은 5회 이상이면 중지 검토
     "max_changes_per_day": 5,
-    "cost_alert_per_blog_week_usd": 12.0,  # 글 4개×7일×$0.28 ≈ $8 가 정상
+    "cost_alert_per_blog_week_usd": 12.0,  # 하루 2건×7일×$0.40 ≈ $5.6 가 정상 (글 1건 $0.35~0.40, 2026-09 실측)
     "duplicate_title_similarity": 0.6,
 }
 

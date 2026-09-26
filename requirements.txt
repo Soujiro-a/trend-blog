@@ -1,4 +1,6 @@
-anthropic>=1.0.0
-requests>=2.32.0
-beautifulsoup4>=4.12.0
-PyYAML>=6.0.2
+# 사람이 보지 않는 자동화라, 다음 메이저 버전이 나와 갑자기 깨지지 않게 메이저는 고정합니다.
+# (GitHub Actions 는 실행마다 새로 설치합니다. 메이저를 올릴 때는 로컬에서 test_logic.py 를 돌린 뒤 바꾸세요)
+anthropic>=1.0.0,<2
+requests>=2.32.0,<3
+beautifulsoup4>=4.12.0,<5
+PyYAML>=6.0.2,<7

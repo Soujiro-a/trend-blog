@@ -150,11 +150,12 @@ def cmd_add(args) -> int:
  7. GitHub Secrets 에 같은 이름으로 3개 등록:
        {v[0]} / {v[1]} / {v[2]}
 
- 8. 워크플로 두 곳(.github/workflows/fleet.yml, manager.yml)의 env 에 같은 세 줄을 추가합니다:
+ 8. 워크플로 세 곳(.github/workflows/fleet.yml, manager.yml, weekly_report.yml)의 env 에 같은 세 줄을 추가합니다:
        {v[0]}: ${{{{ secrets.{v[0]} }}}}
        {v[1]}: ${{{{ secrets.{v[1]} }}}}
        {v[2]}: ${{{{ secrets.{v[2]} }}}}
-    (저장소가 공개라 시크릿을 한꺼번에 넘기지 않고 필요한 것만 적어 둡니다)
+    (저장소가 공개라 시크릿을 한꺼번에 넘기지 않고 필요한 것만 적어 둡니다.
+     빠뜨린 곳이 있으면 python scripts/test_logic.py 가 알려 줍니다)
 """)
     return 0
 

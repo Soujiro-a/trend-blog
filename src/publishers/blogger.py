@@ -1,7 +1,8 @@
-"""Blogger(Blogspot) 임시저장 발행.
+"""Blogger(Blogspot) 발행 — 공개 또는 임시저장.
 
 OAuth refresh token 으로 액세스 토큰을 받아 Blogger API v3 에 글을 올립니다.
-`isDraft=true` 로만 올리므로 공개는 사용자가 직접 합니다.
+공개할지 임시저장할지는 호출부(src/main.py 의 decide)가 검수 결과와 상한으로 정합니다.
+오늘 몇 건 올렸는지도 여기서 서버에 직접 묻습니다(published_since → src/guard.py).
 """
 
 from __future__ import annotations

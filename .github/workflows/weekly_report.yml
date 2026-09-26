@@ -2,7 +2,7 @@ name: 주간 운영 보고
 
 on:
   schedule:
-    # 매주 월요일 00:20 UTC = 월요일 09:20 KST. 장수 글(05:40 KST)까지 끝난 뒤입니다.
+    # 매주 월요일 00:20 UTC = 월요일 09:20 KST.
     - cron: "20 0 * * 1"
   workflow_dispatch:
 
@@ -12,13 +12,13 @@ permissions:
 
 jobs:
   report:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # fleet.yml 과 같은 이유로 고정 (ubuntu-latest 는 2026-10-19 에 바뀜)
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -28,12 +28,16 @@ jobs:
 
       - name: 보고서 생성
         env:
+          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+          PYTHONUTF8: "1"
+          # 계정별 자격증명 — fleet.yml·manager.yml 과 같은 목록. 계정을 추가하면 여기에도 세 줄.
+          # (예전엔 default 계정 것만 넘겨서, second 계정 블로그의 Blogger·검색 유입이 보고서에 빠졌습니다)
           BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
           BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
           BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
-          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
-          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
-          PYTHONUTF8: "1"
+          BLOGGER_CLIENT_ID_SECOND: ${{ secrets.BLOGGER_CLIENT_ID_SECOND }}
+          BLOGGER_CLIENT_SECRET_SECOND: ${{ secrets.BLOGGER_CLIENT_SECRET_SECOND }}
+          BLOGGER_REFRESH_TOKEN_SECOND: ${{ secrets.BLOGGER_REFRESH_TOKEN_SECOND }}
         run: |
           python scripts/weekly_report.py --out report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
@@ -49,7 +53,10 @@ jobs:
             LABEL="report"
           fi
           gh label create "$LABEL" --force --color "$([ "$LABEL" = report ] && echo 0E8A16 || echo D93F0B)" >/dev/null 2>&1 || true
-          # 지난주 보고 이슈는 닫아서 열린 이슈가 쌓이지 않게 합니다.
-          gh issue list --label report --label needs-attention --state open --json number --jq '.[].number' \
-            | xargs -r -I{} gh issue close {} --comment "새 주간 보고로 대체" || true
+          # 지난주 보고 이슈는 닫아서 열린 이슈가 쌓이지 않게 합니다. 라벨을 한 번에 두 개 주면
+          # '둘 다 붙은 이슈'만 찾아서 아무것도 닫히지 않았습니다(2026-09 에 6개가 쌓임). 라벨별로 따로 닫습니다.
+          for L in report needs-attention; do
+            gh issue list --label "$L" --state open --json number --jq '.[].number' \
+              | xargs -r -I{} gh issue close {} --comment "새 주간 보고로 대체" || true
+          done
           gh issue create --title "$TITLE" --body-file report.md --label "$LABEL"

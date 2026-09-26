@@ -664,7 +664,9 @@ def filter_niche(blog: Blog, candidates: list[Candidate]) -> tuple[list[Candidat
 
 # ---------------------------------------------------------------- 키워드 선점 (블로그 간 중복 방지)
 
-def load_claims(path: Path = CLAIMS_PATH) -> dict:
+def load_claims(path: Path | None = None) -> dict:
+    # 경로는 호출할 때 정합니다 (관리 상태·계정 상태와 같게). 테스트가 CLAIMS_PATH 를 바꿔 끼울 수 있습니다.
+    path = path or CLAIMS_PATH
     if not path.exists():
         return {}
     try:
@@ -673,7 +675,8 @@ def load_claims(path: Path = CLAIMS_PATH) -> dict:
         return {}
 
 
-def save_claims(claims: dict, path: Path = CLAIMS_PATH) -> None:
+def save_claims(claims: dict, path: Path | None = None) -> None:
+    path = path or CLAIMS_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(claims, ensure_ascii=False, indent=2), encoding="utf-8")
 

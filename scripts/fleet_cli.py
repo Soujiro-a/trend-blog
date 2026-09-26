@@ -1,20 +1,21 @@
 """함대 관리 명령줄 도구.
 
-    python scripts/fleet_cli.py list                      # 슬롯표
-    python scripts/fleet_cli.py add --name "이름" --blog-id 123 [--niche ..] [--persona ..] [--account default]
-    python scripts/fleet_cli.py discover [--add]          # 계정의 Blogger 블로그 전부 조회 (--add: 미등록 블로그 자동 등록)
+    python scripts/fleet_cli.py list                      # 슬롯표 (괄호 = 램프업 대기)
+    python scripts/fleet_cli.py add --name "이름" --blog-id 123 --subject "고유 주제" --account <계정>
+    python scripts/fleet_cli.py discover --account <계정> [--add]   # 그 계정의 Blogger 블로그 조회 (--add: 미등록 블로그 등록)
     python scripts/fleet_cli.py enable <id> / disable <id>
-    python scripts/fleet_cli.py validate                  # 형식·슬롯 간격 검사
+    python scripts/fleet_cli.py validate                  # 형식·슬롯 간격·주제 중복 검사
     python scripts/fleet_cli.py status                    # 블로그별 최근 실행/공개 현황
 
-add/discover 는 blogs.yaml 끝에 블로그 항목을 덧붙이고 다음 빈 슬롯(10분 간격)을 배정합니다.
-기존 주석은 그대로 유지됩니다.
+add/discover 는 blogs.yaml 끝에 블로그 항목을 덧붙이고 다음 빈 슬롯(slot_step_minutes 간격)을 배정합니다.
+기존 주석은 그대로 유지됩니다. 비상정지된 계정(account_state.json)에는 블로그를 추가하지 않습니다.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime
@@ -79,10 +80,28 @@ def cmd_list(_args) -> int:
     return 0
 
 
+def _account_problem(fleet: fleet_mod.Fleet, account: str) -> str:
+    """이 계정에 블로그를 붙이면 안 되는 이유. 괜찮으면 빈 문자열.
+
+    blogs.yaml 에 먼저 써 버리면 검증 실패 뒤 사람이 손으로 지워야 하므로, 쓰기 전에 확인합니다.
+    """
+    if account not in fleet.accounts:
+        return (f"계정 '{account}' 이(가) blogs.yaml 의 accounts 에 없습니다 "
+                f"(있는 것: {', '.join(fleet.accounts)}). 새 계정은 python scripts/account_cli.py add <이름>")
+    why = fleet_mod.account_halted(account)
+    if why:
+        return f"계정 '{account}' 은 비상정지 상태입니다({why[:80]}). 이 계정의 블로그는 돌지 않습니다 — --account 로 다른 계정을 지정하세요"
+    return ""
+
+
 def cmd_add(args) -> int:
     fleet = fleet_mod.load_fleet()
     if any(b.blog_id == args.blog_id for b in fleet.blogs):
         print(f"이미 등록된 blog_id 입니다: {args.blog_id}")
+        return 1
+    problem = _account_problem(fleet, args.account)
+    if problem:
+        print(problem)
         return 1
     posts = args.posts_per_day or int(
         (fleet.settings.get("defaults", {}).get("run", {}) or {}).get("posts_per_run", 1)
@@ -111,22 +130,42 @@ def cmd_add(args) -> int:
 
 def cmd_discover(args) -> int:
     load_dotenv()
+    fleet = fleet_mod.load_fleet()
+    if args.add:
+        problem = _account_problem(fleet, args.account)
+        if problem:
+            print(problem)
+            return 1
+    missing = fleet_mod.missing_credentials(fleet, args.account)
+    if missing:
+        print(f"계정 '{args.account}' 자격증명 없음: {', '.join(missing)}")
+        return 1
+    # 그 계정의 자격증명으로 조회합니다. 예전엔 --account 와 상관없이 표준 변수(default 계정)로 조회해서,
+    # default 계정의 블로그를 다른 계정 이름으로 등록할 수 있었습니다.
+    for base, value in fleet_mod.account_credentials(args.account).items():
+        os.environ[base] = value
     token = blogger._access_token()
     resp = net.get(f"{blogger.API_BASE}/users/self/blogs", headers={"Authorization": f"Bearer {token}"})
     items = resp.json().get("items", [])
-    fleet = fleet_mod.load_fleet()
     known = {b.blog_id for b in fleet.blogs}
-    print(f"계정에 블로그 {len(items)}개")
+    ids = {b.id for b in fleet.blogs}
+    taken: list[str] = []
+    print(f"계정 '{args.account}' 에 블로그 {len(items)}개")
     added = 0
     for it in items:
         mark = "등록됨" if it["id"] in known else "미등록"
         print(f"  - {it['name']}  {it['url']}  id={it['id']}  [{mark}]")
         if args.add and it["id"] not in known:
-            fleet = fleet_mod.load_fleet()
+            # 슬롯은 처음 읽은 함대로 계산합니다. 도중에 load_fleet 를 다시 부르면 방금 덧붙인
+            # subject 없는 항목이 검증에 걸려 두 번째 블로그부터 등록이 멈춥니다.
+            slots = fleet_mod.next_free_slots(fleet, args.posts_per_day, extra_taken=taken)
+            taken += slots
+            slug = _slug(it["url"].split("//")[-1].split(".")[0], ids)
+            ids.add(slug)
             entry = {
-                "id": _slug(it["url"].split("//")[-1].split(".")[0], {b.id for b in fleet.blogs}),
+                "id": slug,
                 "name": it["name"], "blog_id": it["id"], "account": args.account,
-                "slots": fleet_mod.next_free_slots(fleet, args.posts_per_day),
+                "slots": slots,
                 "content_mode": "planned",
             }
             _append_blog(entry)
@@ -171,13 +210,17 @@ def cmd_validate(_args) -> int:
 
 def cmd_status(_args) -> int:
     fleet = fleet_mod.load_fleet()
-    print("| 블로그 | 슬롯 | 오늘 완료 | 7일 공개/보류/거부 | 7일 비용 | 마지막 결과 |")
+    # 오늘 완료는 '오늘 켜진 슬롯'(램프업·계정 상한 반영) 기준으로 셉니다. 적어 둔 슬롯 기준이면
+    # 램프업 대기 중인 두 번째 슬롯 때문에 늘 "1/2" 로 보여 덜 돈 것처럼 보입니다.
+    plan = fleet_mod.planned_slots(fleet)
+    print("| 블로그 | 슬롯 | 오늘 완료 / 켜진 슬롯 | 7일 공개/보류/거부 | 7일 비용 | 마지막 결과 |")
     print("|---|---|---|---|---:|---|")
     today_str = datetime.now(KST).strftime("%Y-%m-%d")
-    for b in sorted(fleet.blogs, key=lambda b: b.slot_minutes):
+    for b in sorted(fleet.blogs, key=lambda b: (not b.enabled, b.account, b.slot_minutes)):
         runs = fleet_mod.load_runs(b)
+        active = plan.get(b.id, []) if b.enabled else []
         done = sum(
-            1 for s in b.slots
+            1 for s in active
             if any(f"{m}:{today_str}:{s}" in runs for m in ("planned", "trend", "evergreen"))
         )
         try:
@@ -189,9 +232,11 @@ def cmd_status(_args) -> int:
         draft = sum(h.get("status") == "draft" for h in hist)
         rej = sum(h.get("status") == "rejected" for h in hist)
         cost = sum(float(h.get("cost_usd") or 0) for h in hist)
-        last = sorted(runs.items())[-1][1]["summary"] if runs else "-"
+        # 시각 순으로 마지막 실행 (키 순으로 고르면 모드 이름 순서 때문에 옛 기록이 나옵니다)
+        last = max(runs.values(), key=lambda r: r.get("at", "")).get("summary", "-") if runs else "-"
+        today = f"{done}/{len(active)}" if b.enabled else "꺼짐"
         print(
-            f"| {b.name} ({b.id}) | {', '.join(b.slots)} | {done}/{len(b.slots)} | "
+            f"| {b.name} ({b.id}) | {', '.join(b.slots)} | {today} | "
             f"{live}/{draft}/{rej} | ${cost:.2f} | {last[:60]} |"
         )
     return 0

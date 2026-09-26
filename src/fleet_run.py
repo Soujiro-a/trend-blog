@@ -1,12 +1,14 @@
 """함대 실행기 — 10분마다 호출되어 '지금 돌 차례인' 블로그를 슬롯 순서대로 하나씩 돌립니다.
 
-    python -m src.fleet_run              # 슬롯이 지났고 오늘 아직 안 돈 블로그 실행
-    python -m src.fleet_run --blog X     # 특정 블로그만 (슬롯 무시)
-    python -m src.fleet_run --all        # 켜진 블로그 전부 (슬롯 무시, 오늘 이미 돈 것도 다시)
-    python -m src.fleet_run --dry-run    # 누가 돌 차례인지만 출력
+    python -m src.fleet_run                            # 슬롯이 지났고 오늘 아직 안 돈 블로그 실행
+    python -m src.fleet_run --blog X                   # 특정 블로그만 (슬롯 무시)
+    python -m src.fleet_run --all                      # 켜진 블로그 전부 (슬롯 무시, 오늘 이미 돈 것도 다시)
+    python -m src.fleet_run --dry-run                  # 누가 돌 차례인지만 출력
+    python -m src.fleet_run --blog X --target local    # 시험: Blogger 대신 out/ 에 저장, data/ 는 안 건드림
 
-각 블로그는 src.main 을 --blog 옵션으로 호출한 것과 같습니다. 한 블로그가 실패해도 다음
-블로그는 계속 돕니다. 결과는 data/fleet/last_fleet_run.md 에 남고 GitHub Actions 요약에 붙습니다.
+각 블로그는 src.main 을 --blog 옵션으로 호출한 것과 같습니다. 슬롯 하나에 글 한 건이라 글 수를 바꾸는
+옵션은 두지 않습니다. 한 블로그가 실패해도 다음 블로그는 계속 돕니다.
+결과는 data/fleet/last_fleet_run.md 에 남고 GitHub Actions 요약에 붙습니다.
 """
 
 from __future__ import annotations
@@ -75,8 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--blog", help="이 블로그만 실행 (슬롯 무시)")
     parser.add_argument("--all", action="store_true", help="켜진 블로그 전부 실행 (슬롯 무시)")
     parser.add_argument("--dry-run", action="store_true", help="실행 대상만 표시")
-    parser.add_argument("--target", choices=["blogger", "local"], help="발행 대상 덮어쓰기 (테스트용)")
-    parser.add_argument("--count", type=int, help="글 개수 덮어쓰기")
+    parser.add_argument("--target", choices=["blogger", "local"], help="발행 대상 덮어쓰기 (local = 시험, 기록 안 남김)")
     parser.add_argument("--mode", choices=["trend", "evergreen", "auto"], default="auto",
                         help="auto: 실시간 글 + (evergreen_weekday 인 날) 장수 글")
     args = parser.parse_args(argv)
@@ -128,9 +129,11 @@ def main(argv: list[str] | None = None) -> int:
     extra: list[str] = []
     if args.target:
         extra += ["--target", args.target]
+    # 로컬 시험은 Blogger 에 접속하지 않고, 슬롯도 처리했다고 기록하지 않습니다(실제 슬롯이 그날 건너뛰어지지 않게).
+    local = args.target == "local"
 
     # 자격증명 점검 — 계정별 변수가 없으면 default 계정 토큰으로 엉뚱한 블로그에 쓰게 됩니다.
-    cred = fleet_mod.credential_report(fleet)
+    cred = {} if local else fleet_mod.credential_report(fleet)
     bad_accounts = {acc for acc, missing in cred.items() if missing}
     if bad_accounts:
         report.append("## 자격증명 없음 (해당 계정 블로그는 건너뜁니다)")
@@ -146,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     # 비상정지된 계정 — 모델 비용이 나가기 전에 뺍니다. (due_slots 가 이미 빼지만 --blog/--all 경로도 막습니다)
-    halted = {b.account: why for b, _ in targets if (why := fleet_mod.account_halted(b.account))}
+    halted = {} if local else {b.account: why for b, _ in targets if (why := fleet_mod.account_halted(b.account))}
     if halted:
         report.append("## ⛔ 비상정지된 계정 (해당 계정 블로그는 건너뜁니다)")
         for acc, why in sorted(halted.items()):
@@ -160,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
     # 계정별 상한 — 구글의 제한은 계정에 붙습니다. 계정을 나누면 상한도 따로 계산됩니다.
     # 2026-09-20 차단 당시 블로그별로는 상한 안팎이었지만 계정 합계가 하루 16건이었습니다.
     account_left: dict[str, int] = {}
-    if args.target != "local":
+    if not local:
         for acc in sorted({b.account for b, _ in targets}):
             ab = guard.account_budget(fleet, acc, now)
             account_left[acc] = ab.allowed
@@ -239,8 +242,9 @@ def main(argv: list[str] | None = None) -> int:
                           "기록도 남기지 않아 해결되면 그대로 이어집니다.**")
             _write(report)
             return 1
-        fleet_mod.mark_ran(blog, mode, ok, summary, datetime.now(KST), slot=slot)
-        if "공개 1건" in summary:
+        if not local:
+            fleet_mod.mark_ran(blog, mode, ok, summary, datetime.now(KST), slot=slot)
+        if "공개 1건" in summary and not local:
             if blog.account in account_left:
                 account_left[blog.account] -= 1
             next_ok[blog.account] = _clock() + gap_s + random.uniform(0, 600)

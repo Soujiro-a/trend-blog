@@ -1044,6 +1044,155 @@ def test_agents(cfg: dict) -> None:
     check("지시서: 검수 = reviewer.SYSTEM + 심사 대상 글", req["system"] == reviewer.SYSTEM and "시험 제목" in req["messages"][0]["content"])
 
 
+def test_workflows() -> None:
+    """워크플로가 blogs.yaml 의 모든 계정 자격증명을 넘기는지 (저장소가 공개라 시크릿을 하나씩 적어 넘깁니다)."""
+    section("GitHub Actions 워크플로")
+    from src import fleet as fm
+    from src.config import ROOT
+
+    wf = ROOT / ".github" / "workflows"
+    fleet = fm.load_fleet()
+    # 2026-09: 주간 보고 워크플로에만 second 계정 자격증명이 빠져, 켜진 블로그 전부의 Blogger·검색 유입이 보고서에서 빠졌습니다.
+    for name in ("fleet.yml", "manager.yml", "weekly_report.yml"):
+        text = (wf / name).read_text(encoding="utf-8")
+        missing = [
+            var for acc in fleet.accounts for base in fm.CREDENTIAL_VARS
+            if f"{(var := fm.env_name(base, acc))}: ${{{{ secrets.{var} }}}}" not in text
+        ]
+        check(f"{name}: 모든 계정의 자격증명 전달", not missing, f"빠짐: {missing}")
+        check(f"{name}: 러너 이미지 고정 (ubuntu-latest 는 2026-10-19 에 바뀜)", "runs-on: ubuntu-latest" not in text)
+    check("fleet.yml: 실행기에 없는 --count 입력을 두지 않음",
+          "inputs.count" not in (wf / "fleet.yml").read_text(encoding="utf-8"))
+    weekly = (wf / "weekly_report.yml").read_text(encoding="utf-8")
+    check("주간 보고: 지난 이슈를 라벨별로 닫음 (두 라벨을 한 번에 주면 아무것도 안 닫힘)",
+          "--label report --label needs-attention" not in weekly)
+    check("옛 단일 블로그 워크플로 없음 (막힌 default 계정으로 발행하던 수동 실행)",
+          not (wf / "draft.yml").exists() and not (wf / "evergreen.yml").exists())
+
+
+def test_local_trial(cfg: dict) -> None:
+    """--target local 시험은 이력·선점·실행 기록(data/)을 남기지 않습니다."""
+    section("로컬 시험 (--target local) 은 data/ 를 건드리지 않음")
+    import os
+    import tempfile
+    from pathlib import Path
+    from src import fleet as fm
+    from src import fleet_run
+    from src import main as single
+    from src.publishers import local as local_pub
+
+    tmp = tempfile.TemporaryDirectory()
+    root = Path(tmp.name)
+    blog = fm.Blog(id="t1", name="시험", blog_id="1", subject="세금 기초", pillars=["연말정산"],
+                   since="2026-01-01", slots=["08:00"])
+    fl = fm.Fleet({"slot_step_minutes": 20}, {"default": {}}, [blog])
+    cand = Candidate(keyword="연말정산 의료비 공제 조건", seen=[Variant("연말정산 의료비 공제 조건", "planner", 1)],
+                     sources={"planner": 1}, score=0.98)
+    cand.pillar = "연말정산"
+    verdict = ["publish"]
+
+    def fake_article(*a, **k):
+        return writer.Article(keyword=cand.keyword, title="의료비 공제 조건 정리", description="요약",
+                              labels=["세금"], body_html="<p>본문</p>", model=cfg["writer"]["model"])
+
+    patches = [
+        (fm, "DATA_DIR", root), (fm, "CLAIMS_PATH", root / "fleet" / "claims.json"),
+        (fm, "load_fleet", lambda *a, **k: fl),
+        (single.planner, "propose", lambda *a, **k: [cand]),
+        (single.research, "gather", lambda *a, **k: [NewsRef("기사 1", "https://a.kr/1", "A"), NewsRef("기사 2", "https://b.kr/2", "B")]),
+        (single.writer, "write", fake_article),
+        (single.reviewer, "review", lambda *a, **k: reviewer.Review(verdict=verdict[0], score=90, model=cfg["review"]["model"])),
+        (local_pub, "publish", lambda c, art, live=None: {"id": "", "url": str(root / "post.html"), "title": art.title}),
+        (fleet_run, "_write", lambda lines: None),
+    ]
+    saved = [(obj, name, getattr(obj, name)) for obj, name, _ in patches]
+    env_keys = ("BLOGGER_BLOG_ID", "FLEET_BLOG", "FLEET_ACCOUNT", *fm.CREDENTIAL_VARS)
+    saved_env = {k: os.environ.get(k) for k in env_keys}
+    try:
+        for obj, name, value in patches:
+            setattr(obj, name, value)
+        code = single.main(["--blog", "t1", "--target", "local"])
+        report = blog.report_path.read_text(encoding="utf-8") if blog.report_path.exists() else ""
+        check("로컬 시험 실행 성공", code == 0 and "공개 1건" in report, f"code={code} {report[-200:]}")
+        check("이력(history.json)을 남기지 않음", not blog.history_path.exists())
+        check("선점(claims.json)을 남기지 않음", not fm.CLAIMS_PATH.exists())
+        check("보고서에 로컬 시험 표시", "로컬 시험" in report)
+
+        code = fleet_run.main(["--blog", "t1", "--target", "local"])
+        check("함대 실행기 로컬 시험도 실행 기록(runs.json)을 남기지 않음", code == 0 and not blog.runs_path.exists())
+
+        verdict[0] = "reject"
+        single.main(["--blog", "t1", "--target", "local"])
+        report = blog.report_path.read_text(encoding="utf-8")
+        check("거부된 글은 임시저장과 따로 셈", "임시저장 0건 / 거부 1건" in report, report[-200:])
+    finally:
+        for obj, name, value in saved:
+            setattr(obj, name, value)
+        fm._default_credentials = None
+        for k, v in saved_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        tmp.cleanup()
+
+
+def test_weekly_report(cfg: dict) -> None:
+    """주간 보고 경고는 블로그마다 켜진 슬롯(램프업)으로 기대 글 수를 잡아 판단합니다."""
+    section("주간 보고 기준")
+    from datetime import datetime, timedelta, timezone
+    from scripts import fleet_cli, weekly_report as wr
+    from src import fleet as fm
+
+    kst = timezone(timedelta(hours=9))
+    now = datetime(2026, 9, 28, 9, 20, tzinfo=kst)
+    posts = lambda n, status="live", mode="planned": [  # noqa: E731
+        {"keyword": f"k{i}", "title": f"t{i}", "status": status, "mode": mode, "cost_usd": 0.4, "review_score": 88,
+         "posted_at": (datetime.now(kst) - timedelta(days=1, hours=i)).isoformat()} for i in range(n)
+    ]
+    _, alerts = wr.section_history(posts(6), 7, expected=7)
+    check("하루 1건 블로그가 6건 공개 → 경고 없음", alerts == [], f"{alerts}")
+    _, alerts = wr.section_history(posts(2), 7, expected=7)
+    check("기대 7건 중 2건 공개 → 경고", any("공개 2건" in a for a in alerts), f"{alerts}")
+    _, alerts = wr.section_history([], 7, expected=0)
+    check("램프업 대기(켜진 슬롯 0) 블로그는 이력이 없어도 경고 없음", alerts == [], f"{alerts}")
+    _, alerts = wr.section_history([], 7, expected=7)
+    check("켜진 슬롯이 있는데 이력 없음 → 실행 중단 경고", any("이력 없음" in a for a in alerts), f"{alerts}")
+    _, alerts = wr.section_history(posts(14), 7, expected=14)
+    check("하루 2건 블로그의 정상 비용($5.6)은 경고 안 함", not any("비용" in a for a in alerts), f"{alerts}")
+    lines, _ = wr.section_history(posts(3), 7, expected=3)
+    check("주제 기획(planned) 글도 모드별 작성 수에 나옴", any("주제 기획 3" in l for l in lines), f"{lines[:6]}")
+
+    blogs = [
+        fm.Blog(id="old", name="o", blog_id="1", subject="가", account="acc", since="2026-08-01", slots=["08:00", "14:00"]),
+        fm.Blog(id="new", name="n", blog_id="2", subject="나", account="acc", since="2026-09-25", slots=["11:00"]),
+        fm.Blog(id="off", name="f", blog_id="3", subject="다", account="acc", since="2026-09-01", slots=["12:00"], enabled=False),
+    ]
+    fl = fm.Fleet({"slot_step_minutes": 20, "blog_ramp": [[0, 1], [28, 2]], "account_ramp": [[0, 4]]},
+                  {"acc": {"since": "2026-09-01", "max_live_per_day_account": 8}}, blogs)
+    check("기대 글 수: 4주 넘은 블로그는 하루 2건", wr.expected_posts(fl, fl.get("old"), now, 7) == 14,
+          f"{wr.expected_posts(fl, fl.get('old'), now, 7)}")
+    check("기대 글 수: 9/25 시작 블로그는 3일치", wr.expected_posts(fl, fl.get("new"), now, 7) == 3,
+          f"{wr.expected_posts(fl, fl.get('new'), now, 7)}")
+    check("기대 글 수: 꺼진 블로그는 0", wr.expected_posts(fl, fl.get("off"), now, 7) == 0)
+    summary = "\n".join(wr.settings_summary(cfg, fl, now))
+    check("설정 요약에 켜진 블로그·계정 상한", "켜진 블로그 2개" in summary and "acc 4/8건" in summary, summary)
+    check("설정 요약에 없는 설정값(None) 없음", "None" not in summary, summary)
+
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as tmp:
+        orig = fm.ACCOUNT_STATE_PATH
+        fm.ACCOUNT_STATE_PATH = Path(tmp) / "account_state.json"
+        try:
+            check("fleet_cli: 없는 계정에는 블로그 추가 거부", "accounts 에 없습니다" in fleet_cli._account_problem(fl, "nope"))
+            check("fleet_cli: 정상 계정은 통과", fleet_cli._account_problem(fl, "acc") == "")
+            fm.halt_account("acc", "발행 403")
+            check("fleet_cli: 비상정지 계정에는 블로그 추가 거부", "비상정지" in fleet_cli._account_problem(fl, "acc"))
+        finally:
+            fm.ACCOUNT_STATE_PATH = orig
+
+
 def main() -> int:
     # 실제 data/fleet/account_state.json(비상정지 기록)이 테스트에 섞이지 않게 임시 파일로 돌립니다.
     import tempfile
@@ -1075,6 +1224,9 @@ def main() -> int:
     test_fleet(cfg)
     test_manual_toggle()
     test_agents(cfg)
+    test_workflows()
+    test_local_trial(cfg)
+    test_weekly_report(cfg)
 
     print("\n" + "=" * 50)
     if failures:

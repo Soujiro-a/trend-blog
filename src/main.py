@@ -1,15 +1,17 @@
-"""실시간 이슈 블로그 자동화 진입점.
+"""블로그 한 곳의 글 작성·발행 진입점. 보통은 함대 실행기(src/fleet_run.py)가 슬롯마다 부릅니다.
 
-    python -m src.main                     # 수집 → 작성 → 검수 → 공개/보류 (단일 블로그, .env 의 BLOGGER_BLOG_ID)
-    python -m src.main --blog picktopic    # 함대(fleet/blogs.yaml)의 특정 블로그 컨텍스트로 실행
-    python -m src.main --dry-run           # 키워드 수집/필터 결과만 확인 (API 호출 없음)
-    python -m src.main --target local      # Blogger 대신 out/ 폴더에 HTML 저장
-    python -m src.main --mode evergreen    # 장수 해설 글 작성 (주 1회용)
-    python -m src.main --draft             # 검수 결과와 무관하게 전부 임시저장
+    python -m src.main --blog gaganam1                 # 함대(fleet/blogs.yaml)의 블로그 하나로 실행
+    python -m src.main --blog gaganam1 --target local  # Blogger 대신 out/ 폴더에 HTML 저장 (data/ 는 안 건드림)
+    python -m src.main --draft                         # 검수 결과와 무관하게 전부 임시저장
+    python -m src.main                                 # (옛 방식) .env 의 BLOGGER_BLOG_ID 한 블로그, 실시간 검색어
+    python -m src.main --dry-run                       # (옛 방식) 키워드 수집/필터 결과만 확인 (API 호출 없음)
+    python -m src.main --mode evergreen                # 장수 해설 글 (함대에서는 꺼 둠)
 
 흐름
 ----
-  키워드 후보 → (함대: 블로그 주제 필터·다른 블로그 선점 제외) → 리서치 → 작성(Fable) → 검수(Sonnet) → 판정
+  글감 후보 → 리서치 → 작성(Fable) → 검수(Sonnet) → 판정
+    planned(함대 기본): 블로그 고유 주제 안에서 글감 기획(Sonnet)
+    trend(옛 방식)    : 실시간 검색어 → 필터 → (함대: 블로그 주제 필터·다른 블로그 선점 제외)
     publish + 점수 ≥ min_score + 하루 공개 상한 안 → 공개
     hold / 상한 초과                                 → 임시저장 (사람이 나중에 봐도 되고 안 봐도 됨)
     reject                                           → 올리지 않음
@@ -258,6 +260,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     target_name = args.target or cfg["publish"]["target"]
+    # 로컬 저장(--target local)은 시험입니다. 이력·선점을 남기면 시험한 글감이 중복 방지에 걸려 실제로는
+    # 쓰이지 않고, 커밋되면 올라가지도 않은 글이 '공개'로 기록됩니다. 시험은 data/ 를 건드리지 않습니다.
+    persist = target_name != "local"
     mode = args.mode
     if mode == "auto":
         mode = ctx.blog.content_mode if ctx.blog else "trend"
@@ -338,6 +343,7 @@ def main(argv: list[str] | None = None) -> int:
     history = state.load(ctx.history_path)
     written = 0
     live = 0
+    rejected = 0
     errors = 0  # 진짜 실패(API 오류 등). 필터·모델 판단으로 건너뛴 건 여기 안 셉니다.
     total_cost = 0.0
     report.append("## 작성 결과")
@@ -385,7 +391,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
 
         # 함대: 글을 쓴 순간 키워드를 선점해 다른 블로그가 같은 주제를 쓰지 않게 합니다 (결과와 무관)
-        if ctx.blog and ctx.claims is not None:
+        if persist and ctx.blog and ctx.claims is not None:
             fleet_mod.claim(ctx.claims, ctx.blog, candidate.keyword, now)
             fleet_mod.save_claims(ctx.claims)
 
@@ -399,8 +405,10 @@ def main(argv: list[str] | None = None) -> int:
                 history, keyword=candidate.keyword, title=article.title,
                 status="rejected", mode=mode, cost_usd=cost, review_score=rv.score if rv else None,
             )
-            state.save(history, ctx.history_path)
+            if persist:
+                state.save(history, ctx.history_path)
             written += 1  # 비용은 썼으니 하루 생산량에는 포함
+            rejected += 1
             report.append(f"- 🚫 **{article.title}** — 검수 거부({score_txt}){issues_txt}")
             continue
 
@@ -446,7 +454,8 @@ def main(argv: list[str] | None = None) -> int:
             review_score=rv.score if rv else None,
             extras=extras,
         )
-        state.save(history, ctx.history_path)
+        if persist:
+            state.save(history, ctx.history_path)
 
         written += 1
         total_cost += cost
@@ -467,9 +476,14 @@ def main(argv: list[str] | None = None) -> int:
             + (f"  \n  {post.get('url')}" if decision == "live" and post.get("url") else "")
         )
 
-    summary = f"**공개 {live}건 / 임시저장 {written - live}건 / 예상 비용 약 ${total_cost:.2f}**"
+    # 거부된 글은 올리지 않았으므로 임시저장과 따로 셉니다. (함대 실행기는 이 줄의 "공개 1건"을 보고
+    # 같은 계정 발행 간격을 잽니다 — src/fleet_run.py)
+    reject_txt = f" / 거부 {rejected}건" if rejected else ""
+    summary = f"**공개 {live}건 / 임시저장 {written - live - rejected}건{reject_txt} / 예상 비용 약 ${total_cost:.2f}**"
     if errors:
         summary += f" · 실패 {errors}건"
+    if not persist:
+        summary += " · 로컬 시험(이력 미기록)"
     report += ["", summary]
     _write_report(ctx, report)
 

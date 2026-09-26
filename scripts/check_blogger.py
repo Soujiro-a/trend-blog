@@ -1,9 +1,11 @@
-"""Blogger 인증 정보가 실제로 동작하는지 확인합니다.
+"""Blogger 인증 정보가 실제로 동작하는지 확인합니다 — .env 의 표준 변수(default 계정)와 BLOGGER_BLOG_ID 기준.
 
 글을 쓰지도, 올리지도 않습니다. Claude API 도 호출하지 않으므로 비용이 들지 않습니다.
 토큰 갱신 → 블로그 조회까지만 해보고 결과를 알려줍니다.
 
     python scripts/check_blogger.py
+
+함대의 다른 계정(예: second)은 이 스크립트 대신 `python scripts/account_cli.py check <계정>` 으로 확인합니다.
 """
 
 from __future__ import annotations
@@ -69,8 +71,9 @@ def main() -> int:
 
     print("\n" + "=" * 52)
     print("Blogger 연결 정상입니다.")
-    print("다음: ANTHROPIC_API_KEY 를 .env 에 넣고 아래를 실행하세요.")
-    print("  python -m src.main --target local --count 1   (글 1개, 로컬 저장)")
+    print("함대 계정별 확인: python scripts/account_cli.py check <계정>")
+    print("글 1건 시험 (Blogger 대신 out/ 에 저장, 이력 안 남김, 약 $0.4):")
+    print("  python -m src.fleet_run --blog <블로그id> --target local")
     return 0
 
 

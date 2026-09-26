@@ -1,8 +1,11 @@
 # 시크릿 — 절대 커밋하지 마세요
 .env
 
-# 로컬 테스트 결과물
+# 로컬 테스트 결과물 (서브에이전트 초안 out/agents/ 포함)
 out/
+
+# PC 스크립트(fleet_local.ps1 · fleet_dispatch.ps1) 로그
+logs/
 
 # Python
 __pycache__/
