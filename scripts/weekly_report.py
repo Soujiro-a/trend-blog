@@ -69,8 +69,15 @@ def expected_posts(fleet, blog, now: datetime, days: int) -> int:
     )
 
 
-def section_history(history: list[dict], days: int, expected: int | None = None) -> tuple[list[str], list[str]]:
-    """이번 주 작성 현황과 경고. expected 는 함대 블로그의 기대 글 수(없으면 단일 블로그 고정 기준)."""
+def section_history(
+    history: list[dict], days: int, expected: int | None = None, today: int = 0
+) -> tuple[list[str], list[str]]:
+    """이번 주 작성 현황과 경고. expected 는 함대 블로그의 기대 글 수(없으면 단일 블로그 고정 기준).
+
+    이력은 지금부터 days×24시간을 보므로 오늘 이미 올라간 글도 섞입니다. 그래서 공개 수 기준은
+    expected(어제까지)로 잡고, 비용 상한에만 오늘 켜진 슬롯 수(today)를 더합니다.
+    (안 그러면 보고 전날 추가한 블로그가 기대 1건에 실제 2건이 되어 비용 헛경보를 받습니다)
+    """
     lines = ["## 이번 주 작성", ""]
     alerts: list[str] = []
     recent = state.recent(history, days)
@@ -78,7 +85,7 @@ def section_history(history: list[dict], days: int, expected: int | None = None)
         min_live, max_cost = ALERT_MIN_LIVE_PER_WEEK, ALERT_WEEKLY_COST_USD
     else:
         min_live = int(expected * ALERT_MIN_LIVE_RATIO)
-        max_cost = max(expected, 1) * ALERT_COST_PER_POST_USD
+        max_cost = max(expected + today, 1) * ALERT_COST_PER_POST_USD
     if not recent:
         if expected == 0:
             lines.append("- 이번 주에는 켜진 슬롯이 없었습니다 (램프업 대기 또는 시작 전).")
@@ -97,7 +104,7 @@ def section_history(history: list[dict], days: int, expected: int | None = None)
     lines.append(f"| 항목 | 값 |")
     lines.append(f"|---|---|")
     if expected is not None:
-        lines.append(f"| 켜진 슬롯 (기대 글 수) | {expected}개 |")
+        lines.append(f"| 켜진 슬롯 (기대 글 수) | {expected}개" + (f" (+ 오늘 {today}개)" if today else "") + " |")
     lines.append(f"| 작성 | {len(recent)}건 ({modes}) |")
     lines.append(f"| 공개 | {by_status.get('live', 0)}건 |")
     lines.append(f"| 임시저장(보류) | {by_status.get('draft', 0)}건 |")
@@ -385,6 +392,7 @@ def build(days: int = 7) -> str:
         # 꺼진 블로그(계정 은퇴·수동 중지)는 슬롯표에만 둡니다. 글이 없는 게 정상이라 경고하지 않습니다.
         if any(not b.enabled for b in blogs):
             hist_lines += ["꺼진 블로그는 위 슬롯표에만 표시합니다.", ""]
+        plan_today = fleet_mod.planned_slots(fleet, now)
         for b in sorted((b for b in blogs if b.enabled), key=lambda b: (b.account, b.slot_minutes)):
             try:
                 blog_history = state.load(b.history_path)
@@ -392,7 +400,8 @@ def build(days: int = 7) -> str:
                 hist_lines += [f"## {b.name} ({b.id}) — ⚠️ 이력 손상", "", f"- {exc}", ""]
                 alerts.append(f"[{b.id}] 이력 파일 손상 — 실행이 멈춰 있습니다")
                 continue
-            bl, ba = section_history(blog_history, days, expected_posts(fleet, b, now, days))
+            bl, ba = section_history(blog_history, days, expected_posts(fleet, b, now, days),
+                                     today=len(plan_today.get(b.id, [])))
             bl[0] = f"## {b.name} ({b.id}, 계정 {b.account}, 슬롯 {', '.join(b.slots)}) — 이번 주 작성"
             hist_lines += bl
             alerts += [f"[{b.id}] {a}" for a in ba]

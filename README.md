@@ -127,7 +127,7 @@ Sonnet 5 에게 넘기고, **중지 / 재개 / 메모** 세 가지 행동 안에
 ### 주간 보고 — `scripts/weekly_report.py`
 월요일 09:20 KST 에 블로그별 이번 주 작성·공개·보류·거부·비용·검수 평균, 켜진 슬롯으로 계산한 기대 글 수,
 Blogger 누적 글 수, 검색 유입, 계정별 애드센스 수익을 한 장으로 모아 이슈로 올립니다(지난주 이슈는 자동으로 닫힘).
-경고 기준은 블로그마다 켜진 슬롯에 맞춰 잡습니다 — 기대 글 수의 절반도 공개되지 않았거나, 글 1건당 $0.8 를 넘게 썼거나,
+경고 기준은 블로그마다 켜진 슬롯에 맞춰 잡습니다 — 기대 글 수의 절반도 공개되지 않았거나, 켜진 슬롯(오늘 것 포함) 1개당 $0.8 를 넘게 썼거나,
 보류·거부가 절반을 넘거나, Search Console 에 등록되지 않은 블로그가 있으면 `⚠️` 로 올라옵니다. 꺼진 블로그는 슬롯표에만 나옵니다.
 
 ---
@@ -210,7 +210,7 @@ python scripts/account_cli.py add third     # blogs.yaml 의 accounts 에 추가
 | 7 | 자동 | `python scripts/account_cli.py check third` → `import third` (블로그를 함대에 등록, 슬롯 자동 배정) |
 | 8 | 사람 | `blogs.yaml` 에서 새 블로그마다 `subject`·`pillars`·`audience`·`persona`·`labels`·`since` 를 채움 → `python scripts/fleet_cli.py validate` |
 | 9 | 자동 | `python scripts/setup_pages.py --blog <id>` (소개·개인정보처리방침 페이지. `.env` 의 `CONTACT_EMAIL` 필요) |
-| 10 | 사람 | [Search Console](https://search.google.com/search-console) 에 **그 계정으로** 로그인 → 블로그 주소로 속성 추가 (Blogger 블로그는 소유권이 자동 확인됨). 빠뜨리면 주간 보고가 경고합니다 |
+| 10 | 사람 | [Search Console](https://search.google.com/search-console) 에 **그 계정으로** 로그인 → 블로그 주소로 속성 추가 (Blogger 블로그는 소유권이 자동 확인됨) → Sitemaps 에 `https://<블로그>.blogspot.com/sitemap.xml` 제출. 속성을 빠뜨리면 주간 보고가 경고합니다 |
 | 11 | 사람 | GitHub Secrets 에 3개 등록 (`python scripts/copy_secret.py` 가 값을 화면에 띄우지 않고 클립보드로 복사) |
 | 12 | 사람 | 워크플로 세 곳(`fleet.yml` · `manager.yml` · `weekly_report.yml`)의 env 에 세 줄씩 추가 → `python scripts/test_logic.py` |
 | 13 | 사람 | 커밋·푸시. 다음 슬롯부터 자동으로 돕니다 |
@@ -234,7 +234,7 @@ python scripts/fleet_cli.py discover --account second [--add]   # 그 계정의 
 슬롯은 자동 배정(블로그당 2개)되고, 두 번째 슬롯은 램프업이 4주 뒤에 켭니다. 새 블로그에는 `since:`(첫 글 날짜)를 적고,
 같은 계정에서 여러 개를 동시에 시작하지 말고 `since` 를 1주 이상 벌리세요(미래 날짜면 그날부터 돕니다).
 비상정지된 계정에는 블로그를 추가할 수 없습니다. 등록한 뒤에는 위 표의 8~10단계(주제 채우기 → `validate`,
-`setup_pages.py --blog <id>`, Search Console 속성 추가)를 하고 커밋·푸시합니다.
+`setup_pages.py --blog <id>`, Search Console 속성 추가·사이트맵 제출)를 하고 커밋·푸시합니다.
 
 ### 계정 멈추기 · 갈아타기
 

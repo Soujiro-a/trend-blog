@@ -120,7 +120,8 @@ python scripts/test_logic.py                         # 로직 테스트 (설정�
    `fleet_cli.py list` 로 오늘 실제로 켜지는 슬롯(괄호 = 대기)을 사용자에게 보여줍니다.
    계정의 켜진 블로그가 `max_blogs_per_account` 를 넘으면 validate 가 막습니다 → 새 계정 안내.
 6. `setup_pages.py --blog <id>` 로 소개·개인정보처리방침 페이지를 만들고, `adsense_check.py --blog <id>` 로 확인합니다.
-   Search Console 속성 추가는 사람이 그 계정으로 로그인해 해야 합니다(빠지면 주간 보고가 경고). 사용자에게 알려 주세요.
+   Search Console 속성 추가와 사이트맵(`https://<블로그>.blogspot.com/sitemap.xml`) 제출은 사람이 그 계정으로 로그인해 해야 합니다
+   (속성이 빠지면 주간 보고가 경고). 사용자에게 알려 주세요.
 7. 비용 영향을 숫자로 알려줍니다.
 8. 커밋·푸시 (사용자가 허용한 경우). 푸시되면 다음 슬롯부터 자동으로 돕니다.
 

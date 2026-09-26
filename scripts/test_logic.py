@@ -1160,6 +1160,17 @@ def test_weekly_report(cfg: dict) -> None:
     check("켜진 슬롯이 있는데 이력 없음 → 실행 중단 경고", any("이력 없음" in a for a in alerts), f"{alerts}")
     _, alerts = wr.section_history(posts(14), 7, expected=14)
     check("하루 2건 블로그의 정상 비용($5.6)은 경고 안 함", not any("비용" in a for a in alerts), f"{alerts}")
+    # 보고 전날 추가한 블로그: 어제 1건 + 오늘 이미 올라간 1건(이력 창에 같이 들어옴), 건당 $0.41 (2026-09 실측)
+    first_day = posts(2)
+    for p in first_day:
+        p["cost_usd"] = 0.41
+    lines, alerts = wr.section_history(first_day, 7, expected=1, today=1)
+    check("첫날 블로그: 오늘 올라간 글까지 비용 상한에 넣어 헛경보 없음", alerts == [], f"{alerts}")
+    check("기대 글 수 옆에 오늘 슬롯 표시", any("1개 (+ 오늘 1개)" in l for l in lines), f"{lines[:6]}")
+    _, alerts = wr.section_history(first_day, 7, expected=1, today=0)
+    check("오늘 슬롯이 없는데 기대의 2배 넘게 쓰면 여전히 비용 경고", any("비용" in a for a in alerts), f"{alerts}")
+    _, alerts = wr.section_history([], 7, expected=0, today=1)
+    check("오늘 추가해 아직 안 돈 블로그는 경고 없음", alerts == [], f"{alerts}")
     lines, _ = wr.section_history(posts(3), 7, expected=3)
     check("주제 기획(planned) 글도 모드별 작성 수에 나옴", any("주제 기획 3" in l for l in lines), f"{lines[:6]}")
 
