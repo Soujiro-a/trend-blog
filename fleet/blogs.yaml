@@ -192,7 +192,7 @@ blogs:
   #   11/16~        : 상한 8 → 전부 2건 (하루 8건)
   # 지금 어떤 슬롯이 켜졌는지: python scripts/fleet_cli.py list
   - id: gaganam1
-    name: "가가남블로그"
+    name: "자동차 생활 안내서"
     blog_id: "6119386223221067366"
     account: second
     since: 2026-09-21
@@ -220,7 +220,7 @@ blogs:
     overrides: {}
 
   - id: gaganamc1
-    name: "가가남씨블로그"
+    name: "쇼핑 환불·직구 가이드"
     blog_id: "3990482523331361857"
     account: second
     since: 2026-09-21
@@ -249,7 +249,7 @@ blogs:
 
   # --- second 계정 블로그 3·4 (2026-09-25 추가) ---
   - id: gaganamissue
-    name: "가가남소식통"
+    name: "해외여행 준비 노트"
     blog_id: "2039089688376280764"
     account: second
     since: 2026-09-25
@@ -288,7 +288,7 @@ blogs:
         항공권 환불·보험금 지급 같은 개별 사안의 결과를 보장하지 않습니다.
 
   - id: gaganams1
-    name: "가가남의블로그"
+    name: "살림 해결 노트"
     blog_id: "7157995469340656527"
     account: second
     since: 2026-09-25
