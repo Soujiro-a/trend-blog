@@ -17,6 +17,7 @@ GitHub Actions (공개 저장소 · 무료)
                                              ⑤ 발행      안전장치를 통과하면 공개, 아니면 임시저장
  manager.yml         매일 23:35 KST ─▶ src/manager.py   블로그별 7일 지표 → 중지/재개/메모 → 경고 있으면 이슈
  weekly_report.yml   월 09:20 KST   ─▶ scripts/weekly_report.py  주간 운영·수익 보고 → 이슈(메일)
+ retrofit.yml        매일 새벽 KST   ─▶ scripts/retrofit_posts.py  옛 틀로 쓴 공개 글을 하루 한 편씩 정리 (23편, 오래된 순)
 ```
 
 **수익 구조** — 글이 쌓여 검색 유입이 생기면 **구글 애드센스** 광고 수익이 납니다. 검수관이 '구매 의도가 있는 주제'로 본
@@ -157,6 +158,8 @@ cp .env.example .env        # 값 채우기 (Windows: copy .env.example .env)
 | 블로그 켜기/끄기 (사람 조치로 기록) | `python scripts/fleet_cli.py enable <id>` · `disable <id>` → 커밋·푸시 | 0 |
 | 주간 보고 미리 보기 | `python scripts/weekly_report.py` | 0 |
 | 애드센스 준비 점검 | `python scripts/adsense_check.py [--blog <id>]` | 0 |
+| 구글 색인 요청 대기열 / 현황 (앱 예약 작업 `gsc-index-requests` 가 씀) | `python scripts/index_queue.py next` · `status` | 0 |
+| 기존 글 정리 대상 보기 | `python scripts/retrofit_posts.py --dry-run` | 0 |
 | 자동화가 모델에 보내는 요청 원문 보기 | `python scripts/agent_brief.py planner --blog <id>` | 0 |
 | **글 1건 시험** — Blogger 대신 `out/` 에 HTML 저장 | `python -m src.fleet_run --blog <id> --target local` | 약 $0.6 |
 

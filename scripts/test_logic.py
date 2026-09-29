@@ -1140,7 +1140,7 @@ def test_workflows() -> None:
     wf = ROOT / ".github" / "workflows"
     fleet = fm.load_fleet()
     # 2026-09: 주간 보고 워크플로에만 second 계정 자격증명이 빠져, 켜진 블로그 전부의 Blogger·검색 유입이 보고서에서 빠졌습니다.
-    for name in ("fleet.yml", "manager.yml", "weekly_report.yml"):
+    for name in ("fleet.yml", "manager.yml", "weekly_report.yml", "retrofit.yml"):
         text = (wf / name).read_text(encoding="utf-8")
         missing = [
             var for acc in fleet.accounts for base in fm.CREDENTIAL_VARS
@@ -1155,6 +1155,26 @@ def test_workflows() -> None:
           "--label report --label needs-attention" not in weekly)
     check("옛 단일 블로그 워크플로 없음 (막힌 default 계정으로 발행하던 수동 실행)",
           not (wf / "draft.yml").exists() and not (wf / "evergreen.yml").exists())
+
+
+def test_retrofit(cfg: dict) -> None:
+    """기존 글 정리: 네이버 뉴스 링크와 옛 끝 문구만 고치고 나머지 본문은 그대로 둡니다."""
+    section("기존 글 정리")
+    from scripts import retrofit_posts as rp
+
+    body = (
+        "<p>본문</p>\n<h2>참고한 자료</h2>\n<ul>\n<li>연합뉴스 「제목」</li>\n"
+        '<li><a href="https://search.naver.com/search.naver?where=news&query=%EC%A0%95">이 주제 관련 최신 기사 더 보기</a></li>\n'
+        "</ul>\n<p><em>2026년 09월 22일까지 공개된 보도를 기준으로 정리했습니다. 이후 상황이 달라질 수 있습니다.</em></p>"
+    )
+    guide = cfg["writer"]["footer_note_guide"]
+    new, changes = rp.retrofit_html(body, guide)
+    check("네이버 뉴스 링크 삭제", "search.naver.com" not in new and "연합뉴스 「제목」" in new)
+    check("끝 문구 교체(원래 날짜 유지)", guide.format(date="2026년 09월 22일") in new and "공개된 보도" not in new, new[-160:])
+    check("바꾼 것 2가지 기록", len(changes) == 2, str(changes))
+    check("고친 글은 다시 대상 아님", not rp.needs_retrofit(new) and rp.needs_retrofit(body))
+    check("새 틀 글은 그대로", rp.retrofit_html(new, guide) == (new, []))
+    check("새벽(KST 00~06시)에만 고침", 5 in rp.QUIET_HOURS and 6 not in rp.QUIET_HOURS)
 
 
 def test_local_trial(cfg: dict) -> None:
@@ -1306,6 +1326,7 @@ def main() -> int:
     test_dedupe(cfg)
     test_context(cfg)
     test_official(cfg)
+    test_retrofit(cfg)
     test_internal_links(cfg)
     test_no_why_searched(cfg)
     test_pages()
