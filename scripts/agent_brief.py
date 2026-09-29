@@ -5,7 +5,8 @@
 서브에이전트도 따로 손대지 않아도 같은 기준으로 움직입니다.
 
 자동화 코드는 건드리지 않습니다. 실제 함수(planner.propose · writer.write · reviewer.review)를
-그대로 부르고, 모델을 부르기 직전에 요청만 가로챕니다. 모델 호출도 비용도 없습니다.
+그대로 부르고, 모델을 부르기 직전에 요청만 가로챕니다. 작성·검수·기획 모델은 부르지 않습니다.
+(writer 는 자동화와 같이 공식 안내 자료를 웹 검색으로 모으므로 그 조사 한 번만 비용이 듭니다 — 글 1건당 약 $0.1)
 
     python scripts/agent_brief.py planner  --blog gaganam1
     python scripts/agent_brief.py writer   --blog gaganam1 --topic "자동차 정기검사 준비물" [--search "자동차 정기검사"] [--pillar "..."]
@@ -122,16 +123,18 @@ def cmd_writer(args) -> int:
     candidate.pillar = planner.match_pillar((args.pillar or "").strip(), blog.pillars)
 
     refs = research.gather(cfg, candidate)
-    if len(refs) < 2:
+    # src/main.py 와 같이 기획 글감은 정부·공공기관 안내 페이지도 모읍니다(웹 검색 — 이 단계만 비용이 듭니다).
+    official, official_cost = research.official(cfg, candidate)
+    if len(refs) + len(official) < 2:
         print(
-            f"참고 기사가 {len(refs)}건뿐입니다. 자동화라면 이 글감은 건너뜁니다(src/main.py). "
+            f"참고 자료가 {len(refs) + len(official)}건뿐입니다. 자동화라면 이 글감은 건너뜁니다(src/main.py). "
             "--search 로 검색어를 바꿔 다시 시도하세요.",
             file=sys.stderr,
         )
         return 1
 
     # src/main.py 와 같은 순서: 참고 기사 블록 + 같은 블로그의 공개 글(내부 링크 후보)
-    context = research.to_context(cfg, candidate, refs)
+    context = research.to_context(cfg, candidate, refs, official)
     context += research.internal_links_block(history, candidate.keyword)
     request = capture(
         writer.write, cfg, candidate, context, refs, now.strftime("%Y년 %m월 %d일"),
@@ -151,7 +154,7 @@ def cmd_writer(args) -> int:
     )
     _print_request("글 작성 (src/writer.py)", request, [
         f"- 블로그: {blog.name} ({blog.id}) · 글감: {candidate.keyword} · 하위 축: {candidate.pillar or '(없음)'}",
-        f"- 참고 기사 {len(refs)}건 · 작업 폴더: {_rel(run_dir)}",
+        f"- 참고 기사 {len(refs)}건 · 공식 안내 자료 {len(official)}곳(조사 비용 ${official_cost:.3f}) · 작업 폴더: {_rel(run_dir)}",
         f"- 결과는 {_rel(run_dir)}/draft.md 에 SYSTEM 의 출력 형식 그대로(<<<TITLE>>> … <<<BODY>>>) 저장하세요.",
     ])
     return 0

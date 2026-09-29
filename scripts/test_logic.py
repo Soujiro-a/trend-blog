@@ -198,6 +198,75 @@ def test_context(cfg: dict) -> None:
     check("기획 글감: 뉴스 검색 더 읽기 링크 없음", "search.naver.com" not in ctx3)
     check("기획 글감: 참고 기사는 그대로", "링크(걸어도 됨): https://example.com/a" in ctx3)
 
+    # 공식 안내 자료는 머리말에 붙어 글자수 제한에 잘리지 않고, 링크를 걸 수 있는 자료로 표시됩니다.
+    pages = [research.OfficialRef("전자상거래 소비자 보호", "https://www.ftc.go.kr/www/contents.do?key=703",
+                                  "공정거래위원회", ["계약과 다르게 공급되면 3개월 이내 청약철회"])]
+    ctx4 = research.to_context(tight, planned, many, pages)
+    check("공식 자료: 블록 포함", "## 공식 안내 자료" in ctx4 and "3개월 이내" in ctx4)
+    check("공식 자료: 링크 가능 표시", "링크(걸어도 됨): https://www.ftc.go.kr/www/contents.do?key=703" in ctx4)
+    check("공식 자료: 잘려도 유지(기사 쪽만 잘림)", "3개월 이내" in ctx4 and "생략" in ctx4)
+    check("공식 자료 없으면 블록 없음", "공식 안내 자료" not in ctx3)
+
+
+def test_official(cfg: dict) -> None:
+    """공식 안내 자료 조사: 검색 결과에 실제로 나온 공식 도메인 주소만 남깁니다."""
+    section("공식 안내 자료")
+    from types import SimpleNamespace as NS
+
+    import anthropic
+
+    oc = {**cfg["research"]["official"], "max_pages": 3, "max_facts": 2}
+    seen = [
+        "https://www.ftc.go.kr/www/contents.do?key=703",
+        "https://www.easylaw.go.kr/CSP/CnpClsMain.laf?csmSeq=835&ccfNo=4",
+        "https://law.go.kr/LSW/lsLawLinkInfo.do?lsId=009318",
+        "https://blog.example.com/post",
+        "https://www.consumer.go.kr/user/bbs/3588.do?page=34",
+    ]
+    raw = """조사하겠습니다. [예비] 결과는 아래와 같습니다.
+[{"title": "공정위 안내", "url": "https://www.ftc.go.kr/www/contents.do?key=703", "org": "공정거래위원회", "facts": ["a", "b", "c"]},
+ {"title": "법령", "url": "https://law.go.kr/LSW/lsLawLinkInfo.do?lsId=009318", "facts": ["조문"]},
+ {"title": "블로그", "url": "https://blog.example.com/post", "facts": ["x"]},
+ {"title": "지어낸 주소", "url": "https://www.gov.kr/made-up", "facts": ["y"]},
+ {"title": "줄인 주소", "url": "https://www.consumer.go.kr/user/bbs/3588.do", "facts": ["z"]},
+ {"title": "사실 없음", "url": "https://www.easylaw.go.kr/CSP/CnpClsMain.laf?csmSeq=835&ccfNo=4", "facts": []}]"""
+    got = research.parse_official(raw, seen, oc)
+    urls = [p.url for p in got]
+    check("공식 도메인 주소 채택", "https://www.ftc.go.kr/www/contents.do?key=703" in urls, str(urls))
+    check("제외 도메인(법령 원문) 버림", not any("law.go.kr/LSW" in u for u in urls))
+    check("공식 도메인 아닌 주소 버림", not any("example.com" in u for u in urls))
+    check("검색 결과에 없는 주소 버림", not any("made-up" in u for u in urls))
+    check("줄인 주소는 검색 결과 주소로 복원", "https://www.consumer.go.kr/user/bbs/3588.do?page=34" in urls, str(urls))
+    check("사실 없는 페이지 버림", not any("easylaw" in u for u in urls))
+    check("페이지당 사실 수 제한", len(got[0].facts) == 2)
+    check("응답에 배열이 없으면 빈 목록", research.parse_official("찾지 못했습니다.", seen, oc) == [])
+    check("하위 도메인만 인정 (fakego.kr 은 go.kr 아님)", not research._domain_ok("https://fakego.kr/a", ["go.kr"], []))
+
+    class FakeClient:
+        def __init__(self, fail=False):
+            self.messages, self.fail, self.calls = self, fail, []
+
+        def create(self, **req):
+            self.calls.append(req)
+            if self.fail:
+                raise anthropic.APIConnectionError(request=None)
+            result = NS(type="web_search_tool_result", content=[NS(url=seen[0], title="공정위")])
+            text = NS(type="text", text='[{"title": "공정위", "url": "%s", "facts": ["7일 이내"]}]' % seen[0])
+            usage = NS(input_tokens=30000, output_tokens=1000, server_tool_use=NS(web_search_requests=2))
+            return NS(content=[result, text], stop_reason="end_turn", usage=usage)
+
+    planned = Candidate(keyword="청약철회 기간", sources={"planner": 1}, seen=[Variant("청약철회 기간", "planner", 1)])
+    fc = FakeClient()
+    pages, cost = research.official(cfg, planned, client=fc)
+    tool = fc.calls[0]["tools"][0]
+    check("웹 검색 도구를 공식 도메인으로 제한", tool["type"].startswith("web_search") and "go.kr" in tool["allowed_domains"])
+    check("조사 결과 반환", len(pages) == 1 and pages[0].facts == ["7일 이내"])
+    check("비용에 검색 요금 포함", abs(cost - (30000 * 2 + 1000 * 10) / 1e6 - 0.02) < 1e-9, f"{cost}")
+    check("API 실패해도 예외 없이 빈 목록", research.official(cfg, planned, client=FakeClient(fail=True))[0] == [])
+    off = {**cfg, "research": {**cfg["research"], "official": {**cfg["research"]["official"], "enabled": False}}}
+    fc2 = FakeClient()
+    check("끄면 호출하지 않음", research.official(off, planned, client=fc2) == ([], 0.0) and not fc2.calls)
+
 
 def test_internal_links(cfg: dict) -> None:
     section("내부 링크 후보")
@@ -1118,6 +1187,7 @@ def test_local_trial(cfg: dict) -> None:
         (fm, "load_fleet", lambda *a, **k: fl),
         (single.planner, "propose", lambda *a, **k: [cand]),
         (single.research, "gather", lambda *a, **k: [NewsRef("기사 1", "https://a.kr/1", "A"), NewsRef("기사 2", "https://b.kr/2", "B")]),
+        (single.research, "official", lambda *a, **k: ([], 0.0)),
         (single.writer, "write", fake_article),
         (single.reviewer, "review", lambda *a, **k: reviewer.Review(verdict=verdict[0], score=90, model=cfg["review"]["model"])),
         (local_pub, "publish", lambda c, art, live=None: {"id": "", "url": str(root / "post.html"), "title": art.title}),
@@ -1178,10 +1248,10 @@ def test_weekly_report(cfg: dict) -> None:
     check("켜진 슬롯이 있는데 이력 없음 → 실행 중단 경고", any("이력 없음" in a for a in alerts), f"{alerts}")
     _, alerts = wr.section_history(posts(14), 7, expected=14)
     check("하루 2건 블로그의 정상 비용($5.6)은 경고 안 함", not any("비용" in a for a in alerts), f"{alerts}")
-    # 보고 전날 추가한 블로그: 어제 1건 + 오늘 이미 올라간 1건(이력 창에 같이 들어옴), 건당 $0.41 (2026-09 실측)
+    # 보고 전날 추가한 블로그: 어제 1건 + 오늘 이미 올라간 1건(이력 창에 같이 들어옴), 건당 $0.55 (공식 자료 조사 포함, 2026-09 실측)
     first_day = posts(2)
     for p in first_day:
-        p["cost_usd"] = 0.41
+        p["cost_usd"] = 0.55  # 공식 자료 조사 포함 실측 비용
     lines, alerts = wr.section_history(first_day, 7, expected=1, today=1)
     check("첫날 블로그: 오늘 올라간 글까지 비용 상한에 넣어 헛경보 없음", alerts == [], f"{alerts}")
     check("기대 글 수 옆에 오늘 슬롯 표시", any("1개 (+ 오늘 1개)" in l for l in lines), f"{lines[:6]}")
@@ -1235,6 +1305,7 @@ def main() -> int:
     test_filters(cfg)
     test_dedupe(cfg)
     test_context(cfg)
+    test_official(cfg)
     test_internal_links(cfg)
     test_no_why_searched(cfg)
     test_pages()

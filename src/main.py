@@ -355,18 +355,21 @@ def main(argv: list[str] | None = None) -> int:
         log.info("---- [%s] 작성 시작 (점수 %s)", candidate.keyword, candidate.score)
         try:
             refs = research.gather(cfg, candidate)
-            if len(refs) < 2:
-                log.info("[%s] 참고 기사가 %d건뿐이라 건너뜁니다.", candidate.keyword, len(refs))
-                report.append(f"- ⏭️ {candidate.keyword} — 참고 기사 부족({len(refs)}건)")
+            # 기획 글(안내 글)은 정부·공공기관 안내 페이지도 함께 모읍니다. 기한·금액 같은 핵심 숫자의 근거입니다.
+            official, official_cost = research.official(cfg, candidate) if research.is_planned(candidate) else ([], 0.0)
+            if len(refs) + len(official) < 2:
+                log.info("[%s] 참고 자료가 %d건뿐이라 건너뜁니다.", candidate.keyword, len(refs) + len(official))
+                report.append(f"- ⏭️ {candidate.keyword} — 참고 자료 부족(기사 {len(refs)}건·공식 {len(official)}곳)")
+                total_cost += official_cost
                 continue
 
             # 내부 링크 후보(이미 공개된 같은 블로그 글)를 자료에 함께 넣습니다.
             # 작성 모델과 검수 모델이 **같은 자료**를 봐야 합니다. 검수관은 자료에 없는 주소를
             # 지어낸 링크로 보고 거부하므로, 여기 없으면 멀쩡한 내부 링크가 반려됩니다.
-            context = research.to_context(cfg, candidate, refs)
+            context = research.to_context(cfg, candidate, refs, official)
             context += research.internal_links_block(history, candidate.keyword)
             article = writer.write(cfg, candidate, context, refs, date_str, mode=mode, persona=ctx.persona)
-            cost = article.cost_usd
+            cost = article.cost_usd + official_cost
             # 라벨 = 블로그 고정 라벨(publish.default_labels) + 하위 축 하나. 작성 모델이 붙이는 태그를
             # 그대로 쓰면 글마다 새 라벨이 생겨('소비자 권리'·'소비자권리' 같은 중복까지) 라벨 목록이
             # 글 1개짜리 라벨로 가득 찹니다. 애드센스 심사에서 사이트 탐색이 엉성해 보이는 원인입니다.

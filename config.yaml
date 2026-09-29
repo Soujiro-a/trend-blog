@@ -132,6 +132,34 @@ research:
   articles_per_keyword: 8
   # 기사 본문 대신 제목+요약만 사용합니다(저작권 보호).
   max_context_chars: 6000
+  # 공식 안내 자료 (src/research.py official) — 기획(planned) 글에만 씁니다.
+  # 뉴스 요약만으로는 기한·금액 같은 핵심 숫자가 비어 "공식 사이트에서 확인하세요"로 넘기는 글이 됐습니다.
+  # Claude 웹 검색을 아래 도메인으로만 좁혀 정부·공공기관 안내 페이지를 찾고, 페이지에 적힌 사실만 뽑습니다.
+  # 글 1건당 약 $0.10 추가 (검색 2~3회 + Sonnet 토큰, 2026-09 실측). 실패해도 글은 뉴스 자료로 씁니다.
+  official:
+    enabled: true
+    model: claude-sonnet-5
+    effort: low
+    max_tokens: 8000      # thinking 토큰 포함
+    max_searches: 3
+    max_pages: 4          # 자료에 넣을 페이지 수
+    max_facts: 6          # 페이지당 사실 수
+    # 이 도메인과 그 하위 주소만 검색합니다. 공공기관이지만 .or.kr·.kr 을 쓰는 곳은 하나씩 적습니다.
+    domains:
+      - go.kr             # 중앙부처·지자체·정부24·소비자24·찾기쉬운 생활법령정보 등
+      - korea.kr          # 정책브리핑
+      - gov.kr
+      - koroad.or.kr      # 도로교통공단
+      - safedriving.or.kr # 도로교통공단 운전면허
+      - kotsa.or.kr       # 한국교통안전공단 (자동차검사)
+      - fss.or.kr         # 금융감독원 (보험·카드)
+      - energy.or.kr      # 한국에너지공단 (가전 효율등급)
+      - airport.kr        # 인천국제공항공사
+    # 독자가 읽기 어려운 곳은 빼 둡니다. 법령 원문은 독자가 잘 읽지 않고, 논문은 안내가 아닙니다.
+    exclude:
+      - law.go.kr
+      - kci.go.kr
+      - assembly.go.kr
 
 writer:
   # claude-fable-5-1: 가장 성능 좋은 모델 (입력 $10 / 출력 $50 per 1M)
