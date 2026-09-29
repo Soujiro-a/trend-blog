@@ -577,6 +577,12 @@ def test_writer_parse(cfg: dict) -> None:
 
     a.input_tokens, a.output_tokens = 4000, 3000
     check("비용 계산", abs(a.cost_usd - (4000 * 5 + 3000 * 25) / 1e6) < 1e-9)
+    check("카드 블록 없는 응답도 읽힘", a.card == "")
+
+    raw_card = raw.replace("<<<BODY>>>", "<<<CARD>>>\n제목: 면세 기준\n면세 | 150달러 이하\n넘으면 | 전체 과세\n기준일 | 결제일\n<<<BODY>>>")
+    b = writer._parse(raw_card, "키워드", "claude-opus-5")
+    check("카드 블록 파싱", b.card.startswith("제목: 면세 기준") and b.body_html == "<p>본문</p>", repr(b.card))
+    check("작성 지시에 카드 블록 포함", "<<<CARD>>>" in writer.SYSTEM and "본문에 쓴 내용만" in writer.SYSTEM)
 
 
 def test_footer(cfg: dict) -> None:
@@ -608,6 +614,9 @@ def test_reviewer_parse(cfg: dict) -> None:
 
     rv3 = reviewer._parse('{"verdict": "reject", "score": 150}', "m")
     check("점수 범위 고정", rv3.score == 100)
+    check("card_ok 없으면 True", rv3.card_ok is True)
+    check("card_ok false 읽힘", reviewer._parse('{"verdict": "publish", "score": 90, "card_ok": false}', "m").card_ok is False)
+    check("검수 입력에 카드 자리", "{card}" in reviewer.USER_TEMPLATE and "card_ok" in reviewer.SYSTEM)
 
     rv3.input_tokens, rv3.output_tokens = 10000, 500
     check("검수 비용 계산", abs(rv3.cost_usd - (10000 * 2 + 500 * 10) / 1e6) < 1e-9)
@@ -1148,6 +1157,12 @@ def test_workflows() -> None:
         ]
         check(f"{name}: 모든 계정의 자격증명 전달", not missing, f"빠짐: {missing}")
         check(f"{name}: 러너 이미지 고정 (ubuntu-latest 는 2026-10-19 에 바뀜)", "runs-on: ubuntu-latest" not in text)
+    for name in ("fleet.yml", "retrofit.yml"):
+        text = (wf / name).read_text(encoding="utf-8")
+        check(f"{name}: 요약 카드 업로드 토큰·글꼴", "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in text
+              and "NotoSansKR" in text and "contents: write" in text)
+    check("retrofit.yml: 카드 글 뽑기용 API 키", "ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}"
+          in (wf / "retrofit.yml").read_text(encoding="utf-8"))
     check("fleet.yml: 실행기에 없는 --count 입력을 두지 않음",
           "inputs.count" not in (wf / "fleet.yml").read_text(encoding="utf-8"))
     weekly = (wf / "weekly_report.yml").read_text(encoding="utf-8")
@@ -1175,6 +1190,59 @@ def test_retrofit(cfg: dict) -> None:
     check("고친 글은 다시 대상 아님", not rp.needs_retrofit(new) and rp.needs_retrofit(body))
     check("새 틀 글은 그대로", rp.retrofit_html(new, guide) == (new, []))
     check("새벽(KST 00~06시)에만 고침", 5 in rp.QUIET_HOURS and 6 not in rp.QUIET_HOURS)
+
+
+def test_card(cfg: dict) -> None:
+    """요약 카드: 형식 읽기, 그림 크기, 실패해도 발행을 막지 않음, 기존 글 정리 대상."""
+    section("요약 카드")
+    import io
+    import os
+    from PIL import Image
+    from src import card
+    from scripts import retrofit_posts as rp
+
+    text = "제목: 해외직구 면세 기준\n면세 기준 | 150달러 이하\n넘으면 | 물품 전체 과세\n- 기준일 | 결제일\n기타 줄\n다섯째 | 값\n여섯째 | 값"
+    parsed = card.parse(text)
+    check("카드 글 읽기 (목록 기호 허용, 최대 4줄)", parsed is not None and parsed[0] == "해외직구 면세 기준"
+          and len(parsed[1]) == 4 and parsed[1][2] == ("기준일", "결제일"), str(parsed))
+    check("줄이 3개 미만이면 쓰지 않음", card.parse("제목: 가\n가 | 나\n다 | 라") is None)
+    check("형식 설명 머리줄은 무시", card.parse("제목: 가\n항목 | 값\n가 | 나\n다 | 라\n마 | 바")[1][0] == ("가", "나"))
+    check("제목 없으면 쓰지 않음", card.parse("가 | 나\n다 | 라\n마 | 바") is None)
+
+    c = card.Card("해외직구 면세 기준", parsed[1], "쇼핑 환불·직구 가이드", "gaganamc1.blogspot.com", "#D9480F")
+    try:
+        png = card.render(c)
+        im = Image.open(io.BytesIO(png))
+        check("그림 1200×675 PNG", im.size == (1200, 675) and im.format == "PNG")
+        long = card.Card("아주 긴 제목 " * 8, [("긴 항목 이름입니다", "아주 긴 값 " * 12)] * 4, "블로그", "x.blogspot.com")
+        check("긴 글도 그려짐 (줄바꿈·축소)", Image.open(io.BytesIO(card.render(long))).size == (1200, 675))
+    except FileNotFoundError:
+        check("그림 (글꼴 없음 — 건너뜀)", True)
+
+    cfg_on = {**cfg, "card": {**cfg.get("card", {}), "enabled": True}}
+    saved = {k: os.environ.pop(k, None) for k in ("GITHUB_TOKEN", "GITHUB_REPOSITORY")}
+    try:
+        check("토큰 없으면(로컬) 카드 없이 진행", card.make(cfg_on, "gaganamc1", "블로그", text, "k") == "")
+        check("꺼져 있으면 카드 없음", card.make({**cfg, "card": {"enabled": False}}, "gaganamc1", "블로그", text, "k") == "")
+        orig = card.upload
+        got = {}
+        card.upload = lambda png, path: got.setdefault("path", path) and f"https://raw.githubusercontent.com/o/r/abc123/{path}"
+        try:
+            h = card.make(cfg_on, "gaganamc1", "블로그", text.replace("결제일", '결제일 "당일" <기준>'), "k")
+        finally:
+            card.upload = orig
+        check("카드 HTML: 커밋 고정 주소 + 대체 텍스트", h.startswith('<div class="separator"')
+              and "/abc123/cards/gaganamc1/" in h and 'alt="해외직구 면세 기준 — 면세 기준: 150달러 이하' in h, h[:200])
+        check("대체 텍스트 이스케이프", "&quot;당일&quot; &lt;기준&gt;" in h)
+        check("블로그별 강조색 설정", cfg.get("card", {}).get("accents", {}).get("gaganamc1") == "#D9480F")
+        check("본문에 카드 있음 감지", card.has_card(h + "<p>본문</p>") and not card.has_card("<p>본문</p>"))
+        check("기존 글 정리: 카드 없는 글만 대상", rp.wants_card("<p>본문</p>", "u1", True, [])
+              and not rp.wants_card(h, "u1", True, []) and not rp.wants_card("<p>본문</p>", "u1", True, ["u1"])
+              and not rp.wants_card("<p>본문</p>", "u1", False, []))
+    finally:
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
 
 
 def test_local_trial(cfg: dict) -> None:
@@ -1327,6 +1395,7 @@ def main() -> int:
     test_context(cfg)
     test_official(cfg)
     test_retrofit(cfg)
+    test_card(cfg)
     test_internal_links(cfg)
     test_no_why_searched(cfg)
     test_pages()

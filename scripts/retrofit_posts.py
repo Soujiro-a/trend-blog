@@ -4,6 +4,8 @@
   1) 참고한 자료 끝의 네이버 뉴스 검색 '이 주제 관련 최신 기사 더 보기' 링크
   2) 끝 문구 "…까지 공개된 보도를 기준으로 정리했습니다. 이후 상황이 달라질 수 있습니다."
 안내 글에는 맞지 않아 1) 은 지우고 2) 는 새 문구(config writer.footer_note_guide, 원래 날짜 유지)로 바꿉니다.
+3) 요약 카드(src/card.py)가 없는 글에는 본문에서 핵심 값을 뽑아 카드를 맨 앞에 넣습니다(글당 약 $0.02).
+   뽑을 값이 없거나 카드를 못 만든 글은 retrofit.json 의 no_card 에 적어 다시 시도하지 않습니다.
 본문 내용은 건드리지 않습니다.
 
 한 번에 몰아서 고치지 않는 이유: 2026-09-20 에 짧은 시간 여러 건을 올린 계정의 API 쓰기가 막혔습니다.
@@ -26,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src import card as card_mod  # noqa: E402
 from src import fleet as fleet_mod  # noqa: E402
 from src import net  # noqa: E402
 from src.config import load_config, load_dotenv  # noqa: E402
@@ -62,7 +65,7 @@ def load_state() -> dict:
     try:
         return json.loads(STATE_PATH.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
-        return {"last_date": "", "done": []}
+        return {"last_date": "", "done": [], "no_card": []}
 
 
 def save_state(st: dict) -> None:
@@ -87,7 +90,13 @@ def _live_posts(blog_id: str) -> list[dict]:
             return posts
 
 
-def candidates(fleet: fleet_mod.Fleet) -> list[tuple[datetime, fleet_mod.Blog, dict]]:
+def wants_card(content: str, url: str, card_on: bool, no_card: list[str]) -> bool:
+    return card_on and url not in no_card and not card_mod.has_card(content)
+
+
+def candidates(
+    fleet: fleet_mod.Fleet, card_on: bool = False, no_card: list[str] | None = None,
+) -> list[tuple[datetime, fleet_mod.Blog, dict]]:
     """고칠 글 전체를 공개 시각 오름차순으로. 꺼진 블로그와 비상정지된 계정은 뺍니다."""
     out = []
     st = fleet_mod.load_account_state()
@@ -96,7 +105,8 @@ def candidates(fleet: fleet_mod.Fleet) -> list[tuple[datetime, fleet_mod.Blog, d
             continue
         fleet_mod.apply_env(fleet, b)
         for p in _live_posts(b.blog_id):
-            if needs_retrofit(p.get("content", "")):
+            content = p.get("content", "")
+            if needs_retrofit(content) or wants_card(content, p["url"], card_on, no_card or []):
                 out.append((datetime.fromisoformat(p["published"]), b, p))
     out.sort(key=lambda x: x[0])
     return out
@@ -138,7 +148,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     fleet = fleet_mod.load_fleet()
-    todo = candidates(fleet)
+    cfg = load_config()
+    card_on = bool((cfg.get("card") or {}).get("enabled"))
+    todo = candidates(fleet, card_on, state.get("no_card", []))
     print(f"고칠 글 {len(todo)}편 (오래된 순)")
     for when, b, p in todo[:30]:
         print(f"  {when:%m-%d %H:%M}  {b.id:13} {p['url']}")
@@ -147,10 +159,29 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     when, blog, post = todo[0]
-    guide = (load_config().get("writer") or {}).get("footer_note_guide", "")
+    guide = (cfg.get("writer") or {}).get("footer_note_guide", "")
     new, changes = retrofit_html(post["content"], guide)
-    print(f"\n오늘 고칠 글: {blog.id} {post['url']} ({when:%Y-%m-%d %H:%M}) — {', '.join(changes)}")
+    add_card = wants_card(post["content"], post["url"], card_on, state.get("no_card", []))
+    print(f"\n오늘 고칠 글: {blog.id} {post['url']} ({when:%Y-%m-%d %H:%M}) — "
+          f"{', '.join(changes + (['요약 카드 추가'] if add_card else []))}")
     if args.dry_run:
+        return 0
+
+    if add_card:
+        text, cost = card_mod.extract(cfg, post.get("title", ""), post["content"])
+        block = card_mod.make(cfg, blog.id, blog.name, text, post["url"]) if text else ""
+        print(f"카드 글 뽑기 약 ${cost:.3f}: {text[:200]!r}")
+        if block:
+            new = block + new
+            changes.append("요약 카드 추가")
+        elif not card_mod.parse(text):
+            # 뽑을 값이 없거나 형식이 안 맞는 글은 다시 해도 같으므로 건너뜁니다.
+            state.setdefault("no_card", []).append(post["url"])
+            print("카드로 만들 값이 없어 이 글은 카드 없이 둡니다 (no_card 에 기록).")
+        else:
+            print("카드 업로드에 실패했습니다. 다음 실행에서 다시 시도합니다.")
+    if not changes:
+        save_state(state)
         return 0
 
     fleet_mod.apply_env(fleet, blog)

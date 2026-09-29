@@ -34,3 +34,6 @@ data/fleet/last_fleet_run.md
 data/fleet/manager_report.md
 # 계정 비상정지 알림 — 워크플로가 이슈로 올린 뒤 지웁니다 (account_state.json 은 반드시 커밋)
 data/fleet/halt_alert.md
+
+# 요약 카드 글꼴 — 워크플로가 내려받습니다(10MB, src/card.py)
+assets/fonts/

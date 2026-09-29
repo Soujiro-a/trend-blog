@@ -66,6 +66,7 @@ SYSTEM = """당신은 한국 시사·생활정보 블로그의 발행 책임자�
 - `product_query`: commercial_intent 가 true 면 쇼핑몰에서 검색할 짧은 상품명 \
 (2~4 단어, 브랜드+품목). false 면 null.
 - `evergreen`: 이 글이 한 달 뒤에도 검색될 만한 해설·안내 성격인가.
+- `card_ok`: `요약 카드`의 모든 줄이 **본문 내용과 일치**하는가. 본문에 없는 숫자·단정, 본문과 다른 값이 하나라도 있으면 false (카드만 빼고 발행하므로 글 판정·점수에는 반영하지 마세요). 카드가 비어 있으면 true.
 
 ## 출력 형식
 
@@ -76,7 +77,8 @@ SYSTEM = """당신은 한국 시사·생활정보 블로그의 발행 책임자�
  "issues": ["구체적 문제 1", "구체적 문제 2"],
  "commercial_intent": true | false,
  "product_query": "상품 검색어" | null,
- "evergreen": true | false}"""
+ "evergreen": true | false,
+ "card_ok": true | false}"""
 
 USER_TEMPLATE = """## 참고 자료 (작성 모델에게 주어진 자료 전부)
 
@@ -87,6 +89,9 @@ USER_TEMPLATE = """## 참고 자료 (작성 모델에게 주어진 자료 전부
 제목: {title}
 요약: {description}
 태그: {labels}
+
+요약 카드(글 맨 앞 이미지에 들어갈 글):
+{card}
 
 본문(HTML):
 {body}
@@ -102,6 +107,7 @@ class Review:
     commercial_intent: bool = False
     product_query: str | None = None
     evergreen: bool = False
+    card_ok: bool = True
     input_tokens: int = 0
     output_tokens: int = 0
     model: str = ""
@@ -148,6 +154,7 @@ def _parse(raw: str, model: str) -> Review:
         commercial_intent=bool(data.get("commercial_intent", False)),
         product_query=query,
         evergreen=bool(data.get("evergreen", False)),
+        card_ok=bool(data.get("card_ok", True)),
         model=model,
     )
 
@@ -168,6 +175,7 @@ def review(
         description=article.description,
         labels=", ".join(article.labels),
         body=article.body_html,
+        card=article.card or "(없음)",
     )
 
     response = client.messages.create(

@@ -180,6 +180,18 @@ writer:
   footer_note_guide: "{date} 기준으로 정리한 내용입니다. 제도와 금액은 바뀔 수 있으니 신청 전에 담당 기관의 공식 안내를 확인하세요."
   language: ko
 
+# 글 맨 앞 '한눈에 정리' 요약 카드 이미지 (src/card.py). 작성 모델이 쓴 핵심 값 3~4줄을 코드로 그려
+# GitHub 저장소 cards/ 에 올리고(저장소가 공개여야 보입니다) 본문 맨 앞에 넣습니다. 글당 추가 비용 거의 0.
+card:
+  enabled: true
+  default_accent: "#1F5FBF"
+  accents:                  # 블로그별 강조색 (왼쪽 띠·배지·항목 이름)
+    gaganam1: "#1F5FBF"
+    gaganamc1: "#D9480F"
+    gaganamissue: "#0B7A75"
+    gaganams1: "#2F7D32"
+  retrofit_model: claude-sonnet-5   # 기존 글에 붙일 카드 글을 본문에서 뽑는 모델 (글당 약 $0.02)
+
 # AI 검수 — 사람이 초안을 읽고 '게시'를 누르던 일을 대신합니다.
 # 작성 모델과 별도 세션에서 참고 기사와 본문을 대조해 publish / hold / reject 를 판정합니다.
 review:

@@ -28,6 +28,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import evergreen, filters, guard, monetize, planner, publishers, research, reviewer, state, trends, writer
+from . import card as card_mod
 from . import fleet as fleet_mod
 from .config import DATA_DIR, load_config
 from .publishers.blogger import BloggerForbidden
@@ -427,6 +428,13 @@ def main(argv: list[str] | None = None) -> int:
                 decision = "draft"
         if decision == "live" and rv is not None:
             extras = monetize.apply(cfg, article, rv)
+        # 요약 카드: 검수관이 카드 값이 본문과 맞다고 본 경우만. 실패하면 카드 없이 그대로 발행합니다.
+        card_html = ""
+        if ctx.blog and article.card and (rv is None or rv.card_ok):
+            card_html = card_mod.make(cfg, ctx.blog.id, ctx.blog.name, article.card, candidate.keyword)
+            article.body_html = card_html + article.body_html
+        elif article.card and rv is not None and not rv.card_ok:
+            log.info("[%s] 요약 카드 값이 본문과 달라 카드 없이 발행합니다.", candidate.keyword)
 
         try:
             post = publisher.publish(labels_cfg, article, live=(decision == "live"))
@@ -472,6 +480,7 @@ def main(argv: list[str] | None = None) -> int:
         icon = "✅" if decision == "live" else "📝"
         state_txt = "공개" if decision == "live" else "임시저장"
         extra_txt = f" · 제휴: {', '.join(extras)}" if extras else ""
+        extra_txt += " · 요약 카드" if card_html else ""
         report.append(
             f"- {icon} **{article.title}** ({state_txt}, {score_txt}){issues_txt}  \n"
             f"  키워드: {candidate.keyword} · 태그: {', '.join(article.labels)} · "

@@ -57,7 +57,7 @@ SYSTEM = """당신은 한국어 생활정보 블로그 편집자입니다. 주�
 
 ## 출력 형식
 
-반드시 아래 4개 블록만, 이 순서대로 출력합니다. 다른 말은 덧붙이지 마세요.
+반드시 아래 5개 블록만, 이 순서대로 출력합니다. 다른 말은 덧붙이지 마세요.
 
 <<<TITLE>>>
 30~45자 제목. 핵심 검색어를 앞쪽에 자연스럽게 포함.
@@ -65,8 +65,23 @@ SYSTEM = """당신은 한국어 생활정보 블로그 편집자입니다. 주�
 검색 결과에 노출될 요약 2문장 (100~150자).
 <<<LABELS>>>
 쉼표로 구분한 태그 3~5개.
+<<<CARD>>>
+글 맨 앞 '한눈에 정리' 이미지에 들어갈 글 (아래 요약 카드 규칙).
 <<<BODY>>>
 HTML 본문.
+
+## 요약 카드 규칙
+
+본문을 다 읽지 않아도 독자가 찾던 답을 알 수 있게, 핵심 3~4가지를 이미지 한 장에 담습니다. 형식:
+
+제목: 카드 제목 (20자 이내. 글 제목을 반복하지 말고 핵심만. 예: `해외직구 면세 기준`)
+항목 | 값
+항목 | 값
+항목 | 값
+
+- 줄은 3~4개. 항목은 8자 이내, 값은 28자 이내로 짧게. `항목 | 값` 이라는 머리줄은 쓰지 않습니다.
+- 값에는 기한·금액·신청처·조건처럼 **구체적인 답**을 씁니다. "확인이 필요합니다" 같은 빈말은 넣지 마세요.
+- **본문에 쓴 내용만** 씁니다. 본문에 없는 숫자, 본문에서 단정하지 않은 값은 카드에도 쓰지 않습니다.
 
 ## 본문 작성 규칙
 
@@ -149,6 +164,7 @@ class Article:
     description: str
     labels: list[str] = field(default_factory=list)
     body_html: str = ""
+    card: str = ""          # 요약 카드 글 (src/card.py 가 그림으로 만듭니다). 없으면 카드 없이 발행
     input_tokens: int = 0
     output_tokens: int = 0
     model: str = ""
@@ -169,6 +185,7 @@ _BLOCK = re.compile(
     r"<<<TITLE>>>(?P<title>.*?)"
     r"<<<DESCRIPTION>>>(?P<description>.*?)"
     r"<<<LABELS>>>(?P<labels>.*?)"
+    r"(?:<<<CARD>>>(?P<card>.*?))?"
     r"<<<BODY>>>(?P<body>.*)",
     re.DOTALL,
 )
@@ -190,6 +207,7 @@ def _parse(raw: str, keyword: str, model: str) -> Article:
         description=m.group("description").strip(),
         labels=[l for l in labels if l][:5],
         body_html=m.group("body").strip(),
+        card=(m.group("card") or "").strip(),
         model=model,
     )
 

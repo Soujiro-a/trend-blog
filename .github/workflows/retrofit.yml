@@ -39,9 +39,27 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
+      # 요약 카드(src/card.py)에 쓰는 한글 글꼴. 10MB 라 저장소에 올리지 않고 받아서 캐시해 둡니다.
+      # 받지 못해도 실행은 계속되고 글이 카드 없이 발행됩니다.
+      - uses: actions/cache@v4
+        with:
+          path: assets/fonts
+          key: noto-sans-kr-vf-1
+
+      - name: 요약 카드 글꼴
+        run: |
+          mkdir -p assets/fonts
+          F=assets/fonts/NotoSansKR-VF.ttf
+          [ -s "$F" ] || curl -fsSL --retry 3 -o "$F" "https://github.com/google/fonts/raw/main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf" \
+            || { rm -f "$F"; echo "글꼴을 받지 못했습니다 — 이번 실행은 요약 카드 없이 진행합니다."; }
+
       - name: 오늘 몫 한 편 고치기
         env:
           PYTHONUTF8: "1"
+          # 카드가 없는 기존 글은 본문에서 카드 글을 뽑습니다 (글당 약 $0.02)
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # 요약 카드 이미지를 저장소 cards/ 에 커밋합니다 (permissions: contents: write)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 계정을 추가하면 fleet.yml 과 같이 여기에도 세 줄을 추가하세요 (test_logic.py 가 확인합니다).
           BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
           BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
