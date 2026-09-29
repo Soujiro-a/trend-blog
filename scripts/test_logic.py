@@ -190,6 +190,14 @@ def test_context(cfg: dict) -> None:
     check("잘려도 더 읽기 링크 유지", "search.naver.com" in ctx2)
     check("잘림 표시 있음", "생략" in ctx2)
 
+    # 블로그 주제 기획 글감: '실시간 인기 키워드'라고 부르지 않고, 뉴스 검색 링크도 주지 않습니다.
+    planned = Candidate(keyword="청약철회 기간 지났을 때 환불", sources={"planner": 1},
+                        seen=[Variant("청약철회 기간 지났을 때 환불", "planner", 1), Variant("청약철회 환불", "planner", 1)])
+    ctx3 = research.to_context(cfg, planned, refs)
+    check("기획 글감: 글감으로 표시", ctx3.startswith("# 글감:") and "실시간" not in ctx3, ctx3[:60])
+    check("기획 글감: 뉴스 검색 더 읽기 링크 없음", "search.naver.com" not in ctx3)
+    check("기획 글감: 참고 기사는 그대로", "링크(걸어도 됨): https://example.com/a" in ctx3)
+
 
 def test_internal_links(cfg: dict) -> None:
     section("내부 링크 후보")
@@ -1039,6 +1047,16 @@ def test_agents(cfg: dict) -> None:
     check("지시서: 기획 = planner.SYSTEM + 블로그 주제", req["system"] == planner.SYSTEM and "연말정산" in req["messages"][0]["content"])
     req = agent_brief.capture(writer.write, cfg, mk_candidate("연말정산 의료비 공제"), "자료", [], "2026년 09월 25일", persona="표로 정리합니다.")
     check("지시서: 작성 = 자동화 모델 + 블로그 성격", req["model"] == cfg["writer"]["model"] and "표로 정리합니다." in req["system"])
+
+    # 함대(planned) 글은 안내 글 요청문을 받아야 합니다. 예전엔 실시간 이슈 요청문이 가서 기사 요약처럼 나왔습니다.
+    req = agent_brief.capture(writer.write, cfg, mk_candidate("청약철회 기간"), "자료", [], "2026년 09월 29일", mode="planned")
+    user = req["messages"][0]["content"]
+    check("기획 글: 안내 글 요청문", "따라 할 수 있는 안내 글" in user and "실시간 인기 키워드" not in user, user[:80])
+    check("기획 글: '보도 기준' 대신 공식 안내 확인 문구",
+          "공식 안내" in req["system"] and "공개된 보도를 기준" not in req["system"])
+    req = agent_brief.capture(writer.write, cfg, mk_candidate("오늘 이슈"), "자료", [], "2026년 09월 29일", mode="trend")
+    check("실시간 글: 기존 요청문·보도 기준 문구 유지",
+          "실시간 인기 키워드" in req["messages"][0]["content"] and "공개된 보도를 기준" in req["system"])
     art = writer.Article(keyword="k", title="시험 제목", description="요약", labels=["연말정산"], body_html="<p>본문</p>")
     req = agent_brief.capture(reviewer.review, cfg, art, "자료")
     check("지시서: 검수 = reviewer.SYSTEM + 심사 대상 글", req["system"] == reviewer.SYSTEM and "시험 제목" in req["messages"][0]["content"])

@@ -23,6 +23,11 @@ def more_news_url(keyword: str) -> str:
     return NAVER_NEWS_SEARCH.format(q=urllib.parse.quote(keyword))
 
 
+def is_planned(candidate: Candidate) -> bool:
+    """블로그 주제 안에서 기획한 글감인가 (planner.propose · scripts/agent_brief.py 가 만든 후보)."""
+    return "planner" in candidate.sources
+
+
 def gather(cfg: dict, candidate: Candidate) -> list[NewsRef]:
     """구글 트렌드가 준 기사 + 키워드 검색 결과를 합칩니다."""
     limit = cfg["research"]["articles_per_keyword"]
@@ -85,26 +90,36 @@ def to_context(cfg: dict, candidate: Candidate, refs: list[NewsRef]) -> str:
     """모델에 넘길 리서치 블록을 만듭니다."""
     max_chars = cfg["research"]["max_context_chars"]
 
-    lines = [
-        f"# 실시간 인기 키워드: {candidate.keyword}",
-        "",
-        f"- 다른 표현: {', '.join(candidate.variants) or candidate.keyword}",
-        f"- 수집된 소스: {', '.join(f'{s}(#{r})' for s, r in candidate.sources.items())}",
-        f"- 통합 점수: {candidate.score}",
-    ]
-    if candidate.headline_hits:
-        lines.append("- 관련 주요 헤드라인:")
-        lines.extend(f"  - {h}" for h in candidate.headline_hits[:5])
+    if is_planned(candidate):
+        # 블로그 주제 안에서 기획한 안내 글입니다. '실시간 인기 키워드'라고 적어 주면 모델이 뉴스 정리로
+        # 받아들여 "○○일보 보도에 따르면" 식의 기사 요약 글이 됩니다(2026-09 함대 글에서 확인).
+        # 뉴스 검색 '더 읽기' 링크도 붙이지 않습니다. 안내 글에서 독자를 뉴스 검색으로 내보낼 이유가 없습니다.
+        lines = [
+            f"# 글감: {candidate.keyword}",
+            "",
+            f"- 검색 표현: {', '.join(candidate.variants) or candidate.keyword}",
+        ]
+    else:
+        lines = [
+            f"# 실시간 인기 키워드: {candidate.keyword}",
+            "",
+            f"- 다른 표현: {', '.join(candidate.variants) or candidate.keyword}",
+            f"- 수집된 소스: {', '.join(f'{s}(#{r})' for s, r in candidate.sources.items())}",
+            f"- 통합 점수: {candidate.score}",
+        ]
+        if candidate.headline_hits:
+            lines.append("- 관련 주요 헤드라인:")
+            lines.extend(f"  - {h}" for h in candidate.headline_hits[:5])
 
-    # '더 읽기' 링크는 프롬프트가 반드시 쓰도록 요구하는 값이라 머리말에 둡니다.
-    # 기사 목록 뒤에 두면 글자수 제한에 잘려나가고, 그러면 모델이 없는 주소를
-    # 지어낼 위험이 있습니다.
-    lines += [
-        "",
-        "## 독자용 '더 읽기' 링크 (항상 이 주소를 쓸 것)",
-        "",
-        more_news_url(candidate.keyword),
-    ]
+        # '더 읽기' 링크는 프롬프트가 반드시 쓰도록 요구하는 값이라 머리말에 둡니다.
+        # 기사 목록 뒤에 두면 글자수 제한에 잘려나가고, 그러면 모델이 없는 주소를
+        # 지어낼 위험이 있습니다.
+        lines += [
+            "",
+            "## 독자용 '더 읽기' 링크 (항상 이 주소를 쓸 것)",
+            "",
+            more_news_url(candidate.keyword),
+        ]
     header = "\n".join(lines)
 
     article_lines = ["", "## 참고 기사", ""]
