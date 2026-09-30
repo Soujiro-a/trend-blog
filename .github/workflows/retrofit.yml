@@ -41,7 +41,7 @@ jobs:
 
       # 요약 카드(src/card.py)에 쓰는 한글 글꼴. 10MB 라 저장소에 올리지 않고 받아서 캐시해 둡니다.
       # 받지 못해도 실행은 계속되고 글이 카드 없이 발행됩니다.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: assets/fonts
           key: noto-sans-kr-vf-1
