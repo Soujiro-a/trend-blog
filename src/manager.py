@@ -30,6 +30,7 @@ import re
 import sys
 from collections import Counter
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import anthropic
 
@@ -75,6 +76,8 @@ SYSTEM = """당신은 여러 개의 한국어 이슈 블로그를 운영하는 �
 - 지표에 `history_error` 가 있는 블로그는 이력 파일이 깨져 실행이 멈춘 상태입니다. 조치 대신 note 로 \
 사람이 복구해야 한다고 알리세요.
 - 비용이 기준을 넘는 블로그는 note 로 알리세요.
+- GSC 클릭 0 은 블로그·계정이 생긴 지 6주가 안 됐으면 정상입니다(구글 색인에 몇 주 걸리고, Blogger 는 모바일 \
+?m=1 리디렉션 때문에 첫 색인이 더 늦습니다). 램프업 경과(`ramp.age_days`)가 42일 미만이면 클릭 0 을 note 로 올리지 마세요.
 
 ## 출력
 JSON 하나만. 설명이나 코드 펜스 없이.
@@ -299,6 +302,24 @@ def _apply(actions: list[dict], now: datetime) -> None:
     fleet_mod.save_manager_state(st)
 
 
+def retrofit_section(path: Path | None = None) -> list[str]:
+    """기존 글 정리(scripts/retrofit_posts.py) 진행 현황. 기록이 없으면 빈 목록."""
+    try:
+        st = json.loads((path or fleet_mod.FLEET_DATA / "retrofit.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+    done = st.get("done", [])
+    remaining = st.get("remaining")
+    out = ["", "## 기존 글 정리 (하루 한 편)", "",
+           f"- 고친 글 {len(done)}편 · 남은 글 {remaining if remaining is not None else '?'}편"
+           f" · 카드 없이 둔 글 {len(st.get('no_card', []))}편"
+           + (f" · 마지막 확인 {st['checked_at']}" if st.get("checked_at") else "")]
+    if st.get("last_result"):
+        out.append(f"- 마지막 실행: {st['last_result']}")
+    out += [f"- {d['at'][:10]} {d['blog']} {d['url']} — {', '.join(d['changes'])}" for d in done[-3:]]
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="함대 관리 에이전트")
     parser.add_argument("--dry-run", action="store_true", help="결정만 보고 적용하지 않음")
@@ -418,6 +439,7 @@ def main(argv: list[str] | None = None) -> int:
         f"7일 공개 {sum(m['live_7d'] for m in metrics)}건** "
         f"(계정별: {', '.join(f'{a} {n}건' for a, n in sorted(per_account.items()))})",
     ]
+    lines += retrofit_section()
     if usage:
         lines.append(f"<sub>관리 모델 토큰 {usage[0]}/{usage[1]}</sub>")
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)

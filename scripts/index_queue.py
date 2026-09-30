@@ -7,6 +7,11 @@
 자연히 다음 차례가 됩니다. 이미 색인된 주소(URL 검사 API 로 확인)와 최근 30일 안에 요청한 주소는 뺍니다.
 요청 한도는 구글 계정 전체에 하루 약 10건입니다(2026-09-29 확인).
 
+**요청은 모바일 주소(…?m=1)로 합니다.** 구글은 주로 휴대폰 크롤러로 긁는데, Blogger 는 휴대폰에 원래 주소를
+?m=1 로 302 리디렉션합니다. 원래 주소로 요청하면 크롤이 '리디렉션 오류'로 끝나 요청 한 건이 버려졌습니다
+(2026-09-30 확인: 요청한 글 16건 모두 REDIRECT_ERROR). ?m=1 페이지는 바로 200 이고 원래 주소를 canonical 로
+가리키므로, 구글이 그 관계를 처리하면 원래 주소가 색인됩니다. 색인 여부는 두 주소 중 하나라도 등록됐는지로 봅니다.
+
     python scripts/index_queue.py next [--limit 10]     # 지금 요청할 주소 (JSON 한 줄씩)
     python scripts/index_queue.py mark <URL> requested  # 요청 완료 기록 (requested | quota | failed)
     python scripts/index_queue.py status                # 블로그별 색인·요청 현황
@@ -73,16 +78,33 @@ def _live_urls(blog_id: str) -> list[tuple[str, str]]:
             return out
 
 
+def mobile_url(url: str) -> str:
+    """Blogger 모바일 주소. 휴대폰 크롤러가 리디렉션 없이 바로 받는 주소입니다."""
+    return url + ("&" if "?" in url else "?") + "m=1"
+
+
 def inspect(url: str, site: str) -> dict:
-    """URL 검사 결과 {verdict, coverage, crawled}. 실패하면 빈 dict."""
-    resp = net.once().post(
-        INSPECT_URL, headers=_headers(), timeout=30,
-        json={"inspectionUrl": url, "siteUrl": site, "languageCode": "ko"},
-    )
+    """URL 검사 결과 {verdict, coverage, crawled, fetch}. 실패하면 빈 dict."""
+    try:
+        resp = net.once().post(
+            INSPECT_URL, headers=_headers(), timeout=60,
+            json={"inspectionUrl": url, "siteUrl": site, "languageCode": "ko"},
+        )
+    except Exception:  # noqa: BLE001 — 한 주소의 검사 실패로 전체를 멈추지 않습니다
+        return {}
     if resp.status_code != 200:
         return {}
     r = resp.json().get("inspectionResult", {}).get("indexStatusResult", {})
-    return {"verdict": r.get("verdict", ""), "coverage": r.get("coverageState", ""), "crawled": r.get("lastCrawlTime", "")}
+    return {"verdict": r.get("verdict", ""), "coverage": r.get("coverageState", ""),
+            "crawled": r.get("lastCrawlTime", ""), "fetch": r.get("pageFetchState", "")}
+
+
+def is_indexed(item: dict) -> tuple[bool, dict]:
+    """(원래 주소나 모바일 주소가 색인됐는지, 모바일 주소 검사 결과)."""
+    if inspect(item["url"], item["site"]).get("verdict") == "PASS":
+        return True, {}
+    m = inspect(item["request_url"], item["site"])
+    return m.get("verdict") == "PASS", m
 
 
 def queue(fleet: fleet_mod.Fleet) -> list[dict]:
@@ -94,8 +116,10 @@ def queue(fleet: fleet_mod.Fleet) -> list[dict]:
             continue
         fleet_mod.apply_env(fleet, b)
         site = f"sc-domain:{b.id}.blogspot.com"
-        homes.append({"blog": b.id, "url": f"https://{b.id}.blogspot.com/", "site": site, "published": ""})
-        posts.extend({"blog": b.id, "url": u, "site": site, "published": t} for t, u in _live_urls(b.blog_id))
+        home = f"https://{b.id}.blogspot.com/"
+        homes.append({"blog": b.id, "url": home, "request_url": mobile_url(home), "site": site, "published": ""})
+        posts.extend({"blog": b.id, "url": u, "request_url": mobile_url(u), "site": site, "published": t}
+                     for t, u in _live_urls(b.blog_id))
     posts.sort(key=lambda x: datetime.fromisoformat(x["published"]))
     return homes + posts
 
@@ -105,13 +129,17 @@ def cmd_next(args, fleet) -> int:
     done = recently_requested(load_log(), now)
     picked = []
     for item in queue(fleet):
-        if item["url"] in done:
+        # 원래 주소로 요청했던 기록은 세지 않습니다 — 그 요청은 리디렉션 오류로 끝났습니다.
+        if item["request_url"] in done:
             continue
         fleet_mod.apply_env(fleet, fleet.get(item["blog"]))
-        st = inspect(item["url"], item["site"])
-        if st.get("verdict") == "PASS":        # 이미 색인됨
+        ok, m = is_indexed(item)
+        if ok:
             continue
-        picked.append({**item, "coverage": st.get("coverage", "")})
+        if m.get("fetch") == "SUCCESSFUL":     # 모바일 주소를 이미 잘 긁어 감 — 구글이 처리 중이라 요청할 필요 없음
+            continue
+        # 예약 작업은 url 을 입력창에 넣고 mark 합니다. 그래서 url 을 모바일 주소로 바꿔 내보냅니다.
+        picked.append({**item, "url": item["request_url"], "canonical": item["url"], "coverage": m.get("coverage", "")})
         if len(picked) >= args.limit:
             break
     for p in picked:
@@ -135,18 +163,18 @@ def cmd_status(args, fleet) -> int:
     rows: dict[str, list[int]] = {}
     for item in queue(fleet):
         fleet_mod.apply_env(fleet, fleet.get(item["blog"]))
-        st = inspect(item["url"], item["site"])
-        r = rows.setdefault(item["blog"], [0, 0, 0, 0])   # 전체, 색인됨, 요청함(미색인), 대기
+        ok, m = is_indexed(item)
+        r = rows.setdefault(item["blog"], [0, 0, 0, 0])   # 전체, 색인됨, 요청함·처리 중(미색인), 대기
         r[0] += 1
-        if st.get("verdict") == "PASS":
+        if ok:
             r[1] += 1
-        elif item["url"] in done:
+        elif item["request_url"] in done or m.get("fetch") == "SUCCESSFUL":
             r[2] += 1
         else:
             r[3] += 1
-    print("블로그          전체  색인됨  요청함  대기")
+    print("블로그          전체  색인됨  요청·처리중  대기")
     for blog, (total, indexed, requested, waiting) in rows.items():
-        print(f"{blog:14} {total:5} {indexed:7} {requested:7} {waiting:5}")
+        print(f"{blog:14} {total:5} {indexed:7} {requested:12} {waiting:5}")
     return 0
 
 

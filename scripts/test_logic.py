@@ -1191,6 +1191,36 @@ def test_retrofit(cfg: dict) -> None:
     check("새 틀 글은 그대로", rp.retrofit_html(new, guide) == (new, []))
     check("새벽(KST 00~06시)에만 고침", 5 in rp.QUIET_HOURS and 6 not in rp.QUIET_HOURS)
 
+    # 실행 결과가 Actions 화면(요약 칸)과 관리 보고서에 보임
+    import json
+    import os
+    import tempfile
+    from src import manager
+    with tempfile.TemporaryDirectory() as d:
+        summary = Path(d) / "summary.md"
+        saved = {k: os.environ.get(k) for k in ("GITHUB_STEP_SUMMARY", "GITHUB_ACTIONS")}
+        os.environ["GITHUB_STEP_SUMMARY"] = str(summary)
+        os.environ.pop("GITHUB_ACTIONS", None)
+        try:
+            rp.announce("✅ 고침 — gaganamc1 u1 (남은 글 3편)", ["요약 카드 추가"])
+        finally:
+            for k, v in saved.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+        text = summary.read_text(encoding="utf-8")
+        check("실행 결과를 Actions 요약 칸에 기록", "남은 글 3편" in text and "- 요약 카드 추가" in text, text)
+        st = Path(d) / "retrofit.json"
+        st.write_text(json.dumps({"done": [{"at": "2026-09-30T05:39:29+09:00", "blog": "gaganamc1", "url": "u1",
+                                            "changes": ["요약 카드 추가"]}], "remaining": 24, "no_card": [],
+                                  "last_result": "2026-09-30 고침 — gaganamc1 u1"}, ensure_ascii=False), encoding="utf-8")
+        sec = "\n".join(manager.retrofit_section(st))
+        check("관리 보고서에 진행 현황", "고친 글 1편 · 남은 글 24편" in sec and "gaganamc1 u1" in sec, sec)
+        check("기록 없으면 보고서 칸 없음", manager.retrofit_section(Path(d) / "없음.json") == [])
+
+    from scripts import index_queue as iq
+    check("색인 요청은 모바일 주소(?m=1)로", iq.mobile_url("https://b.blogspot.com/2026/09/a.html")
+          == "https://b.blogspot.com/2026/09/a.html?m=1" and iq.mobile_url("https://b/x?a=1") == "https://b/x?a=1&m=1")
+    check("관리 모델: 신생 블로그 클릭 0 은 메모 안 함", "42일 미만" in manager.SYSTEM)
+
 
 def test_card(cfg: dict) -> None:
     """요약 카드: 형식 읽기, 그림 크기, 실패해도 발행을 막지 않음, 기존 글 정리 대상."""

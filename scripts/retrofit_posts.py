@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime
@@ -71,6 +72,17 @@ def load_state() -> dict:
 def save_state(st: dict) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(st, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+
+def announce(msg: str, detail: list[str] | None = None) -> None:
+    """실행 결과 한 줄을 GitHub Actions 실행 화면에 올립니다 (요약 칸 + 알림 주석). 로컬에서는 출력만."""
+    print(msg)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::notice title=기존 글 정리::{msg}")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as f:
+            f.write("### 기존 글 정리\n\n" + msg + "\n\n" + "".join(f"- {d}\n" for d in detail or []) + "\n")
 
 
 def _live_posts(blog_id: str) -> list[dict]:
@@ -141,10 +153,12 @@ def main(argv: list[str] | None = None) -> int:
     state = load_state()
     if not args.dry_run:
         if state.get("last_date") == today:
-            print(f"오늘({today}) 몫은 이미 고쳤습니다.")
+            last = (state.get("done") or [{}])[-1]
+            announce(f"⏭️ 건너뜀 — 오늘({today}) 몫은 이미 고쳤습니다: {last.get('url', '')}",
+                     [f"남은 글 {state.get('remaining', '?')}편"])
             return 0
         if now.hour not in QUIET_HOURS:
-            print(f"지금은 {now:%H:%M} KST — 글 작성 시간대와 겹치지 않게 00~06시에만 고칩니다.")
+            announce(f"⏭️ 건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 00~06시에만 고칩니다.")
             return 0
 
     fleet = fleet_mod.load_fleet()
@@ -155,7 +169,10 @@ def main(argv: list[str] | None = None) -> int:
     for when, b, p in todo[:30]:
         print(f"  {when:%m-%d %H:%M}  {b.id:13} {p['url']}")
     if not todo:
-        print("모두 고쳤습니다.")
+        if not args.dry_run:
+            state.update(remaining=0, checked_at=now.isoformat(timespec="minutes"), last_result="남은 글 없음")
+            save_state(state)
+        announce("✅ 고칠 글이 없습니다 — 모두 고쳤습니다.")
         return 0
 
     when, blog, post = todo[0]
@@ -165,8 +182,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n오늘 고칠 글: {blog.id} {post['url']} ({when:%Y-%m-%d %H:%M}) — "
           f"{', '.join(changes + (['요약 카드 추가'] if add_card else []))}")
     if args.dry_run:
+        announce(f"🔍 미리보기 — 고칠 글 {len(todo)}편, 다음 차례 {blog.id} {post['url']}")
         return 0
 
+    state.update(remaining=len(todo), checked_at=now.isoformat(timespec="minutes"))
     if add_card:
         text, cost = card_mod.extract(cfg, post.get("title", ""), post["content"])
         block = card_mod.make(cfg, blog.id, blog.name, text, post["url"]) if text else ""
@@ -181,7 +200,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("카드 업로드에 실패했습니다. 다음 실행에서 다시 시도합니다.")
     if not changes:
+        state["last_result"] = f"{today} 고칠 것 없음 ({post['url']}, 카드 실패 또는 뽑을 값 없음)"
         save_state(state)
+        announce(f"⚠️ 바꾼 것 없음 — {blog.id} {post['url']}: 카드를 만들지 못했습니다. 로그를 확인하세요.",
+                 [f"남은 글 {len(todo)}편"])
         return 0
 
     fleet_mod.apply_env(fleet, blog)
@@ -190,14 +212,19 @@ def main(argv: list[str] | None = None) -> int:
     except blogger.BloggerForbidden as exc:
         # 발행 때와 같은 규칙: 쓰기 차단 신호면 그 계정 전체를 멈춥니다(글 작성도 멈춤).
         fleet_mod.halt_account(blog.account, f"{blog.id} 기존 글 수정 403: {exc}")
-        print(f"⛔ 계정 '{blog.account}' 비상정지 — {exc}")
+        state["last_result"] = f"{today} ⛔ 수정 거부(403) — 계정 '{blog.account}' 비상정지"
+        save_state(state)
+        announce(f"⛔ 계정 '{blog.account}' 비상정지 — {exc}")
         return 3
     state["last_date"] = today
+    state["remaining"] = len(todo) - 1
+    state["last_result"] = f"{today} 고침 — {blog.id} {post['url']}"
     state.setdefault("done", []).append(
         {"at": now.isoformat(timespec="seconds"), "blog": blog.id, "url": post["url"], "changes": changes}
     )
     save_state(state)
-    print(f"고쳤습니다. 남은 글 {len(todo) - 1}편.")
+    announce(f"✅ 고침 — {blog.id} {post['url']} (남은 글 {len(todo) - 1}편)",
+             changes + [f"글 제목: {post.get('title', '')}", f"지금까지 {len(state['done'])}편 완료"])
     return 0
 
 
