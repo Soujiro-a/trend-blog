@@ -280,7 +280,7 @@ def extract(cfg: dict, title: str, body_html: str, client=None) -> tuple[str, fl
     from . import llm
     from .writer import PRICES
 
-    model = (cfg.get("card") or {}).get("retrofit_model", "claude-sonnet-5")
+    model = (cfg.get("card") or {}).get("retrofit_model", "claude-sonnet-5-5")
     client = client or llm.client()
     response = client.messages.create(
         model=model,

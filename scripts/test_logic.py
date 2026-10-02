@@ -868,9 +868,15 @@ def test_config_shape(cfg: dict) -> None:
     check("하루 공개 상한 2 이하", 1 <= cfg["publish"]["max_live_per_day"] <= 2, "대량 생성 정책 위험")
     check("작성 수 2 이하", 1 <= cfg["run"]["posts_per_run"] <= 2)
     check("발행 간격 설정 있음", cfg["publish"].get("min_gap_minutes", 0) >= 30)
-    check("글 작성 모델은 Fable", cfg["writer"]["model"] == "claude-fable-5-1", cfg["writer"]["model"])
-    check("검수·기획·관리는 Sonnet",
-          cfg["review"]["model"] == cfg["planner"]["model"] == cfg["manager"]["model"] == "claude-sonnet-5")
+    # 2026-10-02: 작성은 Opus 5.5, 기획·관리·자료 조사·카드는 Sonnet 5.5. 검수는 공개 기준(80점)을 맞춘 Sonnet 5 그대로.
+    check("글 작성 모델은 Opus 5.5", cfg["writer"]["model"] == "claude-opus-5-5", cfg["writer"]["model"])
+    check("기획·관리·자료 조사·카드는 Sonnet 5.5",
+          cfg["planner"]["model"] == cfg["manager"]["model"] == cfg["research"]["official"]["model"]
+          == cfg["card"]["retrofit_model"] == "claude-sonnet-5-5")
+    check("검수는 Sonnet 5 유지", cfg["review"]["model"] == "claude-sonnet-5", cfg["review"]["model"])
+    for key, model in (("writer", cfg["writer"]["model"]), ("planner", cfg["planner"]["model"]),
+                       ("research.official", cfg["research"]["official"]["model"])):
+        check(f"{key} 모델 비용표에 있음", model in writer.PRICES, model)
     check("planner 섹션", cfg["planner"]["candidates"] >= 3)
     check("evergreen 섹션", cfg["evergreen"]["posts_per_run"] >= 1)
     check("monetize.coupang 섹션", isinstance(cfg["monetize"]["coupang"]["enabled"], bool))

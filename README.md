@@ -9,10 +9,10 @@ GitHub Actions (공개 저장소 · 무료)
 
  fleet.yml           10분마다 예약 ─▶ src/fleet_run.py  "슬롯 시각이 지났고 오늘 아직 안 돈" 슬롯을 차례로
                                         └▶ src/main.py --blog <id>   슬롯 하나 = 글 한 건
-                                             ① 글감 기획  Sonnet 5   블로그 고유 주제(subject·pillars) 안에서
+                                             ① 글감 기획  Sonnet 5.5 블로그 고유 주제(subject·pillars) 안에서
                                              ② 참고 자료  구글 뉴스 검색 (제목·요약·출처만)
-                                                         + 정부·공공기관 안내 페이지 (Sonnet 5 웹 검색, 공식 도메인만)
-                                             ③ 작성      Fable 5.1  블로그별 문체(persona) + 같은 블로그 글 내부 링크
+                                                         + 정부·공공기관 안내 페이지 (Sonnet 5.5 웹 검색, 공식 도메인만)
+                                             ③ 작성      Opus 5.5   블로그별 문체(persona) + 같은 블로그 글 내부 링크
                                              ④ 검수      Sonnet 5   publish / hold / reject
                                              ⑤ 요약 카드  작성 모델이 쓴 핵심 값 3~4줄을 이미지로 그려 저장소 cards/ 에 올리고 글 맨 앞에
                                              ⑥ 발행      안전장치를 통과하면 공개, 아니면 임시저장
@@ -99,7 +99,7 @@ Anthropic 사용 한도나 인증 문제는 모든 블로그가 똑같이 실패
 - **공식 안내 자료**: 같은 글감으로 정부·공공기관 안내 페이지(정부24·소비자24·찾기쉬운 생활법령정보·정책브리핑·각 기관 민원 안내 등)를
   웹 검색해 기한·금액·신청처 같은 사실을 뽑습니다. 검색 도메인은 `config.yaml` 의 `research.official.domains` 로 좁히고,
   법령 원문·논문은 뺍니다. 실제 검색 결과에 나온 주소만 쓰며, 실패해도 글은 뉴스 자료로 씁니다. 기사와 공식 자료를 합쳐 2건 미만이면 그 글감은 건너뜁니다.
-- **작성**(Fable 5.1): 참고 자료에 있는 사실만 쓰고, 금액·기한·법 조항은 자료에 그대로 있을 때만 적습니다. 첫 문단부터 답을 주고,
+- **작성**(Opus 5.5): 참고 자료에 있는 사실만 쓰고, 금액·기한·법 조항은 자료에 그대로 있을 때만 적습니다. 첫 문단부터 답을 주고,
   같은 블로그의 이미 공개된 글이 문맥에 맞으면 내부 링크를 최대 2개 겁니다.
 - **요약 카드**(`src/card.py`): 작성 모델이 본문의 핵심 값 3~4줄(`항목 | 값`)을 따로 쓰면, 검수관이 본문과 맞는지 보고(`card_ok`)
   맞을 때만 1200×675 '한눈에 정리' 이미지로 그려 글 맨 앞에 넣습니다. 이미지는 GitHub 저장소 `cards/` 에 커밋하고
@@ -130,7 +130,7 @@ Anthropic 사용 한도나 인증 문제는 모든 블로그가 똑같이 실패
 
 ### 매일 밤 관리 — `src/manager.py`
 매일 23:35 KST 에 블로그별 7일 지표(공개/보류/거부, 비용, 검수 평균, 연속 실패, Blogger 글 수, Search Console 클릭)를 모아
-Sonnet 5 에게 넘기고, **중지 / 재개 / 메모** 세 가지 행동 안에서만 판단을 받습니다. 코드가 규칙(연속 3회 실패 → 중지,
+Sonnet 5.5 에게 넘기고, **중지 / 재개 / 메모** 세 가지 행동 안에서만 판단을 받습니다. 코드가 규칙(연속 3회 실패 → 중지,
 하루 변경 5건까지, 사람이 끈 블로그는 안 건드림)으로 다시 걸러 `data/fleet/manager_state.json` 에 적용합니다.
 모델 호출이 실패해도 규칙 기반 최소 조치는 적용됩니다.
 **발행량을 올리는 권한은 없습니다.** 2026-09-25 에 관리 모델이 만 4일 된 블로그를 하루 2건으로 올리려 해서 없앴고, 증량은 램프업만 합니다.
@@ -186,9 +186,9 @@ GitHub 에서 직접 돌리려면 Actions 탭 → **블로그 함대 실행** �
 
 | 에이전트 | 모델 | 자동화에서 같은 일을 하는 코드 | 이렇게 부릅니다 |
 |---|---|---|---|
-| `fleet-manager` | Sonnet 5 | `src/manager.py` · `scripts/*_cli.py` | "함대 상태 봐줘", "블로그 추가해" |
-| `topic-planner` | Sonnet 5 | `src/planner.py` | "gaganam1 다음 글감 뽑아줘" |
-| `post-writer` | Fable 5.1 | `src/writer.py` | "이 글감으로 초안 써줘" |
+| `fleet-manager` | Sonnet 5.5 | `src/manager.py` · `scripts/*_cli.py` | "함대 상태 봐줘", "블로그 추가해" |
+| `topic-planner` | Sonnet 5.5 | `src/planner.py` | "gaganam1 다음 글감 뽑아줘" |
+| `post-writer` | Opus 5.5 | `src/writer.py` | "이 글감으로 초안 써줘" |
 | `post-reviewer` | Sonnet 5 | `src/reviewer.py` | "방금 쓴 초안 검수해줘" |
 
 - **자동화는 에이전트와 무관하게 돕니다.** 워크플로는 `.claude/` 를 읽지 않습니다.
@@ -264,13 +264,13 @@ python scripts/account_cli.py resume <계정> --yes   # 비상정지 해제 — 
 | 항목 | 비용 |
 |---|---|
 | Blogger · GitHub Actions(공개 저장소) · 뉴스 검색 | 무료 |
-| **Claude API** | 글 1건 약 **$0.5~0.6** (Fable 작성 + Sonnet 기획·공식 자료 조사·검수, 2026-09 실측) |
+| **Claude API** | 글 1건 약 **$0.30** (Opus 5.5 작성 + Sonnet 기획·공식 자료 조사·검수, 2026-10 추정. Fable 5.1 로 쓰던 9월엔 $0.5~0.6) |
 
-- 지금(하루 4건) 약 $2.2/일 · **월 $65 안팎**. `second` 계정이 11/16 에 하루 8건이 되면 월 $130 안팎입니다.
-- 블로그 하나가 램프업을 마치면(하루 2건) 월 약 $33 입니다. 10개면 월 $330, 100개면 월 $3,300 수준입니다.
+- 지금(하루 4건) 약 $1.2/일 · **월 $36 안팎**. `second` 계정이 11/16 에 하루 8건이 되면 월 $72 안팎입니다.
+- 블로그 하나가 램프업을 마치면(하루 2건) 월 약 $18 입니다. 10개면 월 $180, 100개면 월 $1,800 수준입니다.
 - 공식 자료 조사(글 1건 약 $0.1)는 `research.official.enabled: false` 로 끌 수 있습니다.
 - 요약 카드는 새 글에 추가 비용이 거의 없고(작성 출력 몇 줄), 기존 글에 붙일 때만 글당 약 $0.01~0.02(Sonnet 으로 본문에서 뽑기)입니다.
-- 블로그별로 `overrides: {writer: {model: claude-sonnet-5}}` 를 두면 그 블로그의 비용이 약 1/3 로 줍니다(품질은 조금 낮아짐).
+- 블로그별로 `overrides: {writer: {model: claude-sonnet-5-5}}` 를 두면 그 블로그의 글 1건이 약 $0.22 로 줍니다(품질은 조금 낮아짐).
 - [console.anthropic.com](https://console.anthropic.com) 에서 **월 사용 한도**를 예상 비용의 두 배쯤으로 걸어 두세요.
   한도에 걸리면 함대 실행은 슬롯을 기록하지 않고 멈추므로, 한도를 올리면 그날 안에 이어서 돕니다.
 - 저장소가 **공개**라 GitHub Actions 는 무료·무제한입니다(코드와 이력만 공개되고 시크릿은 노출되지 않습니다).
@@ -286,9 +286,9 @@ python scripts/account_cli.py resume <계정> --yes   # 비상정지 해제 — 
 
 | 설정 | 파일 | 의미 |
 |---|---|---|
-| `writer.model` · `effort` · `target_length` | config | 작성 모델(Fable 5.1) · 생각 깊이 · 최소 글자 수(1,900자) |
+| `writer.model` · `effort` · `target_length` | config | 작성 모델(Opus 5.5) · 생각 깊이 · 최소 글자 수(1,900자) |
 | `review.min_score` | config | 공개 기준 점수(80). 낮추면 더 많이 공개되고 위험도 올라갑니다 |
-| `review.model` · `planner.model` · `manager.model` | config | 검수·기획·관리 모델(Sonnet 5) |
+| `review.model` · `planner.model` · `manager.model` | config | 검수(Sonnet 5 — 공개 기준을 이 모델로 맞춰 둠) · 기획·관리(Sonnet 5.5) |
 | `publish.mode` | config | `auto` 검수 통과 시 공개 / `draft` 전부 임시저장 (불안하면 draft) |
 | `publish.max_live_per_day` · `min_gap_minutes` | config | 블로그 하루 공개 상한(2) · 같은 블로그 연속 공개 간격(45분). 상한 2는 테스트로 고정돼 있습니다 |
 | `dedupe.history_days` | config | 같은 글감을 다시 쓰지 않을 기간(14일) |
@@ -357,7 +357,7 @@ src/
   planner.py                   글감 기획 — 블로그 고유 주제 안에서 (Sonnet)
   research.py                  참고 기사 · 공식 안내 자료 수집 · 내부 링크 후보
   card.py                      요약 카드 이미지 (그리기 · 저장소 업로드 · 기존 글용 카드 글 뽑기)
-  writer.py                    글 작성 (Fable)
+  writer.py                    글 작성 (Opus)
   reviewer.py                  검수 — publish / hold / reject + 구매 의도 판단 (Sonnet)
   manager.py                   매일 밤 관리 — 중지/재개/메모 (Sonnet)
   state.py                     작성 이력 · 중복 방지 · 이력 손상 감지

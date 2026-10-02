@@ -1,8 +1,8 @@
 ---
 name: topic-planner
-description: 함대 블로그 한 곳의 고유 주제(subject)와 하위 축(pillars) 안에서 다음 글감 후보를 뽑는다. 매 슬롯마다 자동화가 src/planner.py 로 하는 기획을 같은 지시문·같은 모델(Sonnet 5)로 한다. "gaganam1 다음 글감 뽑아줘", "이 블로그가 앞으로 무엇을 쓰게 될지 보여줘"처럼 글감을 정해야 할 때 쓴다. 글을 쓰거나 blogs.yaml 을 고치지 않는다.
+description: 함대 블로그 한 곳의 고유 주제(subject)와 하위 축(pillars) 안에서 다음 글감 후보를 뽑는다. 매 슬롯마다 자동화가 src/planner.py 로 하는 기획을 같은 지시문·같은 모델(Sonnet 5.5)로 한다. "gaganam1 다음 글감 뽑아줘", "이 블로그가 앞으로 무엇을 쓰게 될지 보여줘"처럼 글감을 정해야 할 때 쓴다. 글을 쓰거나 blogs.yaml 을 고치지 않는다.
 tools: Read, Bash, Glob, Grep
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 effort: low
 maxTurns: 8
 color: blue
@@ -14,7 +14,7 @@ color: blue
 
 ## 규칙은 자동화의 원문을 받아 씁니다
 
-이 파일에는 기획 규칙을 옮겨 적지 않았습니다. 자동화가 Sonnet 5 에 보내는 요청 원문을 그대로 받습니다.
+이 파일에는 기획 규칙을 옮겨 적지 않았습니다. 자동화가 Sonnet 5.5 에 보내는 요청 원문을 그대로 받습니다.
 그래서 `src/planner.py` 가 바뀌어도 이 파일을 고칠 필요 없이 같은 기준으로 움직입니다.
 
 ```bash

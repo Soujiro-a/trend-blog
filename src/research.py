@@ -186,7 +186,7 @@ def official(cfg: dict, candidate: Candidate, *, client=None) -> tuple[list[Offi
 
     variants = ", ".join(dict.fromkeys([candidate.keyword, *candidate.variants]))
     request = dict(
-        model=oc.get("model", "claude-sonnet-5"),
+        model=oc.get("model", "claude-sonnet-5-5"),
         max_tokens=int(oc.get("max_tokens", 8000)),
         output_config={"effort": oc.get("effort", "low")},
         system=OFFICIAL_SYSTEM,

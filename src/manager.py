@@ -6,7 +6,7 @@
    Blogger 실제 공개 글 수, (권한이 있으면) Search Console 클릭.
 2. 함대 전체 이상을 찾습니다 — 같은 날 여러 블로그가 비슷한 제목을 낸 경우(중복 콘텐츠),
    비용 급증, 실행이 안 된 블로그.
-3. Claude(Sonnet 5)에게 지표와 운영 규칙을 주고 **정해진 행동 목록 안에서만** 결정을 받습니다:
+3. Claude(Sonnet 5.5)에게 지표와 운영 규칙을 주고 **정해진 행동 목록 안에서만** 결정을 받습니다:
       pause / resume / note
    코드가 규칙으로 다시 검증한 뒤 data/fleet/manager_state.json 에 적용합니다.
    **발행량은 올리지 못합니다.** 증량은 블로그·계정 나이로 정해지는 램프업(src/fleet.py)만 합니다.
@@ -233,7 +233,7 @@ def _ask_model(cfg: dict, metrics: list[dict], duplicates: list[str], alerts: li
         + "\n\n위 규칙 안에서 오늘 할 행동을 JSON 으로 출력하세요."
     )
     resp = client.messages.create(
-        model=cfg.get("manager", {}).get("model", "claude-sonnet-5"),
+        model=cfg.get("manager", {}).get("model", "claude-sonnet-5-5"),
         max_tokens=6000,
         system=system,
         output_config={"effort": "medium"},
