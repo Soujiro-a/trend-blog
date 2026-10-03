@@ -1227,6 +1227,17 @@ def test_retrofit(cfg: dict) -> None:
           == "https://b.blogspot.com/2026/09/a.html?m=1" and iq.mobile_url("https://b/x?a=1") == "https://b/x?a=1&m=1")
     check("관리 모델: 신생 블로그 클릭 0 은 메모 안 함", "42일 미만" in manager.SYSTEM)
 
+    # 글별 검색 설명 (Blogger API 에 칸이 없어 이력에 남겨 두고 브라우저로 넣습니다)
+    from scripts import search_desc as sd
+    long = "가" * 90 + "입니다. " + "나" * 100
+    check("검색 설명: 150자 안이면 그대로", sd.fit("  짧은  설명입니다. ") == "짧은 설명입니다.")
+    check("검색 설명: 넘치면 문장 끝에서 자름", sd.fit(long) == "가" * 90 + "입니다.", sd.fit(long))
+    check("검색 설명: 문장 끝 없으면 150자", len(sd.fit("다" * 300)) == 150 and sd.fit("다" * 300).endswith("…"))
+    h = state.record([], "k", "t", url="u", status="live", description="설명")
+    check("이력에 검색 설명 저장", h[-1].get("description") == "설명"
+          and "description" not in state.record([], "k", "t")[-1])
+    check("작성 결과의 설명을 이력에 넘김", "description=article.description" in (Path(__file__).resolve().parent.parent / "src" / "main.py").read_text(encoding="utf-8"))
+
 
 def test_card(cfg: dict) -> None:
     """요약 카드: 형식 읽기, 그림 크기, 실패해도 발행을 막지 않음, 기존 글 정리 대상."""

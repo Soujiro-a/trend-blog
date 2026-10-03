@@ -464,6 +464,7 @@ def main(argv: list[str] | None = None) -> int:
             cost_usd=cost,
             review_score=rv.score if rv else None,
             extras=extras,
+            description=article.description if decision == "live" else "",
         )
         if persist:
             state.save(history, ctx.history_path)

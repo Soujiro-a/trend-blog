@@ -193,6 +193,13 @@ card:
     gaganams1: "#2F7D32"
   retrofit_model: claude-sonnet-5-5   # 기존 글에 붙일 카드 글을 본문에서 뽑는 모델 (글당 약 $0.02)
 
+# 글별 검색 설명 (scripts/search_desc.py). Blogger API 에는 이 칸이 없어, 비워 두면 모든 글의 검색·공유 설명이
+# 블로그 전체 설명과 똑같이 나갑니다(2026-10-03 확인). 새 글은 작성 모델이 쓴 설명을, 그 전 글은 아래 모델이 본문에서
+# 만든 설명을 예약 작업(gsc 와 같은 앱 내장 브라우저)이 글 설정의 '검색 설명' 칸에 넣습니다.
+search_description:
+  model: claude-sonnet-5-5   # 이력에 설명이 없는 옛 글에만 씁니다 (글당 약 $0.003)
+  max_chars: 150             # Blogger 검색 설명 칸 한도
+
 # AI 검수 — 사람이 초안을 읽고 '게시'를 누르던 일을 대신합니다.
 # 작성 모델과 별도 세션에서 참고 기사와 본문을 대조해 publish / hold / reject 를 판정합니다.
 review:
