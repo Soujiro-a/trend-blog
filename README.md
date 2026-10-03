@@ -249,6 +249,9 @@ python scripts/fleet_cli.py discover --account second [--add]   # 그 계정의 
 비상정지된 계정에는 블로그를 추가할 수 없습니다. 등록한 뒤에는 위 표의 8~10단계(주제 채우기 → `validate`,
 `setup_pages.py --blog <id>`, Search Console 속성 추가·사이트맵 제출)를 하고 커밋·푸시합니다.
 
+**블로그를 하나 만들 때마다 [새 블로그 체크리스트](docs/new-blog-checklist.md)를 처음부터 끝까지 따라가세요.** 네이버·다음·Bing 등록,
+Blogger 설정(검색 설명·맞춤 robots.txt), 마지막 확인(`python scripts/registration_check.py --blog <id>`)까지 들어 있습니다.
+
 ### 계정 멈추기 · 갈아타기
 
 ```bash
