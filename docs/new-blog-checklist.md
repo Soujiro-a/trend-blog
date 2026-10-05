@@ -98,7 +98,7 @@ Sitemap: https://<id>.blogspot.com/sitemap.xml
 
 | ✓ | 누가 | 할 일 |
 |---|---|---|
-| ☐ | 자동 | 글별 검색 설명: 예약 작업 `blogger-search-descriptions` (매일 14:00·20:00, 8편씩)가 `scripts/search_desc.py` 목록을 글 편집 화면에 넣습니다. 새 블로그 글은 자동으로 들어갑니다. 진행은 `python scripts/search_desc.py status` |
+| ☐ | 자동 | 글별 검색 설명: 예약 작업 `blogger-search-descriptions` (매일 09:00, 12편씩. 색인 요청은 10:30)가 `scripts/search_desc.py` 목록을 글 편집 화면에 넣습니다. 새 블로그 글은 자동으로 들어갑니다. 진행은 `python scripts/search_desc.py status` |
 | ☐ | 사람 | **새 구글 계정의 블로그라면:** 이 작업은 내장 브라우저의 Blogger 편집 화면이 그 블로그를 편집할 수 있는 계정으로 로그인돼 있어야 합니다 |
 
 ## 6. 마지막 확인
