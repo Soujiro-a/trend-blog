@@ -13,6 +13,7 @@
 가리키므로, 구글이 그 관계를 처리하면 원래 주소가 색인됩니다. 색인 여부는 두 주소 중 하나라도 등록됐는지로 봅니다.
 
     python scripts/index_queue.py next [--limit 10]     # 지금 요청할 주소 (JSON 한 줄씩)
+    python scripts/index_queue.py next --fresh          # 매시간 작업용: 최근 72시간 새 글 + 하루 한 번 밀린 주소 3건
     python scripts/index_queue.py mark <URL> requested  # 요청 완료 기록 (requested | quota | failed)
     python scripts/index_queue.py status                # 블로그별 색인·요청 현황
 
@@ -38,6 +39,9 @@ from src.state import KST  # noqa: E402
 LOG_PATH = OUT_DIR / "gsc" / "index_requests.json"
 INSPECT_URL = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"
 REREQUEST_DAYS = 30
+FRESH_HOURS = 72          # --fresh: 이 시간 안에 공개된 글을 '새 글'로 봅니다 (할당량에 밀려도 다음 날 다시 나오게 넉넉히)
+BACKLOG_PER_DAY = 3      # --fresh: 하루 한 번 밀린 주소를 이만큼 더 붙입니다. 나머지 한도는 새 글 몫
+BACKLOG_DAY_PATH = OUT_DIR / "gsc" / "backlog_day.txt"
 
 
 def load_log() -> list[dict]:
@@ -124,11 +128,62 @@ def queue(fleet: fleet_mod.Fleet) -> list[dict]:
     return homes + posts
 
 
+def quota_hit_today(entries: list[dict], now: datetime) -> bool:
+    return any(e.get("result") == "quota" and e["at"][:10] == now.date().isoformat() for e in entries)
+
+
+def pick_fresh(items: list[dict], entries: list[dict], now: datetime, hours: int = FRESH_HOURS) -> list[dict]:
+    """최근 hours 시간 안에 공개됐고 아직 요청하지 않은 글. 갓 올라온 글은 색인됐을 리 없어 검사 없이 고릅니다.
+
+    오늘 이미 손댄 주소(실패 포함)는 다시 고르지 않습니다 — 매시간 도는 작업이 같은 실패를 되풀이하지 않게.
+    할당량에 막혀 못 한 글은 다음 날 다시 나옵니다.
+    """
+    done = recently_requested(entries, now)
+    today = now.date().isoformat()
+    touched = {e["url"] for e in entries if e["at"][:10] == today and e.get("result") != "quota"}
+    cutoff = now - timedelta(hours=hours)
+    return [
+        {**it, "url": it["request_url"], "canonical": it["url"], "coverage": "새 글"}
+        for it in items
+        if it["published"] and datetime.fromisoformat(it["published"]) >= cutoff
+        and it["request_url"] not in done and it["request_url"] not in touched
+    ]
+
+
+def backlog_due(now: datetime) -> bool:
+    """밀린 주소(검사가 필요해 몇 분 걸림)는 하루 한 번만 봅니다. 처음 부를 때 오늘 날짜를 남깁니다."""
+    today = now.date().isoformat()
+    try:
+        if BACKLOG_DAY_PATH.read_text(encoding="utf-8").strip() == today:
+            return False
+    except FileNotFoundError:
+        pass
+    BACKLOG_DAY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    BACKLOG_DAY_PATH.write_text(today, encoding="utf-8")
+    return True
+
+
 def cmd_next(args, fleet) -> int:
     now = datetime.now(KST)
-    done = recently_requested(load_log(), now)
-    picked = []
-    for item in queue(fleet):
+    entries = load_log()
+    if quota_hit_today(entries, now):
+        print("# 오늘은 할당량을 다 썼습니다. 내일 다시 합니다.")
+        return 0
+    items = queue(fleet)
+    picked: list[dict] = []
+    if args.fresh:
+        picked = pick_fresh(items, entries, now)[: args.limit]
+        if len(picked) >= args.limit or not backlog_due(now):
+            for p in picked:
+                print(json.dumps(p, ensure_ascii=False))
+            if not picked:
+                print("# 새로 올라온 글이 없습니다.")
+            return 0
+    done = recently_requested(entries, now) | {p["url"] for p in picked}
+    limit = args.limit if not args.fresh else min(args.limit, len(picked) + BACKLOG_PER_DAY)
+    for item in items:
+        if len(picked) >= limit:
+            break
         # 원래 주소로 요청했던 기록은 세지 않습니다 — 그 요청은 리디렉션 오류로 끝났습니다.
         if item["request_url"] in done:
             continue
@@ -140,8 +195,6 @@ def cmd_next(args, fleet) -> int:
             continue
         # 예약 작업은 url 을 입력창에 넣고 mark 합니다. 그래서 url 을 모바일 주소로 바꿔 내보냅니다.
         picked.append({**item, "url": item["request_url"], "canonical": item["url"], "coverage": m.get("coverage", "")})
-        if len(picked) >= args.limit:
-            break
     for p in picked:
         print(json.dumps(p, ensure_ascii=False))
     if not picked:
@@ -183,6 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("next")
     p.add_argument("--limit", type=int, default=10)
+    p.add_argument("--fresh", action="store_true", help="새로 올라온 글 먼저(검사 없이 빠름), 밀린 주소는 하루 한 번만")
     p = sub.add_parser("mark")
     p.add_argument("url")
     p.add_argument("result", choices=["requested", "quota", "failed"])

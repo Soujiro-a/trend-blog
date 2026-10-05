@@ -1225,6 +1225,19 @@ def test_retrofit(cfg: dict) -> None:
     from scripts import index_queue as iq
     check("색인 요청은 모바일 주소(?m=1)로", iq.mobile_url("https://b.blogspot.com/2026/09/a.html")
           == "https://b.blogspot.com/2026/09/a.html?m=1" and iq.mobile_url("https://b/x?a=1") == "https://b/x?a=1&m=1")
+    from datetime import datetime as _dt
+    now = _dt.fromisoformat("2026-10-05T15:00:00+09:00")
+    mk = lambda n, pub: {"blog": "b", "url": f"u{n}", "request_url": f"u{n}?m=1", "site": "s", "published": pub}
+    items = [mk(0, ""), mk(1, "2026-09-20T09:00:00+09:00"), mk(2, "2026-10-04T09:00:00+09:00"),
+             mk(3, "2026-10-05T14:10:00+09:00"), mk(4, "2026-10-05T12:00:00+09:00"), mk(5, "2026-10-05T11:00:00+09:00")]
+    log = [{"at": "2026-10-04T10:00:00+09:00", "url": "u2?m=1", "result": "requested"},
+           {"at": "2026-10-05T12:30:00+09:00", "url": "u4?m=1", "result": "failed"},
+           {"at": "2026-10-05T11:30:00+09:00", "url": "u5?m=1", "result": "quota"}]
+    fresh = iq.pick_fresh(items, log, now)
+    check("새 글 색인: 72시간 안 미요청 글만, 첫 화면·옛 글·요청한 글·오늘 실패한 글 제외 (할당량 막힌 글은 다시)",
+          [f["url"] for f in fresh] == ["u3?m=1", "u5?m=1"] and fresh[0]["canonical"] == "u3", str(fresh))
+    check("오늘 할당량 막혔으면 더 고르지 않음", iq.quota_hit_today(log, now)
+          and not iq.quota_hit_today(log, _dt.fromisoformat("2026-10-06T08:00:00+09:00")))
     check("관리 모델: 신생 블로그 클릭 0 은 메모 안 함", "42일 미만" in manager.SYSTEM)
 
     # 글별 검색 설명 (Blogger API 에 칸이 없어 이력에 남겨 두고 브라우저로 넣습니다)

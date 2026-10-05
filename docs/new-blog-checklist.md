@@ -40,7 +40,7 @@
 |---|---|---|
 | ☐ | 사람 | [Search Console](https://search.google.com/search-console) 에 **그 블로그를 가진 구글 계정으로** 속성 추가 (지금 블로그들은 도메인 속성 `sc-domain:<id>.blogspot.com`) |
 | ☐ | 사람 | Sitemaps 에 `https://<id>.blogspot.com/sitemap.xml` 제출. 빠지면 주간 보고가 경고합니다 |
-| ☐ | 자동 | 색인 요청: 예약 작업 `gsc-index-requests` 가 `scripts/index_queue.py` 대기열로 하루 약 10건(계정 전체 한도) 요청합니다. 새 블로그는 대기열에 자동으로 들어갑니다. 요청 주소는 `?m=1` 모바일 주소입니다(원래 주소는 REDIRECT_ERROR) |
+| ☐ | 자동 | 색인 요청: 예약 작업 `gsc-index-requests` 가 매시 50분(07:50~22:50) `index_queue.py next --fresh` 로 새 글을 올라온 지 1시간 안에 요청합니다(하루 약 10건, 계정 전체 한도. 밀린 주소는 하루 한 번 3건). 새 블로그는 대기열에 자동으로 들어갑니다. 요청 주소는 `?m=1` 모바일 주소입니다(원래 주소는 REDIRECT_ERROR) |
 | ☐ | 사람 | **새 구글 계정의 블로그라면:** 예약 작업 `gsc-index-requests` 는 내장 브라우저에 `/u/1/`(두 번째 계정)으로 로그인돼 있다고 가정합니다. 다른 계정이면 그 작업을 고쳐야 합니다 |
 
 ## 4. 네이버 · 다음 · Bing
@@ -98,7 +98,7 @@ Sitemap: https://<id>.blogspot.com/sitemap.xml
 
 | ✓ | 누가 | 할 일 |
 |---|---|---|
-| ☐ | 자동 | 글별 검색 설명: 예약 작업 `blogger-search-descriptions` (매일 09:00, 12편씩. 색인 요청은 10:30)가 `scripts/search_desc.py` 목록을 글 편집 화면에 넣습니다. 새 블로그 글은 자동으로 들어갑니다. 진행은 `python scripts/search_desc.py status` |
+| ☐ | 자동 | 글별 검색 설명: 예약 작업 `blogger-search-descriptions` (매일 06:30, 12편씩)가 `scripts/search_desc.py` 목록을 글 편집 화면에 넣습니다. 새 블로그 글은 자동으로 들어갑니다. 진행은 `python scripts/search_desc.py status` |
 | ☐ | 사람 | **새 구글 계정의 블로그라면:** 이 작업은 내장 브라우저의 Blogger 편집 화면이 그 블로그를 편집할 수 있는 계정으로 로그인돼 있어야 합니다 |
 
 ## 6. 마지막 확인
