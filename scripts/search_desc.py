@@ -8,6 +8,7 @@ Blogger API(v3)에는 글별 검색 설명 칸이 없습니다. 비워 두면 �
 config search_description.model 이 본문에서 한 번 만들어 out/blogger/search_desc.json 에 저장해 둡니다.
 
     python scripts/search_desc.py next --limit 10   # 넣을 글 (JSON 한 줄에 하나)
+    python scripts/search_desc.py next --fresh      # 매시간 작업용: 최근 72시간 새 글만 (몇 초)
     python scripts/search_desc.py verify <url>      # 페이지에 반영됐는지 확인하고 기록
     python scripts/search_desc.py mark <url> failed # 넣지 못한 글 기록
     python scripts/search_desc.py status            # 블로그별 완료/남음
@@ -20,7 +21,7 @@ import html
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -32,6 +33,7 @@ from src.publishers import blogger  # noqa: E402
 from src.state import KST  # noqa: E402
 
 LOG_PATH = OUT_DIR / "blogger" / "search_desc.json"
+FRESH_HOURS = 72   # --fresh: 이 시간 안에 공개된 글만 봅니다 (매시간 작업이 글 올라온 직후 넣도록)
 
 SYSTEM = """블로그 글의 검색 설명(메타 설명)을 씁니다. 검색 결과 제목 아래에 나오는 문장입니다.
 - 1~2문장, 80~140자. 150자를 넘기지 마세요.
@@ -72,10 +74,12 @@ def page_description(url: str) -> str:
     return html.unescape(m.group(1)) if m else ""
 
 
-def _live_posts(blog_id: str) -> list[dict]:
+def _live_posts(blog_id: str, since: datetime | None = None) -> list[dict]:
     posts, page = [], None
     while True:
         params = {"status": "live", "maxResults": 100, "fetchBodies": "true", "view": "ADMIN"}
+        if since:
+            params["startDate"] = since.isoformat(timespec="seconds")
         if page:
             params["pageToken"] = page
         payload = net.get(
@@ -101,8 +105,8 @@ def _generate(cfg: dict, title: str, body_html: str) -> str:
     return llm.text_of(response, f"[{title[:20]}] 검색 설명").strip()
 
 
-def todo(fleet: fleet_mod.Fleet, cfg: dict, log: dict) -> list[dict]:
-    """설명을 넣어야 할 글 전체 (오래된 순). 꺼진 블로그와 비상정지된 계정은 뺍니다."""
+def todo(fleet: fleet_mod.Fleet, cfg: dict, log: dict, since: datetime | None = None) -> list[dict]:
+    """설명을 넣어야 할 글 (오래된 순, since 가 있으면 그 뒤에 공개된 글만). 꺼진 블로그와 비상정지된 계정은 뺍니다."""
     out = []
     st = fleet_mod.load_account_state()
     for b in fleet.blogs:
@@ -110,7 +114,7 @@ def todo(fleet: fleet_mod.Fleet, cfg: dict, log: dict) -> list[dict]:
             continue
         fleet_mod.apply_env(fleet, b)
         written = {h.get("url"): h.get("description", "") for h in state.load(b.history_path)}
-        for p in _live_posts(b.blog_id):
+        for p in _live_posts(b.blog_id, since):
             if p["url"] in log["done"]:
                 continue
             out.append({"blog": b.id, "blog_id": b.blog_id, "post_id": p["id"], "url": p["url"],
@@ -125,7 +129,8 @@ def cmd_next(args, fleet, cfg) -> int:
     max_chars = (cfg.get("search_description") or {}).get("max_chars", 150)
     picked = []
     home_desc: dict[str, str] = {}
-    for item in todo(fleet, cfg, log):
+    since = datetime.now(KST) - timedelta(hours=FRESH_HOURS) if args.fresh else None
+    for item in todo(fleet, cfg, log, since):
         if item["url"] in log["failed"] and log["failed"][item["url"]] >= 2:
             continue   # 두 번 실패한 글은 사람이 보도록 남겨 둡니다 (status 에 나옵니다)
         # 이미 글별 설명이 있는 글(첫 화면 설명과 다름 — 사람이 넣었거나 이전 실행)은 완료로 기록하고 넘어갑니다.
@@ -151,7 +156,7 @@ def cmd_next(args, fleet, cfg) -> int:
     for p in picked:
         print(json.dumps(p, ensure_ascii=False))
     if not picked:
-        print("# 검색 설명을 넣을 글이 없습니다.")
+        print("# 새로 올라온 글이 없습니다." if args.fresh else "# 검색 설명을 넣을 글이 없습니다.")
     return 0
 
 
@@ -196,6 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("next")
     p.add_argument("--limit", type=int, default=10)
+    p.add_argument("--fresh", action="store_true", help=f"최근 {FRESH_HOURS}시간 안에 공개된 글만 (매시간 작업용, 빠름)")
     p = sub.add_parser("verify")
     p.add_argument("url")
     p = sub.add_parser("mark")

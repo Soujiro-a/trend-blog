@@ -195,7 +195,7 @@ card:
 
 # 글별 검색 설명 (scripts/search_desc.py). Blogger API 에는 이 칸이 없어, 비워 두면 모든 글의 검색·공유 설명이
 # 블로그 전체 설명과 똑같이 나갑니다(2026-10-03 확인). 새 글은 작성 모델이 쓴 설명을, 그 전 글은 아래 모델이 본문에서
-# 만든 설명을 예약 작업(gsc 와 같은 앱 내장 브라우저)이 글 설정의 '검색 설명' 칸에 넣습니다.
+# 만든 설명을 매시간 예약 작업(gsc-index-requests, 색인 요청 전에 --fresh)이 글 설정의 '검색 설명' 칸에 넣습니다.
 search_description:
   model: claude-sonnet-5-5   # 이력에 설명이 없는 옛 글에만 씁니다 (글당 약 $0.003)
   max_chars: 150             # Blogger 검색 설명 칸 한도

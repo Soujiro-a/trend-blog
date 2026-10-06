@@ -1249,6 +1249,7 @@ def test_retrofit(cfg: dict) -> None:
     h = state.record([], "k", "t", url="u", status="live", description="설명")
     check("이력에 검색 설명 저장", h[-1].get("description") == "설명"
           and "description" not in state.record([], "k", "t")[-1])
+    check("검색 설명 --fresh: 최근 글만 API startDate 로", "startDate" in Path(sd.__file__).read_text(encoding="utf-8") and sd.FRESH_HOURS == 72)
     check("작성 결과의 설명을 이력에 넘김", "description=article.description" in (Path(__file__).resolve().parent.parent / "src" / "main.py").read_text(encoding="utf-8"))
 
 
