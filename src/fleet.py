@@ -461,6 +461,9 @@ def resume_account(account: str, now: datetime | None = None) -> None:
     now = now or datetime.now(KST)
     st = load_account_state()
     entry = st.setdefault(account, {})
+    # 풀린 뒤에도 reason 이 남아 있으면 지금 정지된 것처럼 읽히므로 지난 사유로 옮겨 둡니다.
+    if "reason" in entry:
+        entry["last_halt_reason"] = entry.pop("reason")
     entry.update({"halted": False, "ramp_from": now.strftime("%Y-%m-%d"), "resumed_at": now.isoformat(timespec="seconds")})
     save_account_state(st)
 

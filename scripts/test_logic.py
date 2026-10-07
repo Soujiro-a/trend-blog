@@ -490,6 +490,8 @@ def test_scale_safety() -> None:
             check("비상정지 계정은 슬롯 0개", total(fm.planned_slots(fl, at("2026-10-20"))) == 0)
             check("다른 계정은 영향 없음", fm.account_halted("other") == "")
             fm.resume_account("acc", at("2026-10-22"))
+            st = fm.load_account_state()["acc"]
+            check("해제하면 사유는 지난 사유로 옮김", "reason" not in st and "403" in st.get("last_halt_reason", ""))
             check("해제 후 램프업은 처음 단계부터", fm.account_cap(fl, "acc", at("2026-10-22")) == 4
                   and total(fm.planned_slots(fl, at("2026-10-22"))) == 4)
             check("해제 4주 뒤 다시 한 단계", fm.account_cap(fl, "acc", at("2026-11-19")) == 6)
