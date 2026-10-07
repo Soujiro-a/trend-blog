@@ -253,6 +253,23 @@ def official_block(pages: list[OfficialRef]) -> str:
     return "\n".join(lines)
 
 
+def contacts_block(contacts: list[str]) -> str:
+    """블로그가 안내하는 공식 확인처 (fleet/blogs.yaml contacts). 운영자가 확인해 둔 값입니다.
+
+    작성 모델과 검수 모델에 **같은 자료로** 넘깁니다. 검수관은 자료에 없는 연락처·사이트를
+    근거 없는 서술로 보므로, 블로그 성격(persona)이 안내하라고 시킨 곳은 여기 있어야 합니다.
+    """
+    rows = [f"- {c}" for c in contacts if str(c).strip()]
+    if not rows:
+        return ""
+    return (
+        "\n\n## 공식 확인처 (블로그 운영자가 확인한 안내처)\n\n"
+        "독자에게 '어디서 확인·신청하는지' 안내할 때 쓸 수 있는 기관·전화·사이트입니다. "
+        "링크로 걸지 말고 이름과 주소·번호를 글자로만 적습니다. 여기와 공식 안내 자료에 없는 연락처는 쓰지 않습니다.\n\n"
+        + "\n".join(rows)
+    )
+
+
 def internal_links_block(history: list[dict], current_keyword: str = "", limit: int = 12) -> str:
     """같은 블로그에서 이미 공개된 글 목록. 본문에서 내부 링크로 쓸 후보입니다.
 

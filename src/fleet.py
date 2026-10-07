@@ -69,6 +69,9 @@ class Blog:
     audience: str = ""                                  # 누가 읽는지
     niche: str = ""
     persona: str = ""
+    # 글에서 안내해도 되는 공식 확인처(기관·전화·사이트). 작성·검수 모델에 같은 자료로 넘깁니다.
+    # persona 가 "1350 확인을 안내하세요"라고 시켜도 자료에 없으면 검수관은 근거 없는 서술로 봤습니다(2026-10-07).
+    contacts: list[str] = field(default_factory=list)
     include_patterns: list[str] = field(default_factory=list)
     exclude_patterns: list[str] = field(default_factory=list)
     labels: list[str] = field(default_factory=lambda: ["실시간이슈"])
@@ -237,6 +240,7 @@ def load_fleet(path: Path = FLEET_PATH, manager_state: dict | None = None) -> Fl
             audience=str(entry.get("audience") or ""),
             niche=str(entry.get("niche") or ""),
             persona=str(entry.get("persona") or ""),
+            contacts=[str(c) for c in entry.get("contacts") or []],
             include_patterns=list(entry.get("include_patterns") or []),
             exclude_patterns=list(entry.get("exclude_patterns") or []),
             labels=list(entry.get("labels") or ["실시간이슈"]),

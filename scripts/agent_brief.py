@@ -133,9 +133,10 @@ def cmd_writer(args) -> int:
         )
         return 1
 
-    # src/main.py 와 같은 순서: 참고 기사 블록 + 같은 블로그의 공개 글(내부 링크 후보)
+    # src/main.py 와 같은 순서: 참고 기사 블록 + 같은 블로그의 공개 글(내부 링크 후보) + 공식 확인처
     context = research.to_context(cfg, candidate, refs, official)
     context += research.internal_links_block(history, candidate.keyword)
+    context += research.contacts_block(blog.contacts)
     request = capture(
         writer.write, cfg, candidate, context, refs, now.strftime("%Y년 %m월 %d일"),
         mode=blog.content_mode, persona=RunContext(blog=blog).persona,

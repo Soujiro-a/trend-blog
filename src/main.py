@@ -369,6 +369,7 @@ def main(argv: list[str] | None = None) -> int:
             # 지어낸 링크로 보고 거부하므로, 여기 없으면 멀쩡한 내부 링크가 반려됩니다.
             context = research.to_context(cfg, candidate, refs, official)
             context += research.internal_links_block(ctx.blog.own_history(history) if ctx.blog else history, candidate.keyword)
+            context += research.contacts_block(ctx.blog.contacts) if ctx.blog else ""
             article = writer.write(cfg, candidate, context, refs, date_str, mode=mode, persona=ctx.persona)
             cost = article.cost_usd + official_cost
             # 라벨 = 블로그 고정 라벨(publish.default_labels) + 하위 축 하나. 작성 모델이 붙이는 태그를

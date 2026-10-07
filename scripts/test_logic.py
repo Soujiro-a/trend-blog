@@ -301,6 +301,17 @@ def test_internal_links(cfg: dict) -> None:
     check("since 이전 이력은 기획·내부 링크에서 제외", [e["title"] for e in own] == ["새 안내 글"], f"{own}")
     check("since 없으면 이력 그대로", fm.Blog(id="t", name="t", blog_id="1").own_history(old) == old)
 
+    # 2026-10-07: 블로그 성격이 안내하라는 연락처가 자료에 없어 검수관이 근거 없는 서술로 봤습니다.
+    # 공식 확인처는 작성·검수 모델에 같은 자료로 가고, 두 지시문 모두 그 블록을 근거로 인정해야 합니다.
+    cb = research.contacts_block(["고용노동부 고객상담센터 1350"])
+    check("공식 확인처 블록", cb.startswith("\n\n## 공식 확인처") and "- 고용노동부 고객상담센터 1350" in cb, cb[:80])
+    check("확인처 없으면 빈 문자열", research.contacts_block([]) == "")
+    check("함대 블로그마다 확인처", all(b.contacts for b in fm.load_fleet().blogs if b.enabled))
+    check("작성: 자료 밖 이유·조언 금지, 가정 예시, 확인처 규칙",
+          "이유·전망·경험칙·조언" in writer.SYSTEM and "가정 예시" in writer.SYSTEM and "## 공식 확인처" in writer.SYSTEM)
+    check("검수: 확인처·가정 예시를 근거로 인정",
+          "## 공식 확인처" in reviewer.SYSTEM and "가정 예시" in reviewer.SYSTEM)
+
 
 def test_llm_robustness(cfg: dict) -> None:
     section("모델 응답 잘림 대응")

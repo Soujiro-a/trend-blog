@@ -122,6 +122,14 @@ blogs:
     include_patterns: []
     exclude_patterns: []
     labels: [지원금]
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "복지로 bokjiro.go.kr · 보건복지상담센터 129"
+      - "정부24 gov.kr"
+      - "거주지 주민센터(행정복지센터)"
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "복지로 bokjiro.go.kr · 보건복지상담센터 129"
+      - "정부24 gov.kr"
+      - "거주지 주민센터(행정복지센터)"
     overrides: {}
     page:   # 소개 페이지 문구 (scripts/setup_pages.py)
       goal: >-
@@ -159,6 +167,12 @@ blogs:
     include_patterns: []
     exclude_patterns: []
     labels: [세금신고]
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "국세청 홈택스 hometax.go.kr (모바일 손택스)"
+      - "국세상담센터 126"
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "국세청 홈택스 hometax.go.kr (모바일 손택스)"
+      - "국세상담센터 126"
     overrides: {}
     page:
       goal: >-
@@ -195,6 +209,14 @@ blogs:
     include_patterns: []
     exclude_patterns: []
     labels: [노동권리]
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "고용24 work24.go.kr"
+      - "고용노동부 고객상담센터 1350"
+      - "근로복지공단 comwel.or.kr · 1588-0075"
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "고용24 work24.go.kr"
+      - "고용노동부 고객상담센터 1350"
+      - "근로복지공단 comwel.or.kr · 1588-0075"
     overrides: {}
     page:
       goal: >-
@@ -231,6 +253,16 @@ blogs:
     include_patterns: []
     exclude_patterns: []
     labels: [청약전월세]
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "청약홈 applyhome.co.kr (한국부동산원)"
+      - "마이홈 myhome.go.kr"
+      - "주택도시보증공사(HUG) khug.or.kr · 1566-9009"
+      - "대한법률구조공단 klac.or.kr · 132"
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "청약홈 applyhome.co.kr (한국부동산원)"
+      - "마이홈 myhome.go.kr"
+      - "주택도시보증공사(HUG) khug.or.kr · 1566-9009"
+      - "대한법률구조공단 klac.or.kr · 132"
     overrides: {}
     page:
       goal: >-
@@ -267,6 +299,12 @@ blogs:
     include_patterns: []
     exclude_patterns: []
     labels: [연금건강보험]
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "국민연금공단 nps.or.kr · 1355"
+      - "국민건강보험공단 nhis.or.kr · 1577-1000"
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "국민연금공단 nps.or.kr · 1355"
+      - "국민건강보험공단 nhis.or.kr · 1577-1000"
     overrides: {}
     page:
       goal: >-
@@ -312,6 +350,14 @@ blogs:
     include_patterns: []
     exclude_patterns: []
     labels: [자동차생활]
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "도로교통공단 안전운전 통합민원 safedriving.or.kr"
+      - "자동차민원 대국민포털 ecar.go.kr"
+      - "한국교통안전공단 kotsa.or.kr · 1577-0990"
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "도로교통공단 안전운전 통합민원 safedriving.or.kr"
+      - "자동차민원 대국민포털 ecar.go.kr"
+      - "한국교통안전공단 kotsa.or.kr · 1577-0990"
     overrides: {}
 
   - id: gaganamc1
@@ -340,6 +386,14 @@ blogs:
     include_patterns: []
     exclude_patterns: []
     labels: [소비자권리]
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "소비자24 consumer.go.kr"
+      - "1372 소비자상담센터 (국번 없이 1372)"
+      - "전자거래분쟁조정위원회 ecmc.or.kr"
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "소비자24 consumer.go.kr"
+      - "1372 소비자상담센터 (국번 없이 1372)"
+      - "전자거래분쟁조정위원회 ecmc.or.kr"
     overrides: {}
 
   # --- second 계정 블로그 3·4 (2026-09-25 추가) ---
@@ -368,6 +422,12 @@ blogs:
     include_patterns: []
     exclude_patterns: []
     labels: [여행준비]
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "외교부 해외안전여행 0404.go.kr · 영사콜센터 +82-2-3210-0404"
+      - "관세청 customs.go.kr · 125"
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "외교부 해외안전여행 0404.go.kr · 영사콜센터 +82-2-3210-0404"
+      - "관세청 customs.go.kr · 125"
     overrides: {}
     page:   # 소개 페이지 문구 (scripts/setup_pages.py)
       goal: >-
@@ -406,6 +466,12 @@ blogs:
     include_patterns: []
     exclude_patterns: []
     labels: [살림노하우]
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "제품 설명서와 제조사 고객센터"
+      - "거주지 시·군·구청 (분리배출·대형 폐기물)"
+    contacts:   # 글에서 안내해도 되는 확인처 (작성·검수 모델에 자료로 넘어갑니다)
+      - "제품 설명서와 제조사 고객센터"
+      - "거주지 시·군·구청 (분리배출·대형 폐기물)"
     overrides: {}
     page:   # 소개 페이지 문구 (scripts/setup_pages.py)
       goal: >-
