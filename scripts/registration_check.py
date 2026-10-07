@@ -56,7 +56,9 @@ def check(blog, token: str, gsc_sites: list[str] | None) -> list[tuple[bool, str
     rows.append(("naver-site-verification" in home, "네이버 소유확인 메타태그 (테마 <head>)"))
     # 다음 — 맞춤 robots.txt 의 인증 줄. 기본 규칙이 같이 남아 있어야 합니다.
     rows.append(("#DaumWebMasterTool:" in robots, "다음 인증 줄 (맞춤 robots.txt)"))
-    rows.append(("Sitemap:" in robots and "Disallow: /search" in robots, "robots.txt 기본 규칙·Sitemap 줄 유지"))
+    # 템플릿을 다른 블로그에서 복사해 오면 Sitemap 줄이 남의 주소를 가리킵니다 (2026-10-07 4곳에서 발생).
+    rows.append((f"Sitemap: {home_url}sitemap.xml" in robots and "Disallow: /search" in robots,
+                 f"robots.txt 기본 규칙·Sitemap 줄 (Sitemap: {home_url}sitemap.xml)"))
     # 블로그 첫 화면 검색 설명 (설정 → 메타 태그)
     m = re.search(r"<meta\s+content='([^']*)'\s+name='description'", home)
     rows.append((bool(m and m.group(1).strip()), "첫 화면 검색 설명 (설정 → 메타 태그 → 검색 설명)"))

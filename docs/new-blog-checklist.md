@@ -85,6 +85,8 @@ Allow: /
 Sitemap: https://<id>.blogspot.com/sitemap.xml
 ```
 
+다른 블로그의 robots.txt 를 복사해 오면 마지막 `Sitemap:` 줄이 그 블로그 주소로 남기 쉽습니다 (2026-10-07 네 곳에서 발생). 저장한 뒤 `https://<id>.blogspot.com/robots.txt` 를 열어 두 줄 모두 이 블로그 것인지 확인하세요.
+
 ### Bing 웹마스터
 
 | ✓ | 누가 | 할 일 |
