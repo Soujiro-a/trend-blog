@@ -119,8 +119,8 @@ def queue(fleet: fleet_mod.Fleet) -> list[dict]:
         if not b.enabled or fleet_mod.account_halted(b.account, st):
             continue
         fleet_mod.apply_env(fleet, b)
-        site = f"sc-domain:{b.id}.blogspot.com"
-        home = f"https://{b.id}.blogspot.com/"
+        site = f"sc-domain:{b.domain}"
+        home = b.home_url
         homes.append({"blog": b.id, "url": home, "request_url": mobile_url(home), "site": site, "published": ""})
         posts.extend({"blog": b.id, "url": u, "request_url": mobile_url(u), "site": site, "published": t}
                      for t, u in _live_urls(b.blog_id))

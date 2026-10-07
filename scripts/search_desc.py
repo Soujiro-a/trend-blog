@@ -117,7 +117,7 @@ def todo(fleet: fleet_mod.Fleet, cfg: dict, log: dict, since: datetime | None = 
         for p in _live_posts(b.blog_id, since):
             if p["url"] in log["done"]:
                 continue
-            out.append({"blog": b.id, "blog_id": b.blog_id, "post_id": p["id"], "url": p["url"],
+            out.append({"blog": b.id, "home": b.home_url, "account": b.account, "blog_id": b.blog_id, "post_id": p["id"], "url": p["url"],
                         "title": p.get("title", ""), "published": p["published"],
                         "written": written.get(p["url"], ""), "content": p.get("content", "")})
     out.sort(key=lambda x: datetime.fromisoformat(x["published"]))
@@ -135,7 +135,7 @@ def cmd_next(args, fleet, cfg) -> int:
             continue   # 두 번 실패한 글은 사람이 보도록 남겨 둡니다 (status 에 나옵니다)
         # 이미 글별 설명이 있는 글(첫 화면 설명과 다름 — 사람이 넣었거나 이전 실행)은 완료로 기록하고 넘어갑니다.
         if item["blog"] not in home_desc:
-            home_desc[item["blog"]] = page_description(f"https://{item['blog']}.blogspot.com/")
+            home_desc[item["blog"]] = page_description(item["home"])
         current = page_description(item["url"])
         if current and current != home_desc[item["blog"]]:
             log["done"][item["url"]] = datetime.now(KST).isoformat(timespec="seconds")

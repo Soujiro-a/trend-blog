@@ -1,29 +1,29 @@
 {
   "blogs": {
     "picktopic": {
-      "enabled": false,
+      "enabled": true,
       "by": "manual",
-      "note": "계정 'default' 중지"
+      "note": "수동 켬 10-07"
     },
     "issuecatch1": {
-      "enabled": false,
+      "enabled": true,
       "by": "manual",
-      "note": "계정 'default' 중지"
+      "note": "수동 켬 10-07"
     },
     "fastopic1": {
-      "enabled": false,
+      "enabled": true,
       "by": "manual",
-      "note": "계정 'default' 중지"
+      "note": "수동 켬 10-07"
     },
     "nowissue1": {
-      "enabled": false,
+      "enabled": true,
       "by": "manual",
-      "note": "계정 'default' 중지"
+      "note": "수동 켬 10-07"
     },
     "issuepick1": {
-      "enabled": false,
+      "enabled": true,
       "by": "manual",
-      "note": "계정 'default' 중지"
+      "note": "수동 켬 10-07"
     }
   },
   "updated_at": "2026-10-07T04:44:57+09:00"

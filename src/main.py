@@ -431,7 +431,7 @@ def main(argv: list[str] | None = None) -> int:
         # 요약 카드: 검수관이 카드 값이 본문과 맞다고 본 경우만. 실패하면 카드 없이 그대로 발행합니다.
         card_html = ""
         if ctx.blog and article.card and (rv is None or rv.card_ok):
-            card_html = card_mod.make(cfg, ctx.blog.id, ctx.blog.name, article.card, candidate.keyword)
+            card_html = card_mod.make(cfg, ctx.blog.id, ctx.blog.name, article.card, candidate.keyword, ctx.blog.domain)
             article.body_html = card_html + article.body_html
         elif article.card and rv is not None and not rv.card_ok:
             log.info("[%s] 요약 카드 값이 본문과 달라 카드 없이 발행합니다.", candidate.keyword)

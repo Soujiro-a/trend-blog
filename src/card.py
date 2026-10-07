@@ -225,7 +225,7 @@ def html(url: str, card: Card) -> str:
     )
 
 
-def make(cfg: dict, blog_id: str, blog_name: str, card_text: str, key: str) -> str:
+def make(cfg: dict, blog_id: str, blog_name: str, card_text: str, key: str, site: str = "") -> str:
     """카드 글 → 그림 → 업로드 → 본문 맨 앞에 넣을 HTML. 쓸 수 없으면 "" (이유는 로그로)."""
     c = cfg.get("card") or {}
     if not c.get("enabled", False):
@@ -236,7 +236,7 @@ def make(cfg: dict, blog_id: str, blog_name: str, card_text: str, key: str) -> s
         return ""
     headline, rows = parsed
     card = Card(
-        headline=headline, rows=rows, blog_name=blog_name, site=f"{blog_id}.blogspot.com",
+        headline=headline, rows=rows, blog_name=blog_name, site=site or f"{blog_id}.blogspot.com",
         accent=(c.get("accents") or {}).get(blog_id, c.get("default_accent", "#1F5FBF")),
     )
     try:

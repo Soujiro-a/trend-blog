@@ -188,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     state.update(remaining=len(todo), checked_at=now.isoformat(timespec="minutes"))
     if add_card:
         text, cost = card_mod.extract(cfg, post.get("title", ""), post["content"])
-        block = card_mod.make(cfg, blog.id, blog.name, text, post["url"]) if text else ""
+        block = card_mod.make(cfg, blog.id, blog.name, text, post["url"], blog.domain) if text else ""
         print(f"카드 글 뽑기 약 ${cost:.3f}: {text[:200]!r}")
         if block:
             new = block + new

@@ -75,7 +75,18 @@ class Blog:
     overrides: dict = field(default_factory=dict)
     # 소개 페이지 문구(goal / gap / caution). scripts/setup_pages.py 가 씁니다. 비우면 기본 문구.
     page: dict = field(default_factory=dict)
+    # blogspot 주소의 앞부분. id 와 다를 때만 적습니다 (picktopic → picktopic1.blogspot.com).
+    host: str = ""
     manager_note: str = ""   # 관리 에이전트가 남긴 이유 (표시용)
+
+    @property
+    def domain(self) -> str:
+        """picktopic1.blogspot.com 처럼 실제 블로그 도메인. Search Console 도메인 속성도 이 이름입니다."""
+        return f"{self.host or self.id}.blogspot.com"
+
+    @property
+    def home_url(self) -> str:
+        return f"https://{self.domain}/"
 
     @property
     def dir(self) -> Path:
@@ -215,6 +226,7 @@ def load_fleet(path: Path = FLEET_PATH, manager_state: dict | None = None) -> Fl
             labels=list(entry.get("labels") or ["실시간이슈"]),
             overrides=dict(entry.get("overrides") or {}),
             page=dict(entry.get("page") or {}),
+            host=str(entry.get("host") or ""),
         )
         # 관리 에이전트의 결정 덧씌우기 (파일 주석을 지키기 위해 blogs.yaml 은 건드리지 않음)
         ms = mstate.get(b.id, {})

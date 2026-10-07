@@ -936,10 +936,11 @@ def test_fleet(cfg: dict) -> None:
         orig = fm.DATA_DIR
         fm.DATA_DIR = Path(tmp)
         try:
-            f2 = fm.Fleet({**fleet.settings, "catch_up": True}, fleet.accounts, [
-                fm.Blog(id="x", name="x", blog_id="1", slots=["06:20", "15:00"], subject="가", since="2026-01-01"),
-                fm.Blog(id="y", name="y", blog_id="2", slots=["09:00"], subject="나", since="2026-01-01"),
-                fm.Blog(id="z", name="z", blog_id="3", slots=["12:00"], subject="다", enabled=False),
+            # 실제 계정(default 등)은 since·재개일이 테스트 날짜보다 늦을 수 있어 가짜 계정을 씁니다.
+            f2 = fm.Fleet({**fleet.settings, "catch_up": True}, {"t": {}}, [
+                fm.Blog(id="x", name="x", blog_id="1", slots=["06:20", "15:00"], subject="가", since="2026-01-01", account="t"),
+                fm.Blog(id="y", name="y", blog_id="2", slots=["09:00"], subject="나", since="2026-01-01", account="t"),
+                fm.Blog(id="z", name="z", blog_id="3", slots=["12:00"], subject="다", enabled=False, account="t"),
             ])
             now = datetime(2026, 9, 20, 16, 0, tzinfo=kst)
             due = [(b.id, s) for b, s in fm.due_slots(f2, now, "planned")]

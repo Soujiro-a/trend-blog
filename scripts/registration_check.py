@@ -32,13 +32,13 @@ def _gsc(path: str, token: str) -> dict | None:
 
 
 def check(blog, token: str, gsc_sites: list[str] | None) -> list[tuple[bool, str]]:
-    home_url = f"https://{blog.id}.blogspot.com/"
+    home_url = blog.home_url
     home = net.session().get(home_url, timeout=20).text
     robots = net.session().get(home_url + "robots.txt", timeout=20).text
     rows: list[tuple[bool, str]] = []
 
     # Search Console — 속성과 사이트맵
-    prop = next((p for p in (f"sc-domain:{blog.id}.blogspot.com", home_url) if gsc_sites and p in gsc_sites), None)
+    prop = next((p for p in (f"sc-domain:{blog.domain}", home_url) if gsc_sites and p in gsc_sites), None)
     if gsc_sites is None:
         rows.append((False, "Search Console 조회 실패 (토큰에 webmasters 권한이 있는지 확인)"))
     elif not prop:
