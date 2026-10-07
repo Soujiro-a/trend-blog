@@ -384,6 +384,23 @@ def main(argv: list[str] | None = None) -> int:
             if review_on:
                 rv = reviewer.review(cfg, article, context)
                 cost += rv.cost_usd
+                # 보류(점수 미달 포함)면 지적만 고쳐 한 번 다시 쓰고 다시 검수합니다. 거부는 고치지 않습니다.
+                # 보류 지적은 대개 "이 문장은 자료에 없다"처럼 구체적이라 고치면 공개할 수 있는 글이 됩니다.
+                # 2026-10-07 보류 9편을 고쳐 쓰니 3편이 공개 기준을 넘었습니다. 실패하면 처음 글로 갑니다.
+                if (cfg["review"].get("revise_on_hold", False) and rv.verdict != "reject"
+                        and not rv.approved(cfg["review"].get("min_score", 80))):
+                    try:
+                        revised = writer.revise(cfg, candidate, context, date_str, article, rv.issues,
+                                                mode=mode, persona=ctx.persona)
+                        cost += revised.cost_usd
+                        rv2 = reviewer.review(cfg, revised, context)
+                        cost += rv2.cost_usd
+                        log.info("[%s] 고쳐 쓰기: %s %d → %s %d", candidate.keyword, rv.verdict, rv.score, rv2.verdict, rv2.score)
+                        if rv2.verdict != "reject" and rv2.score >= rv.score:
+                            article, rv = revised, rv2
+                            article.revised = True
+                    except Exception as exc:   # 고쳐 쓰기는 덤입니다. 실패해도 처음 글로 진행합니다.
+                        log.warning("[%s] 고쳐 쓰기 실패 — 처음 글로 진행: %s", candidate.keyword, exc)
 
         except writer.SkippedByModel as exc:
             log.info("[%s] 모델이 작성을 건너뜀: %s", candidate.keyword, exc)
@@ -401,7 +418,7 @@ def main(argv: list[str] | None = None) -> int:
             fleet_mod.save_claims(ctx.claims)
 
         decision = decide(cfg, rv, live, args.draft, budget.allowed if budget else None)
-        score_txt = f"검수 {rv.score}점" if rv else "검수 없음"
+        score_txt = (f"검수 {rv.score}점" + (" · 고쳐 씀" if article.revised else "")) if rv else "검수 없음"
         issues_txt = f" — {'; '.join(rv.issues[:2])}" if rv and rv.issues else ""
 
         if decision == "reject":

@@ -191,6 +191,7 @@ class Article:
     input_tokens: int = 0
     output_tokens: int = 0
     model: str = ""
+    revised: bool = False   # 검수 보류 뒤 지적을 고쳐 다시 쓴 글 (src/main.py)
 
     @property
     def cost_usd(self) -> float:
@@ -235,21 +236,8 @@ def _parse(raw: str, keyword: str, model: str) -> Article:
     )
 
 
-def write(
-    cfg: dict,
-    candidate: Candidate,
-    context: str,
-    refs: list[NewsRef],
-    date_str: str,
-    client: anthropic.Anthropic | None = None,
-    mode: str = "trend",
-    persona: str = "",
-) -> Article:
+def _system(cfg: dict, date_str: str, mode: str, persona: str) -> str:
     w = cfg["writer"]
-    model = w["model"]
-    client = client or llm.client()
-    template = {"evergreen": USER_TEMPLATE_EVERGREEN, "planned": USER_TEMPLATE_PLANNED}.get(mode, USER_TEMPLATE)
-
     # 글 맨 아래 안내 문구. config 에서 비워두면 아무것도 붙이지 않습니다.
     # 실시간 이슈 글은 '보도 기준' 문구를, 기획·장수 안내 글은 '공식 안내 확인' 문구를 씁니다.
     note_key = "footer_note" if mode == "trend" else "footer_note_guide"
@@ -268,15 +256,32 @@ def write(
     # 함대 모드: 블로그마다 다른 문체·관점. 같은 이슈를 여러 블로그가 써도 글이 달라지게 하는 장치입니다.
     if persona.strip():
         system += "\n\n## 이 블로그의 성격 (위 원칙 안에서 따르세요)\n" + persona.strip()
-    user = template.format(date=date_str, context=context)
+    return system
 
+
+def _user(context: str, date_str: str, mode: str) -> str:
+    template = {"evergreen": USER_TEMPLATE_EVERGREEN, "planned": USER_TEMPLATE_PLANNED}.get(mode, USER_TEMPLATE)
+    return template.format(date=date_str, context=context)
+
+
+def _render(article: Article) -> str:
+    """Article 을 작성 모델의 출력 형식(5개 블록)으로 되돌립니다. 고쳐 쓰기 대화에서 '내가 쓴 글'로 씁니다."""
+    return (
+        f"<<<TITLE>>>\n{article.title}\n<<<DESCRIPTION>>>\n{article.description}\n"
+        f"<<<LABELS>>>\n{', '.join(article.labels)}\n<<<CARD>>>\n{article.card}\n<<<BODY>>>\n{article.body_html}"
+    )
+
+
+def _call(cfg: dict, client, system: str, messages: list[dict], keyword: str, what: str) -> Article:
+    w = cfg["writer"]
+    model = w["model"]
     # max_tokens 가 크고 사고(thinking) 시간이 길 수 있어 스트리밍으로 받습니다.
     with client.messages.stream(
         model=model,
         max_tokens=w["max_tokens"],
         system=system,
         output_config={"effort": w.get("effort", "high")},
-        messages=[{"role": "user", "content": user}],
+        messages=messages,
     ) as stream:
         response = stream.get_final_message()
 
@@ -285,8 +290,61 @@ def write(
         raise SkippedByModel(f"모델이 작성을 거부했습니다. {detail}")
     # 잘린 글은 FAQ·참고 자료가 빠진 채 끝납니다. 예전엔 경고만 하고 그대로 발행했는데,
     # 검수관이 못 잡으면 반쪽짜리 글이 공개됩니다. 실패로 처리해 다른 글감으로 넘어갑니다.
-    raw = llm.text_of(response, f"[{candidate.keyword}] 글 작성")
-    article = _parse(raw, candidate.keyword, model)
+    raw = llm.text_of(response, f"[{keyword}] {what}")
+    article = _parse(raw, keyword, model)
     article.input_tokens = response.usage.input_tokens
     article.output_tokens = response.usage.output_tokens
     return article
+
+
+def write(
+    cfg: dict,
+    candidate: Candidate,
+    context: str,
+    refs: list[NewsRef],
+    date_str: str,
+    client: anthropic.Anthropic | None = None,
+    mode: str = "trend",
+    persona: str = "",
+) -> Article:
+    client = client or llm.client()
+    return _call(cfg, client, _system(cfg, date_str, mode, persona),
+                 [{"role": "user", "content": _user(context, date_str, mode)}], candidate.keyword, "글 작성")
+
+
+REVISE_TEMPLATE = """검수관이 이 글을 공개하지 않고 보류했습니다. 지적은 다음과 같습니다.
+
+{issues}
+
+지적된 곳만 고쳐 **같은 5개 블록 형식으로 글 전체를** 다시 출력하세요.
+- 자료로 뒷받침되는 표현으로 고칠 수 있으면 고치고, 고칠 수 없으면 그 문장·표의 행·질문을 뺍니다. 빈자리를 새 사실이나 일반론으로 메우지 마세요.
+- 곁가지·반복이라고 지적된 단락은 통째로 뺍니다.
+- 지적되지 않은 부분은 그대로 둡니다. 분량이 기준보다 조금 줄어도 괜찮습니다.
+- 요약 카드도 고친 본문과 맞게 고칩니다."""
+
+
+def revise(
+    cfg: dict,
+    candidate: Candidate,
+    context: str,
+    date_str: str,
+    article: Article,
+    issues: list[str],
+    client: anthropic.Anthropic | None = None,
+    mode: str = "trend",
+    persona: str = "",
+) -> Article:
+    """검수 보류 글을 지적만 고쳐 한 번 다시 씁니다 (같은 지시문·같은 자료, 처음 쓴 글을 이어 받은 대화).
+
+    보류는 대개 "이 문장은 자료에 없다"는 구체적 지적이라 고치면 공개할 수 있는 글이 됩니다.
+    고쳐 쓰기 전에는 보류 글이 임시저장으로 남고 그 슬롯이 그대로 끝났습니다.
+    """
+    client = client or llm.client()
+    messages = [
+        {"role": "user", "content": _user(context, date_str, mode)},
+        {"role": "assistant", "content": _render(article)},
+        {"role": "user", "content": REVISE_TEMPLATE.format(issues="\n".join(f"- {i}" for i in issues) or "- (구체적 지적 없음)")},
+    ]
+    revised = _call(cfg, client, _system(cfg, date_str, mode, persona), messages, candidate.keyword, "고쳐 쓰기")
+    revised.labels = article.labels   # 라벨은 기획 단계의 하위 축 그대로
+    return revised

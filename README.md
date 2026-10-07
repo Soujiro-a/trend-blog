@@ -13,7 +13,7 @@ GitHub Actions (공개 저장소 · 무료)
                                              ② 참고 자료  구글 뉴스 검색 (제목·요약·출처만)
                                                          + 정부·공공기관 안내 페이지 (Sonnet 5.5 웹 검색, 공식 도메인만)
                                              ③ 작성      Opus 5.5   블로그별 문체(persona) + 같은 블로그 글 내부 링크
-                                             ④ 검수      Sonnet 5   publish / hold / reject
+                                             ④ 검수      Sonnet 5.5 publish / hold / reject (hold 면 지적만 고쳐 한 번 다시 쓰고 재검수)
                                              ⑤ 요약 카드  작성 모델이 쓴 핵심 값 3~4줄을 이미지로 그려 저장소 cards/ 에 올리고 글 맨 앞에
                                              ⑥ 발행      안전장치를 통과하면 공개, 아니면 임시저장
  manager.yml         매일 23:35 KST ─▶ src/manager.py   블로그별 7일 지표 → 중지/재개/메모 → 경고 있으면 이슈
@@ -114,7 +114,9 @@ Anthropic 사용 한도나 인증 문제는 모든 블로그가 똑같이 실패
   커밋 고정 주소(raw.githubusercontent.com)로 겁니다 — Blogger API 는 이미지를 올릴 수 없어서입니다. **저장소가 공개여야 보입니다.**
   글꼴(Noto Sans KR)은 워크플로가 받아 캐시하고, 어느 단계든 실패하면 글은 카드 없이 그대로 발행됩니다.
   블로그별 강조색은 `config.yaml` 의 `card.accents`.
-- **검수**(Sonnet 5): 작성과 다른 세션에서 참고 자료와 본문을 대조합니다.
+- **검수**(Sonnet 5.5): 작성과 다른 세션에서 참고 자료와 본문을 대조합니다. `hold` 면 지적을 작성 모델에 돌려 **한 번** 고쳐 쓰게 하고
+  다시 검수합니다(`review.revise_on_hold`, 보류 글당 약 $0.2). 2026-10-08 Sonnet 5 에서 올렸습니다 — 같은 초안을 5 는 거의 다 통과시켰고,
+  5.5 는 자료 밖 문장·검색 질문에 답하지 못한 글을 걸러 슬롯의 약 70% 가 공개됩니다(나머지는 임시저장).
   - `reject` — 사생활·의혹, 자료에 없는 사실이나 지어낸 링크, 비하·선정 표현, 투자·의료·법률의 직접 권유 → 올리지 않음
   - `hold` — 근거 약한 문장, 과장 제목, 분량 채우기, 깨진 HTML, 정치적 편향 등 → 임시저장
   - `publish` 이고 **80점 이상**이어야 공개합니다(`review.min_score`).
@@ -197,7 +199,7 @@ GitHub 에서 직접 돌리려면 Actions 탭 → **블로그 함대 실행** �
 | `fleet-manager` | Sonnet 5.5 | `src/manager.py` · `scripts/*_cli.py` | "함대 상태 봐줘", "블로그 추가해" |
 | `topic-planner` | Sonnet 5.5 | `src/planner.py` | "gaganam1 다음 글감 뽑아줘" |
 | `post-writer` | Opus 5.5 | `src/writer.py` | "이 글감으로 초안 써줘" |
-| `post-reviewer` | Sonnet 5.5 (자동화 검수 Sonnet 5 보다 엄격) | `src/reviewer.py` | "방금 쓴 초안 검수해줘" |
+| `post-reviewer` | Sonnet 5.5 | `src/reviewer.py` | "방금 쓴 초안 검수해줘" |
 
 - **자동화는 에이전트와 무관하게 돕니다.** 워크플로는 `.claude/` 를 읽지 않습니다.
 - **규칙은 한 곳에만 있습니다.** 에이전트는 [`scripts/agent_brief.py`](scripts/agent_brief.py) 로 자동화가 모델에 보내는 지시문 원문을
@@ -275,9 +277,9 @@ python scripts/account_cli.py resume <계정> --yes   # 비상정지 해제 — 
 | 항목 | 비용 |
 |---|---|
 | Blogger · GitHub Actions(공개 저장소) · 뉴스 검색 | 무료 |
-| **Claude API** | 글 1건 약 **$0.30** (Opus 5.5 작성 + Sonnet 기획·공식 자료 조사·검수, 2026-10 추정. Fable 5.1 로 쓰던 9월엔 $0.5~0.6) |
+| **Claude API** | 글 1건 약 **$0.30~0.35** (Opus 5.5 작성 + Sonnet 기획·공식 자료 조사·검수, 보류 글 고쳐 쓰기 포함 평균, 2026-10 추정. Fable 5.1 로 쓰던 9월엔 $0.5~0.6) |
 
-- 10/08 부터(두 계정 하루 9건) 약 $2.7/일 · **월 $80 안팎**. 두 계정이 모두 하루 8건이 되는 12/02 부터는 월 $145 안팎입니다.
+- 10/08 부터(두 계정 하루 9건) 약 $3/일 · **월 $90 안팎**. 두 계정이 모두 하루 8건이 되는 12/02 부터는 월 $160 안팎입니다.
 - 블로그 하나가 램프업을 마치면(하루 2건) 월 약 $18 입니다. 10개면 월 $180, 100개면 월 $1,800 수준입니다.
 - 공식 자료 조사(글 1건 약 $0.1)는 `research.official.enabled: false` 로 끌 수 있습니다.
 - 요약 카드는 새 글에 추가 비용이 거의 없고(작성 출력 몇 줄), 기존 글에 붙일 때만 글당 약 $0.01~0.02(Sonnet 으로 본문에서 뽑기)입니다.
@@ -299,7 +301,7 @@ python scripts/account_cli.py resume <계정> --yes   # 비상정지 해제 — 
 |---|---|---|
 | `writer.model` · `effort` · `target_length` | config | 작성 모델(Opus 5.5) · 생각 깊이 · 최소 글자 수(1,900자) |
 | `review.min_score` | config | 공개 기준 점수(80). 낮추면 더 많이 공개되고 위험도 올라갑니다 |
-| `review.model` · `planner.model` · `manager.model` | config | 검수(Sonnet 5 — 공개 기준을 이 모델로 맞춰 둠) · 기획·관리(Sonnet 5.5) |
+| `review.model` · `planner.model` · `manager.model` | config | 검수 · 기획 · 관리(모두 Sonnet 5.5). 검수 보류 시 고쳐 쓰기는 `review.revise_on_hold` |
 | `publish.mode` | config | `auto` 검수 통과 시 공개 / `draft` 전부 임시저장 (불안하면 draft) |
 | `publish.max_live_per_day` · `min_gap_minutes` | config | 블로그 하루 공개 상한(2) · 같은 블로그 연속 공개 간격(45분). 상한 2는 테스트로 고정돼 있습니다 |
 | `dedupe.history_days` | config | 같은 글감을 다시 쓰지 않을 기간(14일) |

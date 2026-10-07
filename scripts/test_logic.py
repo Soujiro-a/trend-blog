@@ -888,12 +888,13 @@ def test_config_shape(cfg: dict) -> None:
     check("작성 수 2 이하", 1 <= cfg["run"]["posts_per_run"] <= 2)
     check("발행 간격 설정 있음", cfg["publish"].get("min_gap_minutes", 0) >= 30)
     # 2026-10-02: 작성은 Opus 5.5, 기획·관리·자료 조사·카드는 Sonnet 5.5. 검수는 공개 기준(80점)을 맞춘 Sonnet 5 그대로.
-    # 2026-10-07: 같은 초안을 Sonnet 5.5 로 검수하면 88 → 66~72 (hold) 라 자동화 검수는 Sonnet 5 로 묶어 둡니다.
+    # 2026-10-08: 작성 지시문을 고친 뒤 검수도 Sonnet 5.5 + 보류 시 고쳐 쓰기 1회 (사용자 결정, config 주석 참고).
     check("글 작성 모델은 Opus 5.5", cfg["writer"]["model"] == "claude-opus-5-5", cfg["writer"]["model"])
     check("기획·관리·자료 조사·카드는 Sonnet 5.5",
           cfg["planner"]["model"] == cfg["manager"]["model"] == cfg["research"]["official"]["model"]
           == cfg["card"]["retrofit_model"] == "claude-sonnet-5-5")
-    check("자동화 검수는 Sonnet 5 유지", cfg["review"]["model"] == "claude-sonnet-5", cfg["review"]["model"])
+    check("검수는 Sonnet 5.5 + 보류 시 고쳐 쓰기", cfg["review"]["model"] == "claude-sonnet-5-5"
+          and cfg["review"].get("revise_on_hold") is True, cfg["review"]["model"])
     for key, model in (("writer", cfg["writer"]["model"]), ("planner", cfg["planner"]["model"]),
                        ("research.official", cfg["research"]["official"]["model"]), ("review", cfg["review"]["model"])):
         check(f"{key} 모델 비용표에 있음", model in writer.PRICES, model)
@@ -1142,7 +1143,7 @@ def test_agents(cfg: dict) -> None:
         ("post-reviewer", "review", True), ("fleet-manager", "manager", False),
     ):
         meta = agents.get(name, {})
-        # post-reviewer 만 예외: config review.agent_model (자동화보다 엄격한 모델, 2026-10-07)
+        # config 에 agent_model 이 있으면 그 값과 비교합니다 (자동화와 다른 모델을 일부러 쓸 때)
         want = cfg[key].get("agent_model", cfg[key]["model"])
         check(f"{name}: 모델 = config {key}.{'agent_model' if 'agent_model' in cfg[key] else 'model'}", meta.get("model") == want, f"{meta.get('model')} ≠ {want}")
         if with_effort:
@@ -1374,6 +1375,8 @@ def test_local_trial(cfg: dict) -> None:
         (single.reviewer, "review", lambda *a, **k: reviewer.Review(verdict=verdict[0], score=90, model=cfg["review"]["model"])),
         (local_pub, "publish", lambda c, art, live=None: {"id": "", "url": str(root / "post.html"), "title": art.title}),
         (fleet_run, "_write", lambda lines: None),
+        # 아래 두 개는 고쳐 쓰기 시험에서 바꿔 끼우므로, 끝나면 되돌리도록 같이 저장합니다.
+        (single.writer, "revise", single.writer.revise), (single, "load_config", single.load_config),
     ]
     saved = [(obj, name, getattr(obj, name)) for obj, name, _ in patches]
     env_keys = ("BLOGGER_BLOG_ID", "FLEET_BLOG", "FLEET_ACCOUNT", *fm.CREDENTIAL_VARS)
@@ -1395,6 +1398,32 @@ def test_local_trial(cfg: dict) -> None:
         single.main(["--blog", "t1", "--target", "local"])
         report = blog.report_path.read_text(encoding="utf-8")
         check("거부된 글은 임시저장과 따로 셈", "임시저장 0건 / 거부 1건" in report, report[-200:])
+
+        # 보류 → 지적만 고쳐 한 번 다시 쓰고 다시 검수 (review.revise_on_hold, 2026-10-08)
+        reviews = []
+        single.reviewer.review = lambda *a, **k: reviews.pop(0)
+        seen_issues = []
+
+        def fake_revise(c, cd, context, date, art, issues, **k):
+            seen_issues.extend(issues)
+            return writer.Article(keyword=cd.keyword, title="고친 글", description="요약", labels=art.labels,
+                                  body_html="<p>고친 본문</p>", model=cfg["writer"]["model"])
+        single.writer.revise = fake_revise
+        on = {**cfg, "review": {**cfg["review"], "revise_on_hold": True}}
+        single.load_config = lambda *a, **k: on
+        reviews[:] = [reviewer.Review(verdict="hold", score=70, issues=["자료에 없는 조언"], model="m"),
+                      reviewer.Review(verdict="publish", score=88, model="m")]
+        single.main(["--blog", "t1", "--target", "local"])
+        report = blog.report_path.read_text(encoding="utf-8")
+        check("보류 글을 고쳐 쓰고 다시 검수해 공개", "공개 1건" in report and "고친 글" in report and "고쳐 씀" in report
+              and seen_issues == ["자료에 없는 조언"], report[-300:])
+        reviews[:] = [reviewer.Review(verdict="hold", score=72, issues=["근거 약함"], model="m"),
+                      reviewer.Review(verdict="hold", score=60, model="m")]
+        single.main(["--blog", "t1", "--target", "local"])
+        report = blog.report_path.read_text(encoding="utf-8")
+        check("고친 글이 더 나쁘면 처음 글로 임시저장", "임시저장 1건" in report and "의료비 공제 조건 정리" in report, report[-300:])
+        check("작성 형식 되돌리기(_render) → 파싱 왕복",
+              writer._parse(writer._render(fake_article()), "k", "m").title == "의료비 공제 조건 정리")
     finally:
         for obj, name, value in saved:
             setattr(obj, name, value)
