@@ -217,10 +217,13 @@ search_description:
 # 작성 모델과 별도 세션에서 참고 기사와 본문을 대조해 publish / hold / reject 를 판정합니다.
 review:
   enabled: true
-  # 2026-10-07 Sonnet 5 → 5.5. 같은 글 4편을 같은 자료로 두 모델에 검수시켜 판정이 4편 모두 같았고
-  # 점수 차이는 ±10 안이었습니다(공개 기준 min_score 80 그대로). 비용도 글당 약 $0.03 으로 같습니다.
-  # 바꾸면 .claude/agents/post-reviewer.md 의 model 도 같이 바꾸세요 (test_logic.py 가 어긋나면 알려 줍니다).
-  model: claude-sonnet-5-5   # 검수는 작성보다 쉬운 일이라 Sonnet 으로 충분합니다
+  # 공개 기준(min_score 80)은 Sonnet 5 에 맞춰져 있습니다. 2026-10-07 같은 초안·같은 자료를 두 모델에 검수시켰더니
+  # Sonnet 5 는 publish 88·88, Sonnet 5.5 는 hold 72·66 이었습니다. 5.5 로 바꾸면 대부분 임시저장이 되므로
+  # 바꾸려면 min_score 를 다시 맞춰야 합니다. (그날 잠깐 5.5 로 바꿨다가 이 비교 뒤 되돌렸습니다)
+  model: claude-sonnet-5     # 검수는 작성보다 쉬운 일이라 Sonnet 으로 충분합니다 (글당 약 $0.03)
+  # Claude Code 의 post-reviewer 서브에이전트 모델. 사람이 쓴 초안은 일부러 더 엄격한 5.5 로 봅니다(2026-10-07 사용자 요청).
+  # 이 에이전트가 publish 면 자동화(Sonnet 5)도 통과한다고 봐도 됩니다. 반대는 아닙니다.
+  agent_model: claude-sonnet-5-5
   effort: medium
   max_tokens: 6000      # thinking 토큰 포함 (2000 이면 JSON 이 잘릴 수 있음)
   # 이 점수 이상 + 판정 publish 여야 공개합니다. 낮추면 더 많이 공개되고 위험도 올라갑니다.
