@@ -181,7 +181,7 @@ def _collect_planned_candidates(cfg: dict, ctx: RunContext, report: list[str]) -
     """
     if ctx.blog is None:
         raise ValueError("planned 모드는 --blog 로 블로그를 지정해야 합니다 (주제가 블로그에 붙어 있습니다)")
-    history = state.load(ctx.history_path)
+    history = ctx.blog.own_history(state.load(ctx.history_path))
     proposed = planner.propose(cfg, ctx.blog, history)
     fresh, skipped = state.filter_seen(cfg, proposed, history)
 
@@ -368,7 +368,7 @@ def main(argv: list[str] | None = None) -> int:
             # 작성 모델과 검수 모델이 **같은 자료**를 봐야 합니다. 검수관은 자료에 없는 주소를
             # 지어낸 링크로 보고 거부하므로, 여기 없으면 멀쩡한 내부 링크가 반려됩니다.
             context = research.to_context(cfg, candidate, refs, official)
-            context += research.internal_links_block(history, candidate.keyword)
+            context += research.internal_links_block(ctx.blog.own_history(history) if ctx.blog else history, candidate.keyword)
             article = writer.write(cfg, candidate, context, refs, date_str, mode=mode, persona=ctx.persona)
             cost = article.cost_usd + official_cost
             # 라벨 = 블로그 고정 라벨(publish.default_labels) + 하위 축 하나. 작성 모델이 붙이는 태그를

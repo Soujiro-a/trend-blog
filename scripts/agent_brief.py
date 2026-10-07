@@ -96,7 +96,7 @@ def _blog(blog_id: str) -> tuple[fleet_mod.Blog, dict]:
 
 def cmd_planner(args) -> int:
     blog, cfg = _blog(args.blog)
-    history = state.load(blog.history_path)
+    history = blog.own_history(state.load(blog.history_path))
     request = capture(planner.propose, cfg, blog, history)
     dd = cfg["dedupe"]
     _print_request("글감 기획 (src/planner.py)", request, [
@@ -109,7 +109,7 @@ def cmd_planner(args) -> int:
 
 def cmd_writer(args) -> int:
     blog, cfg = _blog(args.blog)
-    history = state.load(blog.history_path)
+    history = blog.own_history(state.load(blog.history_path))
     now = datetime.now(KST)
     search = (args.search or args.topic).strip()
 

@@ -104,6 +104,17 @@ class Blog:
     def runs_path(self) -> Path:
         return self.dir / "runs.json"
 
+    def own_history(self, entries: list[dict]) -> list[dict]:
+        """since 이후 이력만 — 글감 기획과 내부 링크 후보에 씁니다. 파일에는 그대로 남깁니다.
+
+        default 계정 블로그는 2026-10-07 에 주제를 바꿔 다시 시작했는데, 예전 실시간 이슈 글이 이력에
+        live 로 남아 있었습니다. 그 글들은 지워져 404 인데 내부 링크 후보로 작성 모델에 넘어가고 있었습니다.
+        """
+        start = _parse_date(self.since) if self.since else None
+        if not start:
+            return entries
+        return [e for e in entries if (d := _parse_date(e.get("posted_at") or "")) is None or d >= start]
+
     @property
     def slot(self) -> str:
         """첫 슬롯. 표·보고서에서 블로그를 정렬·표시할 때 씁니다."""

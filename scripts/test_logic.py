@@ -293,6 +293,14 @@ def test_internal_links(cfg: dict) -> None:
            {"status": "live", "title": "같은 글 재발행", "url": "https://b/x", "keyword": "b"}]
     check("같은 주소 중복 제거", research.internal_links_block(dup).count("https://b/x") == 1)
 
+    # 주제를 바꿔 다시 시작한 블로그(since 이후)는 예전 글(지워져 404)을 내부 링크 후보로 넘기지 않습니다.
+    from src import fleet as fm
+    old = [{"status": "live", "title": "예전 이슈 글", "url": "https://b/old", "keyword": "o", "posted_at": "2026-09-20T10:00:00+09:00"},
+           {"status": "live", "title": "새 안내 글", "url": "https://b/new", "keyword": "n", "posted_at": "2026-10-08T06:45:00+09:00"}]
+    own = fm.Blog(id="t", name="t", blog_id="1", since="2026-10-08").own_history(old)
+    check("since 이전 이력은 기획·내부 링크에서 제외", [e["title"] for e in own] == ["새 안내 글"], f"{own}")
+    check("since 없으면 이력 그대로", fm.Blog(id="t", name="t", blog_id="1").own_history(old) == old)
+
 
 def test_llm_robustness(cfg: dict) -> None:
     section("모델 응답 잘림 대응")
@@ -868,14 +876,13 @@ def test_config_shape(cfg: dict) -> None:
     check("하루 공개 상한 2 이하", 1 <= cfg["publish"]["max_live_per_day"] <= 2, "대량 생성 정책 위험")
     check("작성 수 2 이하", 1 <= cfg["run"]["posts_per_run"] <= 2)
     check("발행 간격 설정 있음", cfg["publish"].get("min_gap_minutes", 0) >= 30)
-    # 2026-10-02: 작성은 Opus 5.5, 기획·관리·자료 조사·카드는 Sonnet 5.5. 검수는 공개 기준(80점)을 맞춘 Sonnet 5 그대로.
+    # 2026-10-02: 작성은 Opus 5.5, 기획·관리·자료 조사·카드는 Sonnet 5.5. 2026-10-07 검수도 Sonnet 5 → 5.5.
     check("글 작성 모델은 Opus 5.5", cfg["writer"]["model"] == "claude-opus-5-5", cfg["writer"]["model"])
-    check("기획·관리·자료 조사·카드는 Sonnet 5.5",
+    check("기획·관리·자료 조사·카드·검수는 Sonnet 5.5",
           cfg["planner"]["model"] == cfg["manager"]["model"] == cfg["research"]["official"]["model"]
-          == cfg["card"]["retrofit_model"] == "claude-sonnet-5-5")
-    check("검수는 Sonnet 5 유지", cfg["review"]["model"] == "claude-sonnet-5", cfg["review"]["model"])
+          == cfg["card"]["retrofit_model"] == cfg["review"]["model"] == "claude-sonnet-5-5")
     for key, model in (("writer", cfg["writer"]["model"]), ("planner", cfg["planner"]["model"]),
-                       ("research.official", cfg["research"]["official"]["model"])):
+                       ("research.official", cfg["research"]["official"]["model"]), ("review", cfg["review"]["model"])):
         check(f"{key} 모델 비용표에 있음", model in writer.PRICES, model)
     check("planner 섹션", cfg["planner"]["candidates"] >= 3)
     check("evergreen 섹션", cfg["evergreen"]["posts_per_run"] >= 1)
