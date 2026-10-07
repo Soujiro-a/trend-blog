@@ -5,7 +5,8 @@
 
 대기열 순서: 블로그 첫 화면 → 공개 글(오래된 순). 쌓인 글이 먼저 끝나고, 그 뒤로는 새로 올라온 글이
 자연히 다음 차례가 됩니다. 이미 색인된 주소(URL 검사 API 로 확인)와 최근 30일 안에 요청한 주소는 뺍니다.
-요청 한도는 구글 계정 전체에 하루 약 10건입니다(2026-09-29 확인).
+요청 한도는 구글 계정마다 하루 약 10건입니다(2026-09-29 확인). 한 계정이 할당량에 걸리면 그 계정 블로그만
+그날 빠지고 다른 계정은 계속합니다. 각 줄의 account 로 어느 계정으로 로그인한 화면에서 누를지 정합니다.
 
 **요청은 모바일 주소(…?m=1)로 합니다.** 구글은 주로 휴대폰 크롤러로 긁는데, Blogger 는 휴대폰에 원래 주소를
 ?m=1 로 302 리디렉션합니다. 원래 주소로 요청하면 크롤이 '리디렉션 오류'로 끝나 요청 한 건이 버려졌습니다
@@ -25,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import urllib.parse
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -121,15 +123,28 @@ def queue(fleet: fleet_mod.Fleet) -> list[dict]:
         fleet_mod.apply_env(fleet, b)
         site = f"sc-domain:{b.domain}"
         home = b.home_url
-        homes.append({"blog": b.id, "url": home, "request_url": mobile_url(home), "site": site, "published": ""})
-        posts.extend({"blog": b.id, "url": u, "request_url": mobile_url(u), "site": site, "published": t}
+        homes.append({"blog": b.id, "account": b.account, "url": home, "request_url": mobile_url(home), "site": site, "published": ""})
+        posts.extend({"blog": b.id, "account": b.account, "url": u, "request_url": mobile_url(u), "site": site, "published": t}
                      for t, u in _live_urls(b.blog_id))
     posts.sort(key=lambda x: datetime.fromisoformat(x["published"]))
+    for it in homes + posts:   # 예약 작업이 이 주소로 그 계정의 Search Console 개요를 엽니다
+        u, name = fleet.browser(it["account"])
+        it["gsc_home"] = f"https://search.google.com/u/{u}/search-console?resource_id={urllib.parse.quote(it['site'], safe='')}"
+        it["browser_name"] = name
     return homes + posts
 
 
-def quota_hit_today(entries: list[dict], now: datetime) -> bool:
-    return any(e.get("result") == "quota" and e["at"][:10] == now.date().isoformat() for e in entries)
+def account_of(fleet: fleet_mod.Fleet, url: str) -> str:
+    """주소의 블로그 도메인으로 구글 계정을 찾습니다. 함대에 없는 주소면 ""."""
+    host = url.split("//")[-1].split("/")[0].lower()
+    return next((b.account for b in fleet.blogs if b.domain == host), "")
+
+
+def quota_hit_accounts(entries: list[dict], now: datetime) -> set[str]:
+    """오늘 할당량에 걸린 계정들. 한도는 구글 계정마다 따로라 한 계정이 막혀도 다른 계정은 계속합니다.
+    계정이 안 적힌 옛 기록(계정이 하나뿐이던 때)은 second 계정 것입니다."""
+    today = now.date().isoformat()
+    return {e.get("account") or "second" for e in entries if e.get("result") == "quota" and e["at"][:10] == today}
 
 
 def pick_fresh(items: list[dict], entries: list[dict], now: datetime, hours: int = FRESH_HOURS) -> list[dict]:
@@ -166,10 +181,11 @@ def backlog_due(now: datetime) -> bool:
 def cmd_next(args, fleet) -> int:
     now = datetime.now(KST)
     entries = load_log()
-    if quota_hit_today(entries, now):
+    blocked = quota_hit_accounts(entries, now)
+    items = [it for it in queue(fleet) if it["account"] not in blocked]
+    if not items and blocked:
         print("# 오늘은 할당량을 다 썼습니다. 내일 다시 합니다.")
         return 0
-    items = queue(fleet)
     picked: list[dict] = []
     if args.fresh:
         picked = pick_fresh(items, entries, now)[: args.limit]
@@ -204,7 +220,8 @@ def cmd_next(args, fleet) -> int:
 
 def cmd_mark(args, fleet) -> int:
     entries = load_log()
-    entries.append({"at": datetime.now(KST).isoformat(timespec="seconds"), "url": args.url, "result": args.result})
+    entries.append({"at": datetime.now(KST).isoformat(timespec="seconds"), "url": args.url, "result": args.result,
+                    "account": account_of(fleet, args.url)})
     save_log(entries)
     print(f"기록: {args.result} {args.url}")
     return 0

@@ -1237,8 +1237,18 @@ def test_retrofit(cfg: dict) -> None:
     fresh = iq.pick_fresh(items, log, now)
     check("새 글 색인: 72시간 안 미요청 글만, 첫 화면·옛 글·요청한 글·오늘 실패한 글 제외 (할당량 막힌 글은 다시)",
           [f["url"] for f in fresh] == ["u3?m=1", "u5?m=1"] and fresh[0]["canonical"] == "u3", str(fresh))
-    check("오늘 할당량 막혔으면 더 고르지 않음", iq.quota_hit_today(log, now)
-          and not iq.quota_hit_today(log, _dt.fromisoformat("2026-10-06T08:00:00+09:00")))
+    log2 = log + [{"at": "2026-10-05T13:00:00+09:00", "url": "x", "result": "quota", "account": "default"}]
+    check("할당량은 계정별: 계정 없는 옛 기록은 second, 다음 날엔 풀림",
+          iq.quota_hit_accounts(log, now) == {"second"} and iq.quota_hit_accounts(log2, now) == {"second", "default"}
+          and not iq.quota_hit_accounts(log, _dt.fromisoformat("2026-10-06T08:00:00+09:00")))
+    from src import fleet as fm
+    _fl = fm.Fleet({}, {"default": {}, "second": {}}, [
+        fm.Blog(id="picktopic", name="p", blog_id="1", host="picktopic1", account="default"),
+        fm.Blog(id="gaganam1", name="g", blog_id="2", account="second")])
+    check("주소로 계정 찾기 (host 가 id 와 달라도)",
+          iq.account_of(_fl, "https://picktopic1.blogspot.com/2026/10/a.html?m=1") == "default"
+          and iq.account_of(_fl, "https://gaganam1.blogspot.com/?m=1") == "second"
+          and iq.account_of(_fl, "https://picktopic.blogspot.com/") == "")
     check("관리 모델: 신생 블로그 클릭 0 은 메모 안 함", "42일 미만" in manager.SYSTEM)
 
     # 글별 검색 설명 (Blogger API 에 칸이 없어 이력에 남겨 두고 브라우저로 넣습니다)

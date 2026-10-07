@@ -148,7 +148,8 @@ def cmd_next(args, fleet, cfg) -> int:
             continue
         log["drafts"][item["url"]] = desc
         picked.append({"blog": item["blog"], "url": item["url"],
-                       "edit_url": f"https://www.blogger.com/blog/post/edit/{item['blog_id']}/{item['post_id']}",
+                       "edit_url": f"https://www.blogger.com/u/{fleet.browser(item['account'])[0]}/blog/post/edit/{item['blog_id']}/{item['post_id']}",
+                       "account": item["account"], "browser_name": fleet.browser(item["account"])[1],
                        "description": desc})
         if len(picked) >= args.limit:
             break

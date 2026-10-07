@@ -147,6 +147,11 @@ class Fleet:
         """실제로 블로그가 붙어 있는 계정 이름들 (켜진 블로그 기준)."""
         return list(dict.fromkeys(b.account for b in self.blogs if b.enabled))
 
+    def browser(self, account: str) -> tuple[int, str]:
+        """이 PC 내장 브라우저에서 계정의 로그인 순번(/u/N/)과 화면 이름. accounts.<이름>.browser 에 적습니다."""
+        br = (self.accounts.get(account) or {}).get("browser") or {}
+        return int(br.get("user", 0)), str(br.get("name", account))
+
     def account_setting(self, account: str, key: str, default):
         """계정별 설정. 없으면 함대 공통 설정, 그것도 없으면 default.
 
