@@ -107,7 +107,8 @@ def section_history(
         lines.append(f"| 켜진 슬롯 (기대 글 수) | {expected}개" + (f" (+ 오늘 {today}개)" if today else "") + " |")
     lines.append(f"| 작성 | {len(recent)}건 ({modes}) |")
     lines.append(f"| 공개 | {by_status.get('live', 0)}건 |")
-    lines.append(f"| 임시저장(보류) | {by_status.get('draft', 0)}건 |")
+    lines.append(f"| 임시저장 | {by_status.get('draft', 0)}건 |")
+    lines.append(f"| 폐기(기준 미달, 올리지 않음) | {by_status.get('discarded', 0)}건 |")
     lines.append(f"| 검수 거부 | {by_status.get('rejected', 0)}건 |")
     if scores:
         lines.append(f"| 검수 평균 점수 | {sum(scores) / len(scores):.0f}점 |")
@@ -117,13 +118,13 @@ def section_history(
     lines.append("")
 
     live = by_status.get("live", 0)
-    not_live = by_status.get("draft", 0) + by_status.get("rejected", 0)
+    not_live = by_status.get("draft", 0) + by_status.get("discarded", 0) + by_status.get("rejected", 0)
     if cost > max_cost:
         alerts.append(f"API 비용 ${cost:.2f} — 예상 범위(${max_cost:.2f}) 초과")
     if live < min_live:
         alerts.append(f"공개 {live}건 — 기준 {min_live}건 미만. 검수 기준이나 실행 상태 확인")
     if len(recent) and not_live / len(recent) > ALERT_REJECT_RATIO:
-        alerts.append(f"보류·거부 비율 {not_live / len(recent):.0%} — 작성 품질 또는 소재 문제")
+        alerts.append(f"임시저장·폐기·거부 비율 {not_live / len(recent):.0%} — 작성 품질 또는 소재 문제")
 
     published = [h for h in recent if h.get("status") == "live"]
     if published:
@@ -134,10 +135,18 @@ def section_history(
     held = [h for h in recent if h.get("status") == "draft"]
     if held:
         lines.append("")
-        lines.append("### 보류된 글 (임시저장함에 있음 · 안 봐도 됨)")
+        lines.append("### 임시저장된 글 (검수 통과, 하루 상한·발행 간격에 걸림)")
         for h in held:
             score = h.get("review_score")
             lines.append(f"- {h.get('title')}" + (f" (검수 {score}점)" if score is not None else ""))
+    dropped = [h for h in recent if h.get("status") == "discarded"]
+    if dropped:
+        lines.append("")
+        lines.append("### 폐기된 글 (고쳐 써도 검수 기준 미달 · Blogger 에 올리지 않음)")
+        for h in dropped:
+            score = h.get("review_score")
+            lines.append(f"- {h.get('title')}" + (f" (검수 {score}점)" if score is not None else "")
+                         + (f" — {h['reason'][:120]}" if h.get("reason") else ""))
     lines.append("")
     return lines, alerts
 

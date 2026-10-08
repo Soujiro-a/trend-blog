@@ -818,8 +818,9 @@ def test_history_guard() -> None:
 
 def test_decide(cfg: dict) -> None:
     section("공개 판정")
+    # 예전 동작(기준 미달 → 임시저장)을 먼저 확인하고, 폐기(discard_on_hold)는 아래에서 따로 봅니다.
     auto = {**cfg, "publish": {**cfg["publish"], "mode": "auto", "max_live_per_day": 2},
-            "review": {**cfg["review"], "min_score": 80}}
+            "review": {**cfg["review"], "min_score": 80, "discard_on_hold": False}}
     ok = reviewer.Review(verdict="publish", score=85)
     low = reviewer.Review(verdict="publish", score=70)
     hold = reviewer.Review(verdict="hold", score=90)
@@ -840,6 +841,68 @@ def test_decide(cfg: dict) -> None:
     legacy = {**auto, "publish": {**auto["publish"], "draft_only": True}}
     check("옛 설정 draft_only 인식", decide(legacy, ok, 0, False) == "draft")
     check("검수 꺼짐 + auto → 공개", decide(auto, None, 0, False) == "live")
+
+    disc = {**auto, "review": {**auto["review"], "discard_on_hold": True}}
+    check("설정에 폐기가 켜져 있음", cfg["review"].get("discard_on_hold") is True)
+    check("폐기 켬: 점수 미달 → 폐기", decide(disc, low, 0, False) == "discard")
+    check("폐기 켬: hold → 폐기", decide(disc, hold, 0, False) == "discard")
+    check("폐기 켬: 미달이면 상한을 넘어도 폐기", decide(disc, low, 2, False) == "discard")
+    check("폐기 켬: 통과했지만 상한 초과 → 임시저장", decide(disc, ok, 2, False) == "draft")
+    check("폐기 켬: 통과 → 공개", decide(disc, ok, 0, False) == "live")
+    check("폐기 켬: reject 는 reject", decide(disc, bad, 0, False) == "reject")
+    check("폐기 켬: --draft 강제는 임시저장", decide(disc, low, 0, True) == "draft")
+
+
+def test_revise_loop(cfg: dict) -> None:
+    section("보류 글 고쳐 쓰기")
+    from src import main as main_mod
+    from src.main import same_issues
+
+    check("같은 지적 되풀이 감지", same_issues(["표에 정부 기여금이 빠져 있다"], ["표에 정부 기여금이 빠져 있음"]))
+    check("새 지적은 되풀이 아님", not same_issues(["표에 정부 기여금이 빠져 있다"],
+                                                 ["갈아타기 가능 기간이 이미 끝났는데 알리지 않는다"]))
+    check("지적이 비면 되풀이 아님", not same_issues([], ["무엇"]) and not same_issues(["무엇"], []))
+
+    rcfg = {**cfg, "review": {**cfg["review"], "min_score": 80, "revise_on_hold": True, "max_revisions": 2}}
+
+    class Art:
+        def __init__(self, n):
+            self.n, self.cost_usd, self.revised = n, 0.1, False
+
+    def run(reviews):
+        """reviews: 고쳐 쓸 때마다 돌아올 검수 결과. (마지막 글 번호, 검수, 고쳐 쓴 횟수, 고쳐 쓰기 호출 수)"""
+        calls = {"n": 0}
+        seq = list(reviews)
+        orig_revise, orig_review = main_mod.writer.revise, main_mod.reviewer.review
+
+        def fake_revise(cfg_, cand, ctx_, date_, article, issues, **kw):
+            calls["n"] += 1
+            return Art(article.n + 1)
+
+        main_mod.writer.revise = fake_revise
+        main_mod.reviewer.review = lambda cfg_, art, ctx_: seq.pop(0)
+        try:
+            first = reviewer.Review(verdict="hold", score=72, issues=["표에 정부 기여금이 빠져 있다"])
+            art, rv, _, done = main_mod._revise_loop(rcfg, trends.Candidate(keyword="k"), "", "", Art(0), first,
+                                                     "planned", "")
+        finally:
+            main_mod.writer.revise, main_mod.reviewer.review = orig_revise, orig_review
+        return art.n, rv, done, calls["n"]
+
+    n, rv, done, calls = run([reviewer.Review(verdict="publish", score=86)])
+    check("1회차에 통과하면 멈춤", n == 1 and rv.score == 86 and done == 1 and calls == 1)
+    n, rv, done, calls = run([reviewer.Review(verdict="hold", score=72, issues=["갈아타기 기간이 이미 끝났는데 알리지 않는다"]),
+                              reviewer.Review(verdict="publish", score=85)])
+    check("새 지적이면 2회차까지 고쳐 써서 통과", n == 2 and rv.score == 85 and done == 2 and calls == 2)
+    n, rv, done, calls = run([reviewer.Review(verdict="hold", score=74, issues=["표에 정부 기여금이 빠져 있음"])])
+    check("같은 지적이 되풀이되면 1회차에서 멈춤", calls == 1 and done == 1 and rv.score == 74)
+    n, rv, done, calls = run([reviewer.Review(verdict="hold", score=60, issues=["다른 문제"])])
+    check("점수가 떨어지면 앞 글 유지", n == 0 and rv.score == 72 and done == 0)
+    n, rv, done, calls = run([reviewer.Review(verdict="reject", score=90, issues=["지어낸 링크"])])
+    check("고쳐 쓴 글이 거부되면 앞 글 유지", n == 0 and rv.verdict == "hold")
+    n, rv, done, calls = run([reviewer.Review(verdict="hold", score=73, issues=["새 문제 하나"]),
+                              reviewer.Review(verdict="hold", score=75, issues=["또 다른 새 문제"])])
+    check("최대 2회까지만", calls == 2 and done == 2 and rv.score == 75)
 
 
 def test_coupang(cfg: dict) -> None:
@@ -1423,7 +1486,38 @@ def test_local_trial(cfg: dict) -> None:
                       reviewer.Review(verdict="hold", score=60, model="m")]
         single.main(["--blog", "t1", "--target", "local"])
         report = blog.report_path.read_text(encoding="utf-8")
-        check("고친 글이 더 나쁘면 처음 글로 임시저장", "임시저장 1건" in report and "의료비 공제 조건 정리" in report, report[-300:])
+        check("고친 글이 더 나쁘면 처음 글로 판정 → 기준 미달이라 폐기(올리지 않음)",
+              "임시저장 0건 / 폐기 1건" in report and "의료비 공제 조건 정리" in report and "🗑️" in report, report[-300:])
+
+        # 폐기를 끄면 예전처럼 임시저장
+        single.load_config = lambda *a, **k: {**on, "review": {**on["review"], "discard_on_hold": False}}
+        reviews[:] = [reviewer.Review(verdict="hold", score=72, issues=["근거 약함"], model="m"),
+                      reviewer.Review(verdict="hold", score=60, model="m")]
+        single.main(["--blog", "t1", "--target", "local"])
+        report = blog.report_path.read_text(encoding="utf-8")
+        check("폐기를 끄면 미달 글은 임시저장", "임시저장 1건" in report, report[-300:])
+        single.load_config = lambda *a, **k: on
+
+        # 폐기되면 같은 슬롯에서 다음 글감으로 한 번 더 (review.retry_next_topic)
+        cand2 = Candidate(keyword="연말정산 교육비 공제 대상", seen=[Variant("연말정산 교육비 공제 대상", "planner", 1)],
+                          sources={"planner": 1}, score=0.97)
+        cand2.pillar = "연말정산"
+        single.planner.propose = lambda *a, **k: [cand, cand2]
+        reviews[:] = [reviewer.Review(verdict="hold", score=70, issues=["갈아타기 기간이 이미 끝났는데 알리지 않는다"], model="m"),
+                      reviewer.Review(verdict="hold", score=70, issues=["갈아타기 기간이 이미 끝났는데 알리지 않음"], model="m"),
+                      reviewer.Review(verdict="publish", score=88, model="m")]
+        single.main(["--blog", "t1", "--target", "local"])
+        report = blog.report_path.read_text(encoding="utf-8")
+        check("같은 지적 되풀이 → 폐기 → 다음 글감으로 공개", "공개 1건 / 임시저장 0건 / 폐기 1건" in report
+              and not reviews, report[-400:])
+        reviews[:] = [reviewer.Review(verdict="hold", score=70, issues=["가"], model="m"),
+                      reviewer.Review(verdict="hold", score=70, issues=["가"], model="m"),
+                      reviewer.Review(verdict="hold", score=70, issues=["나"], model="m"),
+                      reviewer.Review(verdict="hold", score=70, issues=["나"], model="m")]
+        single.main(["--blog", "t1", "--target", "local"])
+        report = blog.report_path.read_text(encoding="utf-8")
+        check("다시 써도 미달이면 슬롯당 2편에서 멈춤", "공개 0건 / 임시저장 0건 / 폐기 2건" in report and not reviews,
+              report[-400:])
         check("작성 형식 되돌리기(_render) → 파싱 왕복",
               writer._parse(writer._render(fake_article()), "k", "m").title == "의료비 공제 조건 정리")
     finally:
@@ -1533,6 +1627,7 @@ def main() -> int:
     test_accounts(cfg)
     test_history_guard()
     test_decide(cfg)
+    test_revise_loop(cfg)
     test_coupang(cfg)
     test_evergreen_parse(cfg)
     test_config_shape(cfg)

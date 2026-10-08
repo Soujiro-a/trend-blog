@@ -213,7 +213,7 @@ def cmd_status(_args) -> int:
     # 오늘 완료는 '오늘 켜진 슬롯'(램프업·계정 상한 반영) 기준으로 셉니다. 적어 둔 슬롯 기준이면
     # 램프업 대기 중인 두 번째 슬롯 때문에 늘 "1/2" 로 보여 덜 돈 것처럼 보입니다.
     plan = fleet_mod.planned_slots(fleet)
-    print("| 블로그 | 슬롯 | 오늘 완료 / 켜진 슬롯 | 7일 공개/보류/거부 | 7일 비용 | 마지막 결과 |")
+    print("| 블로그 | 슬롯 | 오늘 완료 / 켜진 슬롯 | 7일 공개/임시/폐기/거부 | 7일 비용 | 마지막 결과 |")
     print("|---|---|---|---|---:|---|")
     today_str = datetime.now(KST).strftime("%Y-%m-%d")
     for b in sorted(fleet.blogs, key=lambda b: (not b.enabled, b.account, b.slot_minutes)):
@@ -230,6 +230,7 @@ def cmd_status(_args) -> int:
             continue
         live = sum(h.get("status") == "live" for h in hist)
         draft = sum(h.get("status") == "draft" for h in hist)
+        dropped = sum(h.get("status") == "discarded" for h in hist)
         rej = sum(h.get("status") == "rejected" for h in hist)
         cost = sum(float(h.get("cost_usd") or 0) for h in hist)
         # 시각 순으로 마지막 실행 (키 순으로 고르면 모드 이름 순서 때문에 옛 기록이 나옵니다)
@@ -237,7 +238,7 @@ def cmd_status(_args) -> int:
         today = f"{done}/{len(active)}" if b.enabled else "꺼짐"
         print(
             f"| {b.name} ({b.id}) | {', '.join(b.slots)} | {today} | "
-            f"{live}/{draft}/{rej} | ${cost:.2f} | {last[:60]} |"
+            f"{live}/{draft}/{dropped}/{rej} | ${cost:.2f} | {last[:60]} |"
         )
     return 0
 

@@ -41,8 +41,9 @@ PYTHONUTF8=1 python scripts/agent_brief.py reviewer --dir <작업 폴더>
 4. `SYSTEM` 의 형식 그대로 JSON 하나를 만들어 작업 폴더의 `review.json` 에 저장합니다.
 
 ## 돌려줄 것
-- 판정(verdict)·점수(score), 그리고 자동화였다면 어떻게 됐을지 (공개 / 임시저장 / 올리지 않음).
-  자동화는 hold 면 issues 를 작성 모델에 돌려 한 번 고쳐 쓰고 다시 검수합니다. 고치면 통과할 hold 인지도 적어 주세요.
+- 판정(verdict)·점수(score), 그리고 자동화였다면 어떻게 됐을지 (공개 / 고쳐 쓰기 / 폐기 / 거부).
+  자동화는 hold 면 issues 를 작성 모델에 돌려 고쳐 쓰고(새 지적이 나오면 최대 2회) 다시 검수하며, 그래도 미달이면 폐기(올리지 않음)합니다.
+  고치면 통과할 hold 인지도 적어 주세요.
 - 문제(issues) 목록: 어느 문장이 어느 기준에 걸렸는지
 - 미리보기 경로(`preview.html`)
 

@@ -114,12 +114,14 @@ def record(
     review_score: int | None = None,
     extras: list[str] | None = None,
     description: str = "",
+    reason: str = "",
 ) -> list[dict]:
     """이력에 한 건 추가합니다.
 
-    status: live(공개) | draft(보류) | rejected(올리지 않음)
+    status: live(공개) | draft(임시저장) | discarded(고쳐 써도 기준 미달 → 올리지 않음) | rejected(올리지 않음)
     mode:   trend(실시간 이슈) | evergreen(장수 해설)
     extras: 적용된 수익화 항목 (예: ["coupang"])
+    reason: 폐기·거부 사유(검수 지적 요약).
     description: 작성 모델이 쓴 검색 설명. Blogger API 로는 넣을 수 없어 scripts/search_desc.py 가 브라우저로 넣습니다.
     """
     entries.append(
@@ -134,6 +136,7 @@ def record(
             "review_score": review_score,
             "extras": extras or [],
             **({"description": description} if description else {}),
+            **({"reason": reason} if reason else {}),
             "posted_at": _now().isoformat(timespec="seconds"),
         }
     )

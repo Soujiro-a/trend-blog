@@ -2,7 +2,7 @@
 
 하루 한 번(모든 슬롯이 끝난 뒤) 실행되어:
 
-1. 블로그별 지표를 모읍니다 — 최근 7일 공개/보류/거부 수, 비용, 검수 평균, 연속 실패,
+1. 블로그별 지표를 모읍니다 — 최근 7일 공개/임시저장/폐기/거부 수, 비용, 검수 평균, 연속 실패,
    Blogger 실제 공개 글 수, (권한이 있으면) Search Console 클릭.
 2. 함대 전체 이상을 찾습니다 — 같은 날 여러 블로그가 비슷한 제목을 낸 경우(중복 콘텐츠),
    비용 급증, 실행이 안 된 블로그.
@@ -64,7 +64,7 @@ SYSTEM = """당신은 여러 개의 한국어 이슈 블로그를 운영하는 �
 
 발행량(하루 글 수)은 당신이 바꿀 수 없습니다. 블로그·계정 나이에 따른 램프업 규칙이 정하며, \
 지표의 `slots_today`(오늘 켜진 슬롯)와 `ramp`(계정 단계)가 그 결과입니다. 증량을 제안하지 마세요. \
-보류·거부가 많은 블로그가 있으면 note 로 알리세요.
+폐기·거부가 많은 블로그가 있으면 note 로 알리세요(폐기 = 고쳐 써도 검수 기준 미달이라 올리지 않은 글. 정상 동작이지만 많으면 글감·자료 문제).
 `account_halted` 가 있는 계정은 Blogger 가 쓰기를 거부해 멈춘 상태입니다. 사람이 풀어야 하므로 note 로 알리기만 하세요.
 
 ## 판단 원칙
@@ -94,7 +94,7 @@ def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, use_api: bool, n
             "id": blog.id, "name": blog.name, "slot": blog.slot, "account": blog.account,
             "enabled": blog.enabled, "paused_by": None, "slots_today": [],
             "runs_7d": 0, "runs_failed_7d": 0, "consecutive_failures": 99,
-            "live_7d": 0, "draft_7d": 0, "rejected_7d": 0, "avg_score_7d": None,
+            "live_7d": 0, "draft_7d": 0, "discarded_7d": 0, "rejected_7d": 0, "avg_score_7d": None,
             "cost_7d": 0.0, "titles_today": [], "blogger_live_total": None,
             "blog_url": None, "gsc_clicks_7d": None,
             "history_error": str(exc)[:160],
@@ -125,7 +125,8 @@ def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, use_api: bool, n
         "blog_age_days": fleet_mod.blog_age_days(fleet, blog, now),
         "runs_7d": len(recent_runs), "runs_failed_7d": sum(not r.get("ok") for r in recent_runs),
         "consecutive_failures": consecutive_fail,
-        "live_7d": by.get("live", 0), "draft_7d": by.get("draft", 0), "rejected_7d": by.get("rejected", 0),
+        "live_7d": by.get("live", 0), "draft_7d": by.get("draft", 0), "discarded_7d": by.get("discarded", 0),
+        "rejected_7d": by.get("rejected", 0),
         "avg_score_7d": round(sum(scores) / len(scores), 1) if scores else None,
         "cost_7d": round(sum(float(h.get("cost_usd") or 0) for h in hist), 2),
         "titles_today": [h.get("title", "") for h in hist if h.get("posted_at", "").startswith(now.strftime("%Y-%m-%d"))],
@@ -417,7 +418,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{a['slots_today']} / {a['slots_configured']} | {a['blogs']} |"
         )
     lines += ["", "## 블로그별 지표 (7일)", "",
-              "| 계정 | 블로그 | 슬롯 | 상태 | 실행/실패 | 공개/보류/거부 | 검수평균 | 비용 | Blogger 총 글 | GSC 클릭 |",
+              "| 계정 | 블로그 | 슬롯 | 상태 | 실행/실패 | 공개/임시/폐기/거부 | 검수평균 | 비용 | Blogger 총 글 | GSC 클릭 |",
               "|---|---|---|---|---|---|---:|---:|---:|---:|"]
     for m in sorted(metrics, key=lambda x: (x.get("account", ""), x["slot"])):
         st = "켜짐" if m["enabled"] else f"꺼짐({m.get('paused_by') or '?'})"
@@ -426,7 +427,7 @@ def main(argv: list[str] | None = None) -> int:
         lines.append(
             f"| {m.get('account', '?')} | {m['name']} ({m['id']}) | {m['slot']} | {st} | "
             f"{m['runs_7d']}/{m['runs_failed_7d']} | "
-            f"{m['live_7d']}/{m['draft_7d']}/{m['rejected_7d']} | {m['avg_score_7d'] or '-'} | ${m['cost_7d']} | "
+            f"{m['live_7d']}/{m['draft_7d']}/{m.get('discarded_7d', 0)}/{m['rejected_7d']} | {m['avg_score_7d'] or '-'} | ${m['cost_7d']} | "
             f"{m['blogger_live_total'] if m['blogger_live_total'] is not None else '-'} | {m['gsc_clicks_7d'] if m['gsc_clicks_7d'] is not None else '-'} |"
         )
     total_cost = sum(m["cost_7d"] for m in metrics)

@@ -13,14 +13,17 @@
     planned(함대 기본): 블로그 고유 주제 안에서 글감 기획(Sonnet)
     trend(옛 방식)    : 실시간 검색어 → 필터 → (함대: 블로그 주제 필터·다른 블로그 선점 제외)
     publish + 점수 ≥ min_score + 하루 공개 상한 안 → 공개
-    hold / 상한 초과                                 → 임시저장 (사람이 나중에 봐도 되고 안 봐도 됨)
+    hold → 지적만 고쳐 다시 쓰기(최대 review.max_revisions 회) → 그래도 미달 → 폐기(올리지 않음)
+    통과했지만 하루 상한·발행 간격에 걸림         → 임시저장
     reject                                           → 올리지 않음
+    폐기·거부되면 같은 슬롯에서 다음 글감으로 다시 씁니다(review.retry_next_topic 편까지).
   검수관이 '구매 의도 있음'으로 본 글에는 쿠팡파트너스 상품 링크를 넣습니다.
 """
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import logging
 import sys
 from dataclasses import dataclass
@@ -103,7 +106,9 @@ def decide(
     force_draft: bool,
     live_cap: int | None = None,
 ) -> str:
-    """검수 결과와 상한을 보고 live / draft / reject 를 정합니다.
+    """검수 결과와 상한을 보고 live / draft / discard / reject 를 정합니다.
+
+    discard 는 고쳐 써도 기준을 못 넘은 글입니다(review.discard_on_hold). 올리지 않습니다.
 
     live_cap 은 서버 기준으로 계산된 '오늘 더 공개해도 되는 수'입니다(src/guard.py).
     넘기지 않으면 config 의 하루 상한을 씁니다.
@@ -114,6 +119,11 @@ def decide(
         return "reject"
     if force_draft or pub.get("mode", "draft") != "auto" or pub.get("draft_only", False):
         return "draft"
+    # 기준 미달은 잘못되거나 헷갈리는 내용이 있다는 판정이라 그대로는 공개할 수 없고, 임시저장해 두어도
+    # 결국 사람이 지워야 합니다. 그래서 올리지 않습니다.
+    if (review is not None and cfg["review"].get("discard_on_hold", False)
+            and not review.approved(cfg["review"].get("min_score", 80))):
+        return "discard"
     if live_so_far >= cap:
         return "draft"
     if review is None:
@@ -122,6 +132,58 @@ def decide(
     if not review.approved(cfg["review"].get("min_score", 80)):
         return "draft"
     return "live"
+
+
+def same_issues(prev: list[str], new: list[str], threshold: float = 0.6) -> bool:
+    """재검수의 첫 지적이 앞 회차 지적의 되풀이인지. 되풀이면 같은 자료로는 못 고치는 글이라 더 고쳐 쓰지 않습니다.
+
+    검수관은 같은 문제도 말을 바꿔 쓰므로 애매하면 '새 지적'으로 봅니다(고쳐 쓰기 횟수 상한이 따로 있음).
+    """
+    def norm(t: str) -> str:
+        return "".join(t.split())
+
+    if not prev or not new:
+        return False
+    first = norm(new[0])
+    return any(difflib.SequenceMatcher(None, first, norm(p)).ratio() >= threshold for p in prev)
+
+
+def _revise_loop(cfg: dict, candidate, context: str, date_str: str, article, rv: reviewer.Review,
+                 mode: str, persona: str) -> tuple:
+    """보류 글을 지적만 고쳐 다시 쓰고 다시 검수합니다. (글, 검수, 추가 비용, 고쳐 쓴 횟수)를 돌려줍니다.
+
+    보류 지적은 대개 "이 문장은 자료에 없다"처럼 구체적이라 고치면 공개할 수 있는 글이 됩니다.
+    2026-10-07 보류 9편을 한 번 고쳐 쓰니 3편이 공개 기준을 넘었습니다. 한 번 고치면 다른 문제가 새로 보이는
+    경우가 있어(10-08 picktopic) max_revisions 회까지, 지적이 새로울 때만 이어 갑니다.
+    거부는 고치지 않고, 점수가 떨어지거나 거부로 바뀐 고쳐 쓰기는 버리고 앞 글로 갑니다.
+    """
+    min_score = cfg["review"].get("min_score", 80)
+    rounds = max(0, int(cfg["review"].get("max_revisions", 1))) if cfg["review"].get("revise_on_hold", False) else 0
+    cost = 0.0
+    done = 0
+    for _ in range(rounds):
+        if rv.verdict == "reject" or rv.approved(min_score):
+            break
+        try:
+            revised = writer.revise(cfg, candidate, context, date_str, article, rv.issues, mode=mode, persona=persona)
+            cost += revised.cost_usd
+            rv2 = reviewer.review(cfg, revised, context)
+            cost += rv2.cost_usd
+        except Exception as exc:   # 고쳐 쓰기는 덤입니다. 실패해도 앞 글로 진행합니다.
+            log.warning("[%s] 고쳐 쓰기 실패 — 앞 글로 진행: %s", candidate.keyword, exc)
+            break
+        log.info("[%s] 고쳐 쓰기 %d회차: %s %d → %s %d", candidate.keyword, done + 1,
+                 rv.verdict, rv.score, rv2.verdict, rv2.score)
+        if rv2.verdict == "reject" or rv2.score < rv.score:
+            break
+        repeated = same_issues(rv.issues, rv2.issues)
+        article, rv = revised, rv2
+        article.revised = True
+        done += 1
+        if repeated and not rv.approved(min_score):
+            log.info("[%s] 같은 지적이 되풀이되어 더 고쳐 쓰지 않습니다.", candidate.keyword)
+            break
+    return article, rv, cost, done
 
 
 def _collect_trend_candidates(cfg: dict, ctx: RunContext, report: list[str]) -> list[trends.Candidate] | None:
@@ -345,6 +407,10 @@ def main(argv: list[str] | None = None) -> int:
     written = 0
     live = 0
     rejected = 0
+    discarded = 0
+    drafts = 0
+    # 폐기·거부되면 같은 슬롯에서 다음 글감으로 다시 씁니다. 공개 글 수(want)는 그대로이고 시도만 늘어납니다.
+    retries_left = max(0, int(cfg.get("review", {}).get("retry_next_topic", 0)))
     errors = 0  # 진짜 실패(API 오류 등). 필터·모델 판단으로 건너뛴 건 여기 안 셉니다.
     total_cost = 0.0
     report.append("## 작성 결과")
@@ -381,26 +447,13 @@ def main(argv: list[str] | None = None) -> int:
                 article.labels = article.labels[:2]
 
             rv: reviewer.Review | None = None
+            revisions = 0
             if review_on:
                 rv = reviewer.review(cfg, article, context)
                 cost += rv.cost_usd
-                # 보류(점수 미달 포함)면 지적만 고쳐 한 번 다시 쓰고 다시 검수합니다. 거부는 고치지 않습니다.
-                # 보류 지적은 대개 "이 문장은 자료에 없다"처럼 구체적이라 고치면 공개할 수 있는 글이 됩니다.
-                # 2026-10-07 보류 9편을 고쳐 쓰니 3편이 공개 기준을 넘었습니다. 실패하면 처음 글로 갑니다.
-                if (cfg["review"].get("revise_on_hold", False) and rv.verdict != "reject"
-                        and not rv.approved(cfg["review"].get("min_score", 80))):
-                    try:
-                        revised = writer.revise(cfg, candidate, context, date_str, article, rv.issues,
-                                                mode=mode, persona=ctx.persona)
-                        cost += revised.cost_usd
-                        rv2 = reviewer.review(cfg, revised, context)
-                        cost += rv2.cost_usd
-                        log.info("[%s] 고쳐 쓰기: %s %d → %s %d", candidate.keyword, rv.verdict, rv.score, rv2.verdict, rv2.score)
-                        if rv2.verdict != "reject" and rv2.score >= rv.score:
-                            article, rv = revised, rv2
-                            article.revised = True
-                    except Exception as exc:   # 고쳐 쓰기는 덤입니다. 실패해도 처음 글로 진행합니다.
-                        log.warning("[%s] 고쳐 쓰기 실패 — 처음 글로 진행: %s", candidate.keyword, exc)
+                article, rv, extra_cost, revisions = _revise_loop(cfg, candidate, context, date_str, article, rv,
+                                                                  mode, ctx.persona)
+                cost += extra_cost
 
         except writer.SkippedByModel as exc:
             log.info("[%s] 모델이 작성을 건너뜀: %s", candidate.keyword, exc)
@@ -418,20 +471,32 @@ def main(argv: list[str] | None = None) -> int:
             fleet_mod.save_claims(ctx.claims)
 
         decision = decide(cfg, rv, live, args.draft, budget.allowed if budget else None)
-        score_txt = (f"검수 {rv.score}점" + (" · 고쳐 씀" if article.revised else "")) if rv else "검수 없음"
+        score_txt = (f"검수 {rv.score}점" + (f" · 고쳐 씀 {revisions}회" if revisions else "")) if rv else "검수 없음"
         issues_txt = f" — {'; '.join(rv.issues[:2])}" if rv and rv.issues else ""
 
-        if decision == "reject":
+        if decision in ("reject", "discard"):
             total_cost += cost
+            # 폐기 사유를 남겨 둡니다. 기획 단계는 이력의 키워드를 '이미 쓴 글감'으로 보므로 같은 글감이 다시 나오지 않습니다.
             history = state.record(
                 history, keyword=candidate.keyword, title=article.title,
-                status="rejected", mode=mode, cost_usd=cost, review_score=rv.score if rv else None,
+                status="rejected" if decision == "reject" else "discarded", mode=mode, cost_usd=cost,
+                review_score=rv.score if rv else None,
+                reason="; ".join(rv.issues[:2])[:300] if rv and rv.issues else "",
             )
             if persist:
                 state.save(history, ctx.history_path)
-            written += 1  # 비용은 썼으니 하루 생산량에는 포함
-            rejected += 1
-            report.append(f"- 🚫 **{article.title}** — 검수 거부({score_txt}){issues_txt}")
+            if decision == "reject":
+                rejected += 1
+                report.append(f"- 🚫 **{article.title}** — 검수 거부({score_txt}){issues_txt}")
+            else:
+                discarded += 1
+                log.info("[%s] 기준 미달로 폐기(올리지 않음) — %s", candidate.keyword, score_txt)
+                report.append(f"- 🗑️ **{article.title}** — 폐기, 올리지 않음({score_txt}){issues_txt}")
+            if retries_left > 0:
+                retries_left -= 1
+                log.info("[%s] 다음 글감으로 다시 씁니다(남은 재시도 %d).", candidate.keyword, retries_left)
+            else:
+                written += 1  # 비용은 썼으니 하루 생산량에는 포함
             continue
 
         extras: list[str] = []
@@ -491,6 +556,8 @@ def main(argv: list[str] | None = None) -> int:
         total_cost += cost
         if decision == "live":
             live += 1
+        else:
+            drafts += 1
         log.info(
             "[%s] %s — 토큰 %d/%d, 약 $%.3f",
             article.title, "공개" if decision == "live" else "임시저장",
@@ -509,8 +576,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # 거부된 글은 올리지 않았으므로 임시저장과 따로 셉니다. (함대 실행기는 이 줄의 "공개 1건"을 보고
     # 같은 계정 발행 간격을 잽니다 — src/fleet_run.py)
-    reject_txt = f" / 거부 {rejected}건" if rejected else ""
-    summary = f"**공개 {live}건 / 임시저장 {written - live - rejected}건{reject_txt} / 예상 비용 약 ${total_cost:.2f}**"
+    reject_txt = (f" / 폐기 {discarded}건" if discarded else "") + (f" / 거부 {rejected}건" if rejected else "")
+    summary = f"**공개 {live}건 / 임시저장 {drafts}건{reject_txt} / 예상 비용 약 ${total_cost:.2f}**"
     if errors:
         summary += f" · 실패 {errors}건"
     if not persist:
@@ -522,7 +589,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 종료 코드는 "사람이 봐야 하는 문제인가"만 알립니다.
     # 후보가 전부 필터에 걸려 한 건도 못 쓴 것은 정상 동작이므로 성공으로 끝냅니다.
-    if written == 0 and errors:
+    if written == 0 and errors and not (discarded or rejected):
         return 1
     return 0
 
