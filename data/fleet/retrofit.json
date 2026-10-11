@@ -1,5 +1,5 @@
 {
- "last_date": "2026-10-11",
+ "last_date": "2026-10-12",
  "done": [
   {
    "at": "2026-09-30T05:39:29+09:00",
@@ -90,10 +90,20 @@
     "끝 문구를 안내 글 문구로 교체",
     "요약 카드 추가"
    ]
+  },
+  {
+   "at": "2026-10-12T05:09:35+09:00",
+   "blog": "gaganams1",
+   "url": "https://gaganams1.blogspot.com/2026/09/blog-post.html",
+   "changes": [
+    "네이버 뉴스 검색 링크 1줄 삭제",
+    "끝 문구를 안내 글 문구로 교체",
+    "요약 카드 추가"
+   ]
   }
  ],
  "no_card": [],
- "remaining": 17,
- "checked_at": "2026-10-11T04:58+09:00",
- "last_result": "2026-10-11 고침 — gaganamc1 https://gaganamc1.blogspot.com/2026/09/blog-post_24.html"
+ "remaining": 16,
+ "checked_at": "2026-10-12T05:09+09:00",
+ "last_result": "2026-10-12 고침 — gaganams1 https://gaganams1.blogspot.com/2026/09/blog-post.html"
 }
