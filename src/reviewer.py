@@ -204,3 +204,44 @@ def review(
         f"— {'; '.join(result.issues[:3])}" if result.issues else "",
     )
     return result
+
+
+# ---- 기존 글 다듬기 확인 (scripts/retrofit_posts.py) ----
+# 숫자·링크·구조는 writer.polish_problems 가 코드로 봅니다. 여기서는 숫자 없이도 뜻이 바뀌는 경우
+# ("할 수 있습니다" → "해야 합니다", 조건·예외가 빠짐, 단정이 세짐)를 검수 모델이 전후 비교로 봅니다.
+SAME_MEANING_SYSTEM = """당신은 한국어 생활정보 블로그의 발행 책임자입니다. 이미 공개된 글의 문장을 교정 편집자가 다듬었습니다. \
+다듬은 글이 원래 글과 **같은 사실을 같은 강도로** 말하는지만 확인합니다. 문체가 나아졌는지는 판단하지 않습니다.
+
+이런 것이 있으면 다르다고 봅니다.
+- 가능·권장이 의무로, 또는 그 반대로 바뀜 ("할 수 있습니다" ↔ "해야 합니다")
+- 조건·예외·대상·기한이 빠지거나 넓어지거나 좁아짐
+- 원래 글에 없던 이유·조언·전망·사실이 더해짐
+- 단정의 강도가 바뀜 ("~로 안내합니다" → "~입니다", "약" 이 빠짐)
+- 누가 하는지(주체)가 바뀜
+
+JSON 한 덩어리만 출력합니다: {"same": true 또는 false, "problems": ["바뀐 곳: 원래 → 다듬은 글", ...]}"""
+
+
+def same_meaning(cfg: dict, before_html: str, after_html: str, client: anthropic.Anthropic | None = None,
+                 ) -> tuple[bool, list[str], float]:
+    """다듬기 전후 본문의 뜻이 같은지. (같음, 문제 목록, 비용)"""
+    r = cfg["review"]
+    client = client or llm.client()
+    response = client.messages.create(
+        model=r["model"],
+        max_tokens=r.get("max_tokens", 6000),
+        system=SAME_MEANING_SYSTEM,
+        output_config={"effort": r.get("effort", "medium")},
+        messages=[{"role": "user", "content": f"## 원래 글\n{before_html}\n\n## 다듬은 글\n{after_html}"}],
+    )
+    price_in, price_out = PRICES.get(r["model"], (2.00, 10.00))
+    cost = (response.usage.input_tokens * price_in + response.usage.output_tokens * price_out) / 1_000_000
+    if response.stop_reason == "refusal":
+        return False, ["검수 모델이 내용을 거부함"], cost
+    m = _JSON_BLOCK.search(llm.text_of(response, "다듬기 확인"))
+    if not m:
+        return False, ["확인 응답에 JSON 이 없음"], cost
+    data = json.loads(m.group(0))
+    problems = data.get("problems") or []
+    problems = [str(p) for p in (problems if isinstance(problems, list) else [problems])][:8]
+    return data.get("same") is True, problems, cost

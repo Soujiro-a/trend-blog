@@ -1352,6 +1352,64 @@ def test_retrofit(cfg: dict) -> None:
     check("작성 결과의 설명을 이력에 넘김", "description=article.description" in (Path(__file__).resolve().parent.parent / "src" / "main.py").read_text(encoding="utf-8"))
 
 
+def test_polish(cfg: dict) -> None:
+    """문장 다듬기: 새 글은 작성 지시문에, 옛 글은 하루 한 편 다듬되 사실이 바뀌면 올리지 않습니다."""
+    section("문장 다듬기 (humanizer-kr 기준)")
+    from scripts import retrofit_posts as rp
+
+    check("작성 지시문에 다듬기 규칙", writer.STYLE_RULES in writer.SYSTEM
+          and writer.STYLE_RULES.split("\n")[0] in writer._system(cfg, "2026년 10월 12일", "planned", ""))
+    check("다듬기 지시문도 같은 규칙", "예고 문장을 쓰지 않습니다" in writer.POLISH_SYSTEM
+          and "반드시 지킬 것" in writer.POLISH_SYSTEM)
+    check("humanizer-kr 출처·라이선스 표기", "humanizer-kr" in Path(writer.__file__).read_text(encoding="utf-8")
+          and "MIT" in Path(writer.__file__).read_text(encoding="utf-8"))
+
+    before = ('<p>수수료 3~8%가 추가로 부과됩니다. 신청 순서는 다음과 같습니다.</p>\n<ul>\n<li>카드사 앱(1588-0000)</li>\n</ul>\n'
+              '<h2>참고한 자료</h2>\n<ul>\n<li><a href="https://a.go.kr/x?id=12">안내 - 기관</a></li>\n</ul>\n'
+              '<p><em>2026년 09월 22일 기준으로 정리한 내용입니다.</em></p>')
+    good = before.replace("추가로 부과됩니다. 신청 순서는 다음과 같습니다.", "더 붙습니다. 신청은 카드사 앱에서 합니다.")
+    check("문장만 바뀌면 통과", writer.polish_problems(before, good) == [], str(writer.polish_problems(before, good)))
+    check("숫자가 빠지면 거름", any("숫자" in x for x in writer.polish_problems(before, good.replace("3~8%", "몇 %"))))
+    check("전화번호 괄호를 지우면 거름", any("숫자" in x for x in writer.polish_problems(before, good.replace("(1588-0000)", ""))))
+    check("링크가 바뀌면 거름", any("링크" in x for x in writer.polish_problems(before, good.replace("id=12", "id=13"))))
+    check("목록 개수가 바뀌면 거름", any("li" in x for x in writer.polish_problems(before, good.replace("<li>카드사 앱(1588-0000)</li>\n", ""))))
+    check("참고 자료·끝 문구가 바뀌면 거름", any("참고한 자료" in x for x in writer.polish_problems(
+        before, good.replace("기준으로 정리한 내용입니다", "기준입니다"))))
+    check("광고·이미지 블록이 빠지면 거름", any("div" in x for x in writer.polish_problems(
+        '<div class="ad">x</div>' + before, good)))
+    check("바뀐 것 없으면 거름", "바뀐 문장 없음" in writer.polish_problems(before, before))
+
+    card = ('<div class="separator" style="clear: both; text-align: center;"><img src="https://raw.githubusercontent.com/o/r/'
+            'abc/cards/b/1.png" alt="x" width="1200" height="675" style="max-width: 100%; height: auto;" /></div>\n')
+    check("요약 카드는 떼어 두고 다듬기", rp.split_card(card + before) == (card, before) and rp.split_card(before) == ("", before))
+
+    pol = {"enabled": True, "before": "2026-10-13"}
+    old = {"url": "u1", "published": "2026-10-12T23:30:00+09:00"}
+    new = {"url": "u2", "published": "2026-10-13T06:40:00+09:00"}
+    check("규칙 전 글만 다듬기 대상 (KST 날짜 기준)", rp.wants_polish(old, pol, {}) and not rp.wants_polish(new, pol, {}))
+    check("UTC 로 받은 공개 시각도 KST 로", not rp.wants_polish({"url": "u3", "published": "2026-10-12T22:00:00Z"}, pol, {}))
+    check("다듬은 글·건너뛴 글은 다시 안 함", not rp.wants_polish(old, pol, {"polished": ["u1"]})
+          and not rp.wants_polish(old, pol, {"polish_skip": [{"url": "u1", "why": "숫자"}]}))
+    check("꺼 두면 안 함", not rp.wants_polish(old, {**pol, "enabled": False}, {}))
+    check("config: 다듬기 켜짐·기준 날짜", cfg["polish"]["enabled"] is True and len(str(cfg["polish"]["before"])) == 10)
+
+    saved = writer.polish, reviewer.same_meaning
+    try:
+        writer.polish = lambda cfg_, body, kw="": (body.replace("부과됩니다", "붙습니다"), 0.2)
+        reviewer.same_meaning = lambda cfg_, a, b: (True, [], 0.02)
+        out, why, cost = rp.polish_post(cfg, card + before, "t")
+        check("통과하면 카드를 앞에 다시 붙임", out == card + before.replace("부과됩니다", "붙습니다") and not why
+              and abs(cost - 0.22) < 1e-9, str(why))
+        reviewer.same_meaning = lambda cfg_, a, b: (False, ["할 수 있습니다 → 해야 합니다"], 0.02)
+        out, why, _ = rp.polish_post(cfg, before, "t")
+        check("뜻이 달라졌다고 보면 쓰지 않음", out is None and "뜻이 달라짐" in why[0])
+        writer.polish = lambda cfg_, body, kw="": (body.replace("3~8%", "몇 %"), 0.2)
+        out, why, _ = rp.polish_post(cfg, before, "t")
+        check("숫자가 바뀌면 확인 모델도 부르지 않고 버림", out is None and "숫자" in why[0])
+    finally:
+        writer.polish, reviewer.same_meaning = saved
+
+
 def test_card(cfg: dict) -> None:
     """요약 카드: 형식 읽기, 그림 크기, 실패해도 발행을 막지 않음, 기존 글 정리 대상."""
     section("요약 카드")
@@ -1615,6 +1673,7 @@ def main() -> int:
     test_official(cfg)
     test_retrofit(cfg)
     test_card(cfg)
+    test_polish(cfg)
     test_internal_links(cfg)
     test_no_why_searched(cfg)
     test_pages()

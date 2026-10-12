@@ -26,6 +26,37 @@ PRICES = {
     "claude-haiku-4-5": (1.00, 5.00),
 }
 
+# AI 가 쓴 티가 나는 문장 습관. humanizer-kr 스킬(https://github.com/hjongc/humanizer-kr, MIT License,
+# Copyright (c) 2026 humanizer-kr contributors)의 기준 가운데 우리 글에 실제로 많이 나온 것만 골라 줄였습니다.
+# 2026-10-12 공개 글 27편 측정: 상투어·번역투는 거의 없고 예고 문장·괄호·반복 출처 표기가 많았습니다.
+# 같은 글감 3편 비교에서 괄호 39→22, '~에 따르면' 6→3, 검수 점수 같음. 새 글(SYSTEM)과
+# 기존 글 다듬기(polish, scripts/retrofit_posts.py)가 같은 규칙을 씁니다.
+STYLE_RULES = """## 문장 다듬기 (기계로 찍어 낸 글처럼 보이지 않게)
+
+사람 편집자가 쓴 안내 글처럼 읽히게 합니다. 아래는 문장을 고르는 기준이고, 위 '지켜야 할 원칙'이 언제나 먼저입니다. \
+이 기준을 지키려고 사실·숫자·조건·출처를 바꾸거나 빼지 마세요.
+
+- **예고 문장을 쓰지 않습니다.** 목록·표 앞에 "~은 다음과 같습니다", "아래처럼 정리했습니다", "살펴보겠습니다", \
+"알아보겠습니다"를 쓰지 않습니다. 소제목이 이미 그 역할을 합니다. 목록 앞에 문장이 필요하면 그 목록이 답하는 조건을 \
+담습니다. (나쁜 예: "신청 순서는 다음과 같습니다." 좋은 예: "신청은 홈택스에서 세 단계로 끝납니다.")
+- **출처 표기를 문장마다 붙이지 않습니다.** "○○ 안내에 따르면"은 한 단락에 한 번이면 충분합니다. 기관마다 값이 다르거나 \
+최근 바뀐 값처럼 본문에서 출처를 밝혀야 할 때만 쓰고, 나머지는 '참고한 자료'에 맡깁니다.
+- **괄호는 한 문장에 하나까지.** 괄호 안에 문장이나 단서를 길게 넣지 말고 따로 한 문장으로 씁니다. 사이트 주소는 처음 나올 때 \
+한 번만 괄호로 적습니다. "/"로 두 말을 잇지 말고(예: "신청/접수") 하나를 고르거나 "와·나"로 씁니다.
+- **명사로 뭉친 문장을 동사로 풉니다.** 행동이 명사 속에 숨으면 누가 무엇을 하는지 드러나게 씁니다. \
+(나쁜 예 → 좋은 예: "서비스 간 변경은 가능합니다." → "다른 서비스로 바꿀 수 있습니다." / \
+"할 일은 저축금을 넣는 것입니다." → "저축금을 넣으면 됩니다." / "수수료 3%가 추가로 부과됩니다." → "수수료 3%가 더 붙습니다.")
+- **번역투 연결어로 문장을 잇지 않습니다.** "또한", "이를 통해", "이에 따라", "결과적으로", "전반적으로", "더 나아가"를 빼고, \
+앞뒤 관계가 필요하면 문장 안에서 드러냅니다.
+- **꾸밈말과 상투적인 문장을 쓰지 않습니다.** 근거 없는 "완벽한", "핵심은", "~이 중요합니다", "많이 헷갈리는 부분은 ~점입니다", \
+"도움이 되셨길 바랍니다" 같은 말 대신 실제 조건·행동을 씁니다. (예: "마지막 단계가 중요합니다." → "마지막 단계를 놓치지 마세요.")
+- **목록을 전부 "라벨: 설명" 모양으로 만들지 않습니다.** 절차의 단계 이름처럼 라벨이 실제로 훑어보기를 도울 때만 \
+`<strong>라벨</strong>` 을 앞에 둡니다. 그 밖에는 평범한 문장으로 씁니다. \
+(예: "현지통화로 결제할 때: 수수료 약 1%가 부과됩니다." → "현지통화로 결제하면 수수료 약 1%가 붙습니다.")
+- **문장 길이를 섞습니다.** 모든 문장을 같은 길이로 끊지 말고, 짧게 답하는 문장과 조건을 풀어 주는 문장을 섞습니다. \
+어미는 이 블로그의 말투 하나로 통일합니다.
+- **같은 대상은 같은 말로 부릅니다.** 가입자·신청자·이용자처럼 같은 사람을 번갈아 부르지 않습니다."""
+
 SYSTEM = """당신은 한국어 생활정보 블로그 편집자입니다. 주어진 주제를 독자가 \
 "검색해서 들어왔을 때 궁금했던 걸 실제로 해결하고 나가는" 글로 씁니다.
 
@@ -75,6 +106,8 @@ SYSTEM = """당신은 한국어 생활정보 블로그 편집자입니다. 주�
 왜 요즘 이게 화제인지, 왜 많이 찾는지를 설명하는 문단이나 소제목(`왜 지금 ~ 검색될까`, \
 `요즘 ~가 화제인 이유`, `왜 검색되는가` 등)은 **만들지 마세요.** 첫 문단부터 독자가 찾으러 온 \
 답을 바로 줍니다. 배경 설명이 필요하면 답을 먼저 준 뒤에 덧붙입니다.
+
+""" + STYLE_RULES + """
 
 ## 출력 형식
 
@@ -353,3 +386,90 @@ def revise(
     revised = _call(cfg, client, _system(cfg, date_str, mode, persona), messages, candidate.keyword, "고쳐 쓰기")
     revised.labels = article.labels   # 라벨은 기획 단계의 하위 축 그대로
     return revised
+
+
+# ---- 기존 글 다듬기 (scripts/retrofit_posts.py 가 하루 한 편) ----
+# 이미 공개된 글의 문장만 STYLE_RULES 대로 다듬습니다. 그 글을 쓸 때 본 자료가 남아 있지 않아 검수관이 사실을
+# 다시 대조할 수 없으므로, 사실은 '바꾸지 않는 것'으로 지킵니다: 숫자·링크·소제목·표·참고 자료가 하나라도
+# 달라지면 polish_problems 가 걸러 내고 그 글은 고치지 않습니다. 2026-10-12 시험 3편: 숫자·링크 변화 0.
+
+POLISH_SYSTEM = """당신은 한국어 생활정보 블로그의 교정 편집자입니다. 이미 공개된 글을 받아, AI 가 쓴 티가 나는 \
+문장만 사람이 쓴 안내 글처럼 다듬습니다.
+
+## 반드시 지킬 것 (아래 '문장 다듬기' 기준보다 우선)
+- 사실·숫자·금액·기한·날짜·기관명·전화번호·법 조항·인용문은 그대로 둡니다. 새 사실, 예시, 이유, 조언을 더하지 않습니다.
+- 숫자가 들어 있는 괄호는 지우지 말고 그대로 두거나 괄호 밖 문장으로 옮깁니다. 숫자가 하나라도 빠지면 안 됩니다.
+- 모든 링크(`<a href>`)와 주소, 링크 글자를 그대로 둡니다.
+- `<h2>`·`<h3>` 소제목, 표(`<table>`), 목록 항목(`<li>`)의 개수와 순서를 그대로 둡니다. 소제목 글자와 표의 칸 값도 바꾸지 않습니다.
+- `<h2>참고한 자료</h2>` 부터 글 끝까지(참고 자료 목록과 맨 끝 안내 문구)는 한 글자도 바꾸지 않습니다.
+- 새 태그를 더하지 않습니다. 원래 있던 태그와 속성(이미지·광고·고지 블록 포함)은 그대로 둡니다.
+- 권장·의무·가능의 강도를 그대로 둡니다. "~하는 것이 좋습니다"는 권장으로 남기고(예: "~하면 좋습니다") "~하세요" 같은 명령으로 바꾸지 않습니다. "~이 중요합니다"도 명령으로 바꾸지 않습니다. 명령은 명령으로, "할 수 있습니다"는 가능으로 둡니다.
+- "만", "꼭", "반드시", "약", "보통"처럼 범위·강도를 정하는 말을 더하거나 빼지 않습니다. 원래 없던 행동("요구하세요" 등)을 더하지 않습니다.
+- 원래 글의 말투(어미)를 유지합니다. 고칠 데가 없는 문장은 그대로 둡니다. 분량은 거의 그대로입니다.
+
+""" + STYLE_RULES.replace("위 '지켜야 할 원칙'", "위 '반드시 지킬 것'") + """
+
+## 출력 형식
+받은 HTML 본문 전체를 다듬은 결과만 `<<<BODY>>>` 한 줄 다음에 출력합니다. 다른 말은 덧붙이지 마세요."""
+
+_POLISH_TAGS = ("<h2", "<h3", "<table", "<tr", "<li", "<a ", "<div", "<img", "<iframe", "<script")
+_REFS_HEAD = re.compile(r"<h2[^>]*>\s*참고한 자료\s*</h2>")
+
+
+def _numbers(html_text: str) -> set[str]:
+    # 링크 주소 안 숫자는 _links 가 따로 봅니다. 쉼표·점이 붙은 금액(1,440만)은 한 덩어리로 셉니다.
+    text = re.sub(r"<[^>]+>", " ", html_text)
+    return set(re.findall(r"\d[\d,.]*\d|\d", text))
+
+
+def _links(html_text: str) -> list[str]:
+    return re.findall(r'<a\s[^>]*href="([^"]+)"', html_text)
+
+
+def _refs_tail(html_text: str) -> str:
+    m = _REFS_HEAD.search(html_text)
+    return html_text[m.start():].strip() if m else ""
+
+
+def polish_problems(before: str, after: str) -> list[str]:
+    """다듬기 전후 본문을 비교해 사실이 바뀌었을 수 있는 곳. 비어 있어야 고친 글을 올립니다."""
+    problems = []
+    lost, added = _numbers(before) - _numbers(after), _numbers(after) - _numbers(before)
+    if lost or added:
+        problems.append(f"숫자 변화 (빠짐 {sorted(lost)[:8]}, 더해짐 {sorted(added)[:8]})")
+    if _links(before) != _links(after):
+        problems.append("링크가 바뀜")
+    for tag in _POLISH_TAGS:
+        if before.count(tag) != after.count(tag):
+            problems.append(f"{tag.strip('< ')} 개수 {before.count(tag)} → {after.count(tag)}")
+    if re.findall(r"<h[23][^>]*>(.*?)</h[23]>", before, re.S) != re.findall(r"<h[23][^>]*>(.*?)</h[23]>", after, re.S):
+        problems.append("소제목이 바뀜")
+    if _refs_tail(before) != _refs_tail(after):
+        problems.append("참고한 자료·끝 문구가 바뀜")
+    ratio = len(after) / max(1, len(before))
+    if not 0.8 <= ratio <= 1.1:
+        problems.append(f"분량 {ratio:.0%}")
+    if before.strip() == after.strip():
+        problems.append("바뀐 문장 없음")
+    return problems
+
+
+def polish(cfg: dict, body_html: str, keyword: str = "", client: anthropic.Anthropic | None = None) -> tuple[str, float]:
+    """공개된 글 본문(요약 카드 제외)을 STYLE_RULES 대로 다듬은 HTML 과 비용. 걸러 내기는 polish_problems."""
+    w = cfg["writer"]
+    client = client or llm.client()
+    with client.messages.stream(
+        model=w["model"],
+        max_tokens=w["max_tokens"],
+        system=POLISH_SYSTEM,
+        output_config={"effort": w.get("effort", "high")},
+        messages=[{"role": "user", "content": "아래 글을 다듬어 주세요.\n\n<<<BODY>>>\n" + body_html}],
+    ) as stream:
+        response = stream.get_final_message()
+    price_in, price_out = PRICES.get(w["model"], (5.00, 25.00))
+    cost = (response.usage.input_tokens * price_in + response.usage.output_tokens * price_out) / 1_000_000
+    if response.stop_reason == "refusal":
+        raise SkippedByModel("모델이 다듬기를 거부했습니다.")
+    raw = llm.text_of(response, f"[{keyword}] 다듬기")
+    _, sep, body = raw.partition("<<<BODY>>>")
+    return (body if sep else raw).strip(), cost

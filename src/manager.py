@@ -314,6 +314,8 @@ def retrofit_section(path: Path | None = None) -> list[str]:
     out = ["", "## 기존 글 정리 (하루 한 편)", "",
            f"- 고친 글 {len(done)}편 · 남은 글 {remaining if remaining is not None else '?'}편"
            f" · 카드 없이 둔 글 {len(st.get('no_card', []))}편"
+           + (f" · 문장 다듬음 {len(st.get('polished', []))}편 · 다듬기 건너뜀 {len(st.get('polish_skip', []))}편"
+              if st.get("polished") or st.get("polish_skip") else "")
            + (f" · 마지막 확인 {st['checked_at']}" if st.get("checked_at") else "")]
     if st.get("last_result"):
         out.append(f"- 마지막 실행: {st['last_result']}")

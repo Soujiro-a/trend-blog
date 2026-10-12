@@ -206,6 +206,14 @@ card:
     issuepick1: "#9C6644"
   retrofit_model: claude-sonnet-5-5   # 기존 글에 붙일 카드 글을 본문에서 뽑는 모델 (글당 약 $0.02)
 
+# 기존 글 문장 다듬기 (scripts/retrofit_posts.py, 하루 한 편). 새 글은 작성 지시문(src/writer.py STYLE_RULES)이
+# 처음부터 이 기준으로 쓰고, 그 규칙이 들어가기 전에 공개된 글(before 날짜 이전, KST)만 다듬습니다.
+# 다듬기는 작성 모델(writer.model), 뜻이 같은지 확인은 검수 모델(review.model). 글당 약 $0.2.
+# 숫자·링크·구조가 달라지거나 뜻이 달라졌다고 보면 올리지 않고 retrofit.json 의 polish_skip 에 남깁니다.
+polish:
+  enabled: true
+  before: "2026-10-13"
+
 # 글별 검색 설명 (scripts/search_desc.py). Blogger API 에는 이 칸이 없어, 비워 두면 모든 글의 검색·공유 설명이
 # 블로그 전체 설명과 똑같이 나갑니다(2026-10-03 확인). 새 글은 작성 모델이 쓴 설명을, 그 전 글은 아래 모델이 본문에서
 # 만든 설명을 매시간 예약 작업(gsc-index-requests, 색인 요청 전에 --fresh)이 글 설정의 '검색 설명' 칸에 넣습니다.
