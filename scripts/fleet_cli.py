@@ -1,6 +1,7 @@
 """함대 관리 명령줄 도구.
 
     python scripts/fleet_cli.py list                      # 슬롯표 (괄호 = 램프업 대기)
+    python scripts/fleet_cli.py subjects                  # 블로그별 고유 주제·하위 축·경계 (새 블로그 주제 정하기 전에)
     python scripts/fleet_cli.py add --name "이름" --blog-id 123 --subject "고유 주제" --account <계정>
     python scripts/fleet_cli.py discover --account <계정> [--add]   # 그 계정의 Blogger 블로그 조회 (--add: 미등록 블로그 등록)
     python scripts/fleet_cli.py enable <id> / disable <id>
@@ -92,6 +93,12 @@ def _account_problem(fleet: fleet_mod.Fleet, account: str) -> str:
     if why:
         return f"계정 '{account}' 은 비상정지 상태입니다({why[:80]}). 이 계정의 블로그는 돌지 않습니다 — --account 로 다른 계정을 지정하세요"
     return ""
+
+
+def cmd_subjects(_args) -> int:
+    """블로그별 고유 주제 지도. 새 블로그를 추가하기 전에 이 표와 겹치지 않는 주제를 고릅니다."""
+    print(fleet_mod.subject_map(fleet_mod.load_fleet()))
+    return 0
 
 
 def cmd_add(args) -> int:
@@ -250,6 +257,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description="블로그 함대 관리")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list").set_defaults(fn=cmd_list)
+    sub.add_parser("subjects").set_defaults(fn=cmd_subjects)
     a = sub.add_parser("add")
     a.add_argument("--name", required=True)
     a.add_argument("--blog-id", required=True)

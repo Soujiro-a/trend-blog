@@ -13,8 +13,9 @@
 
 한 번에 몰아서 고치지 않는 이유: 2026-09-20 에 짧은 시간 여러 건을 올린 계정의 API 쓰기가 막혔습니다.
 수정도 쓰기 요청이므로 하루 한 건으로 나눕니다(data/fleet/retrofit.json 에 날짜를 남겨 두 번 돌아도 한 건).
-글 작성 슬롯(06:20 KST 이후)과 겹치지 않게 KST 00~06시에만 고치고, 워크플로는 함대 실행과 같은
-concurrency 그룹이라 동시에 돌지 않습니다.
+글 작성 슬롯(06:20~21:00 KST)과 겹치지 않게 밤 22시~새벽 6시에만 고치고(하루 = 이 밤 한 번), 같은 계정이
+최근 1시간 안에 글을 올렸으면 그 계정 글은 건너뜁니다. 워크플로는 함대 실행과 같은 concurrency 그룹이라
+동시에 돌지 않습니다. (2026-10-14: 00~06시만 허용했더니 GitHub 예약 지연으로 이틀 연속 시간대를 놓쳐 넓혔습니다.)
 
     python scripts/retrofit_posts.py            # 오늘 몫 한 편 고치기 (이미 했으면 아무것도 안 함)
     python scripts/retrofit_posts.py --dry-run  # 고칠 대상 목록과 오늘 고칠 글의 바뀌는 부분만 보기
@@ -28,7 +29,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -41,7 +42,13 @@ from src.publishers import blogger  # noqa: E402
 from src.state import KST  # noqa: E402
 
 STATE_PATH = fleet_mod.FLEET_DATA / "retrofit.json"
-QUIET_HOURS = range(0, 6)   # KST. 첫 글 작성 슬롯이 06:20 입니다.
+QUIET_HOURS = {22, 23, 0, 1, 2, 3, 4, 5}   # KST. 마지막 슬롯 상한 21:00, 첫 슬롯 06:20.
+ACCOUNT_GAP = timedelta(minutes=60)       # 같은 계정의 발행 직후에는 수정 요청을 보내지 않습니다.
+
+
+def night_of(now: datetime) -> str:
+    """하루 한 편의 '하루'. 밤 22시~새벽 6시를 한 밤으로 묶어, 22시와 01시에 두 번 고치지 않게 합니다."""
+    return (now - timedelta(hours=7)).strftime("%Y-%m-%d")
 
 _NAVER_LI = re.compile(r"\s*<li>\s*<a[^>]*search\.naver\.com/search\.naver[^>]*>.*?</a>\s*</li>", re.S)
 # 본문 맨 앞의 요약 카드 블록(src/card.py html). 다듬기 모델에는 카드를 빼고 보냅니다.
@@ -190,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
 
     load_dotenv()
     now = datetime.now(KST)
-    today = now.strftime("%Y-%m-%d")
+    today = night_of(now)
     state = load_state()
     if not (args.dry_run or args.preview):
         if state.get("last_date") == today:
@@ -199,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
                      [f"남은 글 {state.get('remaining', '?')}편"])
             return 0
         if now.hour not in QUIET_HOURS:
-            announce(f"⏭️ 건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 00~06시에만 고칩니다.")
+            announce(f"⏭️ 건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 22~06시에만 고칩니다.")
             return 0
 
     fleet = fleet_mod.load_fleet()
@@ -217,7 +224,18 @@ def main(argv: list[str] | None = None) -> int:
         announce("✅ 고칠 글이 없습니다 — 모두 고쳤습니다.")
         return 0
 
-    when, blog, post = todo[0]
+    # 같은 계정이 방금 글을 올렸으면(예약 지연으로 밤늦게 밀린 슬롯) 그 계정 글은 이번에 건너뜁니다.
+    recent = {}
+    for acc in {b.account for _, b, _ in todo}:
+        times = [t for t in (fleet_mod.last_live_at(x) for x in fleet.blogs_of(acc, enabled_only=False)) if t]
+        recent[acc] = bool(times) and now - max(times) < ACCOUNT_GAP
+    ready = [t for t in todo if not recent[t[1].account]]
+    if args.dry_run or args.preview:
+        ready = ready or todo
+    if not ready:
+        announce("⏭️ 건너뜀 — 고칠 글의 계정이 최근 1시간 안에 글을 올렸습니다. 다음 실행에서 고칩니다.")
+        return 0
+    when, blog, post = ready[0]
     guide = (cfg.get("writer") or {}).get("footer_note_guide", "")
     new, changes = retrofit_html(post["content"], guide)
     add_card = wants_card(post["content"], post["url"], card_on, state.get("no_card", []))

@@ -398,6 +398,8 @@ def build(days: int = 7) -> str:
         token = ""  # 아래 단일 블로그용 섹션을 건너뛰게 하는 표시
         hist_lines: list[str] = []
         hist_lines += ["## 함대 슬롯표", "", fleet_mod.schedule_table(fleet), ""]
+        hist_lines += ["## 블로그 주제 지도", "", "새 블로그는 아래 주제·하위 축과 겹치지 않게 정합니다.", "",
+                       fleet_mod.subject_map(fleet), ""]
         # 꺼진 블로그(계정 은퇴·수동 중지)는 슬롯표에만 둡니다. 글이 없는 게 정상이라 경고하지 않습니다.
         if any(not b.enabled for b in blogs):
             hist_lines += ["꺼진 블로그는 위 슬롯표에만 표시합니다.", ""]

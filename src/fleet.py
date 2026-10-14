@@ -66,6 +66,9 @@ class Blog:
     content_mode: str = "planned"
     subject: str = ""                                   # 이 블로그만의 고유 주제 (다른 블로그와 겹치면 안 됨)
     pillars: list[str] = field(default_factory=list)    # 주제를 나눈 하위 축
+    # 이웃 블로그와 경계가 애매한 항목과 그 담당 블로그("근로장려금 → issuecatch1").
+    # 글감 기획 모델에 "쓰지 말 것"으로 넘기고, 주제 지도(fleet_cli subjects·주간 보고)에 보여 줍니다.
+    excludes: list[str] = field(default_factory=list)
     audience: str = ""                                  # 누가 읽는지
     niche: str = ""
     persona: str = ""
@@ -237,6 +240,7 @@ def load_fleet(path: Path = FLEET_PATH, manager_state: dict | None = None) -> Fl
             content_mode=str(entry.get("content_mode", "planned")),
             subject=str(entry.get("subject") or ""),
             pillars=list(entry.get("pillars") or []),
+            excludes=[str(e) for e in entry.get("excludes") or []],
             audience=str(entry.get("audience") or ""),
             niche=str(entry.get("niche") or ""),
             persona=str(entry.get("persona") or ""),
@@ -297,6 +301,24 @@ def validate(fleet: Fleet) -> None:
                         "— 블로그마다 다른 주제를 쓰세요"
                     )
             subjects[b.subject] = b.id
+    # 하위 축도 다른 블로그와 겹치면 안 됩니다. 주제 이름은 달라도 축이 같으면 같은 글이 두 곳에 실립니다.
+    pillars: dict[str, str] = {}  # pillar -> blog id
+    for b in fleet.blogs:
+        if not (b.enabled and b.content_mode == "planned"):
+            continue
+        for p in b.pillars:
+            for prev_p, prev_id in pillars.items():
+                if prev_id != b.id and similarity(p, prev_p) >= 0.7:
+                    raise ValueError(
+                        f"{b.id}: 하위 축 '{p}' 가 {prev_id} 의 '{prev_p}' 와 겹칩니다 — 한쪽 excludes 로 넘기세요"
+                    )
+        for p in b.pillars:
+            pillars.setdefault(p, b.id)
+        # excludes 의 "→ 담당" 이 실제 블로그 id 인지 (오타면 경계 표시가 엉뚱한 곳을 가리킵니다)
+        for e in b.excludes:
+            owner = e.rsplit("→", 1)[-1].strip() if "→" in e else ""
+            if owner and owner not in ids and "다루지 않음" not in owner:
+                raise ValueError(f"{b.id}: excludes '{e}' 의 담당 '{owner}' 가 블로그 id 가 아닙니다")
     # 계정 하나에 블로그를 무한정 붙이지 않습니다. 계정 상한이 있어 글 수는 어차피 안 늘고,
     # 한 계정이 막히면 그 계정의 블로그가 전부 멈추므로 피해 범위만 커집니다.
     max_blogs = int(fleet.settings.get("max_blogs_per_account", 6))
@@ -802,7 +824,8 @@ def schedule_table(fleet: Fleet, now: datetime | None = None) -> str:
     now = now or datetime.now(KST)
     st = load_account_state()
     plan = planned_slots(fleet, now, st)
-    lines = ["| 슬롯(KST) | id | 이름 | 계정 | 상태 | 나이 | 오늘 글 | 주제 |", "|---|---|---|---|---|---:|---:|---|"]
+    lines = ["| 슬롯(KST) | id | 이름 | 계정 | 상태 | 나이 | 오늘 글 | 주제 | 메모 |",
+             "|---|---|---|---|---|---:|---:|---|---|"]
     for b in sorted(fleet.blogs, key=lambda b: (b.account, b.slot_minutes)):
         on = plan.get(b.id, []) if b.enabled else []
         slots = ", ".join(s if s in on else f"({s})" for s in b.slots)
@@ -812,7 +835,19 @@ def schedule_table(fleet: Fleet, now: datetime | None = None) -> str:
         age = f"{blog_age_days(fleet, b, now, st)}일" if b.enabled else "-"
         lines.append(
             f"| {slots} | {b.id} | {b.name} | {b.account} | {status} | {age} | "
-            f"{len(on)} | {b.manager_note or b.subject or b.niche} |"
+            f"{len(on)} | {b.subject or b.niche} | {b.manager_note} |"
+        )
+    return "\n".join(lines)
+
+
+def subject_map(fleet: Fleet) -> str:
+    """블로그별 고유 주제·하위 축·경계. 새 블로그 주제를 정할 때 이 표와 겹치지 않게 고릅니다."""
+    lines = ["| id | 이름 | 계정 | 고유 주제 | 하위 축 | 다른 블로그 몫 (쓰지 않음) |", "|---|---|---|---|---|---|"]
+    for b in sorted(fleet.blogs, key=lambda b: (b.account, b.slot_minutes)):
+        off = "" if b.enabled else " (꺼짐)"
+        lines.append(
+            f"| {b.id}{off} | {b.name} | {b.account} | {b.subject or b.niche or '-'} | "
+            f"{' · '.join(b.pillars) or '-'} | {' · '.join(b.excludes) or '-'} |"
         )
     return "\n".join(lines)
 

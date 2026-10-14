@@ -1016,6 +1016,29 @@ def test_fleet(cfg: dict) -> None:
     except ValueError:
         check("planned 인데 subject 없으면 거부", True)
 
+    # 주제 이름은 달라도 하위 축이 겹치면 거부 (같은 글이 두 블로그에 실림)
+    pdup = fm.Fleet(fleet.settings, fleet.accounts, [
+        fm.Blog(id="a", name="a", blog_id="1", slots=["06:20"], subject="지원금 신청", pillars=["근로장려금 자격과 신청"]),
+        fm.Blog(id="b", name="b", blog_id="2", slots=["09:00"], subject="세금 신고", pillars=["근로장려금 신청 자격"]),
+    ])
+    try:
+        fm.validate(pdup)
+        check("하위 축 중복은 거부", False)
+    except ValueError:
+        check("하위 축 중복은 거부", True)
+    badex = fm.Fleet(fleet.settings, fleet.accounts, [
+        fm.Blog(id="a", name="a", blog_id="1", slots=["06:20"], subject="지원금 신청", excludes=["세금 → nosuch"]),
+    ])
+    try:
+        fm.validate(badex)
+        check("excludes 담당 블로그 오타는 거부", False)
+    except ValueError:
+        check("excludes 담당 블로그 오타는 거부", True)
+    smap = fm.subject_map(fleet)
+    check("주제 지도에 모든 블로그의 주제", all(b.subject in smap for b in fleet.blogs if b.subject))
+    check("슬롯표 주제 칸은 관리 메모가 아닌 subject",
+          all(b.subject in fm.schedule_table(fleet) for b in fleet.blogs if b.subject))
+
     section("함대: 실행 대상 계산")
     with tempfile.TemporaryDirectory() as tmp:
         # 데이터 폴더를 임시로 바꿔 runs.json 이 실제 데이터에 안 남게 합니다
@@ -1284,6 +1307,13 @@ def test_retrofit(cfg: dict) -> None:
     check("바꾼 것 2가지 기록", len(changes) == 2, str(changes))
     check("고친 글은 다시 대상 아님", not rp.needs_retrofit(new) and rp.needs_retrofit(body))
     check("새 틀 글은 그대로", rp.retrofit_html(new, guide) == (new, []))
+    # 밤 22시~새벽 6시가 한 밤(하루 한 편). 22:35 와 다음 날 01:05 는 같은 밤입니다.
+    from datetime import datetime as _dt
+    from src.state import KST as _KST
+    check("22:35 와 다음 날 01:05 는 같은 밤",
+          rp.night_of(_dt(2026, 10, 14, 22, 35, tzinfo=_KST)) == rp.night_of(_dt(2026, 10, 15, 1, 5, tzinfo=_KST)))
+    check("고치는 시간대는 22~06시", 22 in rp.QUIET_HOURS and 5 in rp.QUIET_HOURS and 6 not in rp.QUIET_HOURS
+          and 21 not in rp.QUIET_HOURS)
     check("새벽(KST 00~06시)에만 고침", 5 in rp.QUIET_HOURS and 6 not in rp.QUIET_HOURS)
 
     # 실행 결과가 Actions 화면(요약 칸)과 관리 보고서에 보임

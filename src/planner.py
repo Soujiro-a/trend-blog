@@ -62,6 +62,7 @@ USER_TEMPLATE = """## 이 블로그
 - 주제: {subject}
 - 하위 축: {pillars}
 - 독자: {audience}
+- 다루지 않음 (함대의 다른 블로그 몫이라 이 블로그 글감으로 고르면 안 됨): {excludes}
 
 ## 이미 쓴 글감 (겹치면 안 됨)
 
@@ -166,6 +167,7 @@ def propose(
                     subject=blog.subject,
                     pillars=", ".join(blog.pillars) or "(지정 없음 — 주제에서 스스로 나누세요)",
                     audience=blog.audience or "해당 주제를 검색해서 들어오는 일반 독자",
+                    excludes=" / ".join(blog.excludes) or "(없음)",
                     done=done_lines,
                     n=pl.get("candidates", 8),
                 ),

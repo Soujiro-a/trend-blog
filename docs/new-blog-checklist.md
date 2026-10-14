@@ -18,7 +18,7 @@
 |---|---|---|
 | ☐ | 사람 | blogger.com 에서 블로그 생성. 한 계정에서 여러 개를 한꺼번에 만들지 말고 **1주 이상 간격**을 둡니다(2026-09-19 차단 사고) |
 | ☐ | 자동 | `python scripts/fleet_cli.py discover --account <계정> --add` → 슬롯 자동 배정 |
-| ☐ | Claude | `fleet/blogs.yaml` 에 `subject`·`pillars`·`audience`·`persona`·`labels`·`since` 채우기. 다른 블로그와 주제가 겹치면 안 됩니다 |
+| ☐ | Claude | `fleet/blogs.yaml` 에 `subject`·`pillars`·`audience`·`persona`·`labels`·`since` 채우기. 먼저 `python scripts/fleet_cli.py subjects` 로 주제 지도를 보고 기존 주제·하위 축과 겹치지 않게 정하고, 이웃 블로그와 애매한 항목은 양쪽 `excludes` 에 "항목 → 담당 블로그 id" 로 적습니다 |
 | ☐ | 자동 | `python scripts/fleet_cli.py validate` → topic-planner 로 글감이 주제 안에서 나오는지 미리보기 |
 | ☐ | 자동 | `python scripts/setup_pages.py --blog <id>` (소개·개인정보처리방침 페이지) |
 | ☐ | Claude | 커밋·푸시. 다음 슬롯부터 글이 올라갑니다 |
