@@ -1,30 +1,4 @@
 {
-  "blogs": {
-    "picktopic": {
-      "enabled": true,
-      "by": "manual",
-      "note": "수동 켬 10-07"
-    },
-    "issuecatch1": {
-      "enabled": true,
-      "by": "manual",
-      "note": "수동 켬 10-07"
-    },
-    "fastopic1": {
-      "enabled": true,
-      "by": "manual",
-      "note": "수동 켬 10-07"
-    },
-    "nowissue1": {
-      "enabled": true,
-      "by": "manual",
-      "note": "수동 켬 10-07"
-    },
-    "issuepick1": {
-      "enabled": true,
-      "by": "manual",
-      "note": "수동 켬 10-07"
-    }
-  },
-  "updated_at": "2026-10-07T04:44:57+09:00"
+  "blogs": {},
+  "updated_at": "2026-10-14T11:09:07+09:00"
 }
