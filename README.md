@@ -18,7 +18,8 @@ GitHub Actions (공개 저장소 · 무료)
                                              ⑥ 발행      안전장치를 통과하면 공개, 아니면 임시저장
  manager.yml         매일 23:35 KST ─▶ src/manager.py   블로그별 7일 지표 → 중지/재개/메모 → 경고 있으면 이슈
  weekly_report.yml   월 09:20 KST   ─▶ scripts/weekly_report.py  주간 운영·수익 보고 → 이슈(메일)
- retrofit.yml        매일 새벽 KST   ─▶ scripts/retrofit_posts.py  공개 글을 하루 한 편씩 정리 (옛 틀 흔적 제거 + 요약 카드 추가, 오래된 순)
+ retrofit.yml        매일 밤 KST     ─▶ scripts/retrofit_posts.py  공개 글을 하루 한 편씩 정리 (옛 틀 흔적 제거 + 요약 카드 + 문장 다듬기, 오래된 순)
+ refresh.yml         매일 밤 KST     ─▶ scripts/refresh_facts.py   공개 글의 금액·기한을 공식 자료로 다시 확인해 바뀐 값만 고침 (하루 한 편)
 ```
 
 **수익 구조** — 글이 쌓여 검색 유입이 생기면 **구글 애드센스** 광고 수익이 납니다. 검수관이 '구매 의도가 있는 주제'로 본
@@ -179,6 +180,9 @@ cp .env.example .env        # 값 채우기 (Windows: copy .env.example .env)
 | 애드센스 준비 점검 | `python scripts/adsense_check.py [--blog <id>]` | 0 |
 | 구글 색인 요청 대기열 / 현황 (앱 예약 작업 `gsc-index-requests` 가 씀) | `python scripts/index_queue.py next` · `status` | 0 |
 | 기존 글 정리 대상 보기 | `python scripts/retrofit_posts.py --dry-run` | 0 |
+| 사실 갱신 볼 순서 보기 | `python scripts/refresh_facts.py --dry-run` | 0 |
+| 특정 글 사실 갱신 | `python scripts/refresh_facts.py --url <글 주소>` | 약 $0.2 |
+| 블로그 주제 지도 | `python scripts/fleet_cli.py subjects` | 0 |
 | 자동화가 모델에 보내는 요청 원문 보기 | `python scripts/agent_brief.py planner --blog <id>` | 0 |
 | **글 1건 시험** — Blogger 대신 `out/` 에 HTML 저장 | `python -m src.fleet_run --blog <id> --target local` | 약 $0.6 |
 
@@ -280,10 +284,12 @@ python scripts/account_cli.py resume <계정> --yes   # 비상정지 해제 — 
 | 항목 | 비용 |
 |---|---|
 | Blogger · GitHub Actions(공개 저장소) · 뉴스 검색 | 무료 |
-| **Claude API** | 글 1건 약 **$0.30~0.35** (Opus 5.5 작성 + Sonnet 기획·공식 자료 조사·검수, 보류 글 고쳐 쓰기 포함 평균, 2026-10 추정. Fable 5.1 로 쓰던 9월엔 $0.5~0.6) |
+| **Claude API** | 글 1건 약 **$0.41** (Opus 5.5 작성 + Sonnet 기획·공식 자료 조사·검수, 보류 글 고쳐 쓰기 포함. 2026-10-01~14 실측 92편 평균, 블로그별 $0.32~0.51. 9월 추정치 $0.30~0.35 보다 20~40% 높았습니다. Fable 5.1 로 쓰던 9월엔 $0.5~0.6) |
 
-- 10/08 부터(두 계정 하루 9건) 약 $3/일 · **월 $90 안팎**. 두 계정이 모두 하루 8건이 되는 12/02 부터는 월 $160 안팎입니다.
-- 블로그 하나가 램프업을 마치면(하루 2건) 월 약 $18 입니다. 10개면 월 $180, 100개면 월 $1,800 수준입니다.
+- 10/08 부터(두 계정 하루 9건) 약 $3.7/일 · **월 $110 안팎**. 두 계정이 모두 하루 8건이 되는 12/02 부터는 월 $200 안팎입니다.
+- 블로그 하나가 램프업을 마치면(하루 2건) 월 약 $25 입니다. 10개면 월 $250, 100개면 월 $2,500 수준입니다.
+- 기존 글 정리(문장 다듬기 약 $0.2)·사실 갱신(약 $0.2)이 밤마다 한 편씩 더 나갑니다 — 월 약 $12.
+- 2026-10-14 부터 지시문·참고 자료에 **프롬프트 캐싱**을 켰습니다(src/llm.py). 고쳐 쓰기가 있는 글에서 입력 비용이 줄어듭니다. 이력의 cost_usd 는 캐시 읽기·쓰기 가격을 반영한 값입니다.
 - 공식 자료 조사(글 1건 약 $0.1)는 `research.official.enabled: false` 로 끌 수 있습니다.
 - 요약 카드는 새 글에 추가 비용이 거의 없고(작성 출력 몇 줄), 기존 글에 붙일 때만 글당 약 $0.01~0.02(Sonnet 으로 본문에서 뽑기)입니다.
 - 블로그별로 `overrides: {writer: {model: claude-sonnet-5-5}}` 를 두면 그 블로그의 글 1건이 약 $0.22 로 줍니다(품질은 조금 낮아짐).
@@ -370,7 +376,8 @@ src/
   main.py                      블로그 한 곳: 글감 → 리서치 → 작성 → 검수 → 판정 → 발행
   fleet.py                     함대 설정·슬롯·램프업·계정 자격증명·비상정지·선점
   guard.py                     발행 안전장치 (Blogger 서버 기준 하루·계정 상한, 발행 간격)
-  planner.py                   글감 기획 — 블로그 고유 주제 안에서 (Sonnet)
+  planner.py                   글감 기획 — 블로그 고유 주제 안에서 (Sonnet) + 실제 검색 수요 · 기존 글과 겹치면 보강 후보로
+  demand.py · gsc.py           검색 수요(Search Console 노출·순위, 네이버 자동완성) · Search Console 조회 공통
   research.py                  참고 기사 · 공식 안내 자료 수집 · 내부 링크 후보
   card.py                      요약 카드 이미지 (그리기 · 저장소 업로드 · 기존 글용 카드 글 뽑기)
   writer.py                    글 작성 (Opus)
@@ -390,6 +397,7 @@ scripts/
   setup_pages.py               소개·개인정보처리방침 페이지 생성 (pages/ 템플릿)
   adsense_check.py             애드센스 심사 준비 점검 · 라벨 정리
   weekly_report.py             주간 운영·수익 보고서
+  refresh_facts.py             공개 글의 금액·기한을 공식 자료로 다시 확인해 바뀐 값만 고침 (하루 한 편)
   agent_brief.py               서브에이전트용 작업 지시서 (자동화가 모델에 보내는 요청 원문)
   test_logic.py                네트워크 없이 도는 로직 테스트
   selftest.py · check_blogger.py   실제 사이트 연결 점검 (옛 단일 블로그용)

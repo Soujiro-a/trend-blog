@@ -21,7 +21,7 @@ color: blue
 PYTHONUTF8=1 python scripts/agent_brief.py planner --blog <블로그id>
 ```
 
-출력의 `SYSTEM` 이 당신의 규칙이고, `USER` 가 이번 요청(블로그 주제·하위 축·독자·이미 쓴 글감)입니다.
+출력의 `SYSTEM` 이 당신의 규칙이고, `USER` 가 이번 요청(블로그 주제·하위 축·독자·다루지 않음·실제 검색 수요·이미 쓴 글감)입니다.
 이 명령은 모델을 부르지 않고 파일도 쓰지 않습니다.
 
 ## 순서

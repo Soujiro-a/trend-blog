@@ -34,7 +34,7 @@ from pathlib import Path
 
 import anthropic
 
-from . import fleet as fleet_mod
+from . import fleet as fleet_mod, gsc
 from . import llm, net, state
 from .config import env, load_config
 from .publishers import blogger
@@ -153,22 +153,8 @@ def _blog_metrics(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, use_api: bool, n
 
 def _gsc_clicks(token: str, site: str, days: int) -> int | None:
     try:
-        from scripts.weekly_report import _gsc_property, _gsc_query, _gsc_sites  # type: ignore
-    except Exception:
-        return None
-    registered = _gsc_sites(token)
-    if not registered:
-        return None
-    prop = _gsc_property(site, registered)
-    if not prop:
-        return None
-    end = datetime.now(KST).date() - timedelta(days=2)
-    try:
-        resp = _gsc_query(token, prop, end - timedelta(days=days), end, row_limit=1000)
-        if resp.status_code != 200:
-            return None
-        return int(sum(r["clicks"] for r in resp.json().get("rows", [])))
-    except Exception:
+        return gsc.clicks(token, site, days)
+    except Exception:  # noqa: BLE001
         return None
 
 
@@ -301,6 +287,26 @@ def _apply(actions: list[dict], now: datetime) -> None:
             entry.update({"enabled": True, "by": "manager", "note": f"관리자 재개 {stamp}"})
     st["updated_at"] = now.isoformat(timespec="seconds")
     fleet_mod.save_manager_state(st)
+
+
+def refresh_section(path: Path | None = None) -> list[str]:
+    """오래된 사실 갱신(scripts/refresh_facts.py) 현황. 사람이 봐야 할 '확인 필요' 글을 앞에 둡니다."""
+    try:
+        st = json.loads((path or fleet_mod.FLEET_DATA / "refresh.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+    done = st.get("done", [])
+    review = st.get("needs_review", [])
+    out = ["", "## 오래된 사실 갱신 (하루 한 편)", "",
+           f"- 확인한 글 {len(st.get('checked', {}))}편 · 고친 글 {len(done)}편 · 확인 필요 {len(review)}편"
+           + (f" · 마지막 확인 {st['checked_at']}" if st.get("checked_at") else "")]
+    if st.get("last_result"):
+        out.append(f"- 마지막 실행: {st['last_result']}")
+    out += [f"- {d['at'][:10]} {d['blog']} {d['url']} — {'; '.join(d['changes'][:2])}" for d in done[-3:]]
+    if review:
+        out += ["", "**확인 필요 (자료를 못 찾았거나 판단을 보류한 글 — 사람이 봐 주세요)**", ""]
+        out += [f"- {r['at']} {r['blog']} {r['url']} — {r['note'][:100]}" for r in review[-5:]]
+    return out
 
 
 def retrofit_section(path: Path | None = None) -> list[str]:
@@ -443,6 +449,7 @@ def main(argv: list[str] | None = None) -> int:
         f"(계정별: {', '.join(f'{a} {n}건' for a, n in sorted(per_account.items()))})",
     ]
     lines += retrofit_section()
+    lines += refresh_section()
     if usage:
         lines.append(f"<sub>관리 모델 토큰 {usage[0]}/{usage[1]}</sub>")
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)

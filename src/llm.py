@@ -21,6 +21,43 @@ log = logging.getLogger(__name__)
 
 MAX_RETRIES = 6
 
+# 모델별 (입력, 출력) 가격, USD / 1M 토큰. 캐시 읽기는 입력의 0.1배, 캐시 쓰기는 1.25배(5분 캐시).
+PRICES = {
+    "claude-fable-5-1": (10.00, 50.00),
+    "claude-fable-5": (10.00, 50.00),
+    "claude-opus-5-5": (4.00, 20.00),
+    "claude-opus-5": (5.00, 25.00),
+    "claude-opus-4-8": (5.00, 25.00),
+    "claude-sonnet-5-5": (2.00, 10.00),
+    "claude-sonnet-5": (2.00, 10.00),
+    "claude-haiku-4-5": (1.00, 5.00),
+}
+CACHE_READ_RATE, CACHE_WRITE_RATE = 0.1, 1.25
+
+
+def cached(text: str) -> list[dict]:
+    """프롬프트 캐싱용 블록. 같은 지시문·자료를 되풀이해 보내는 호출(고쳐 쓰기, 같은 실행의 다른 글)에서
+    캐시된 부분은 입력 가격의 1/10 입니다. 최소 길이(약 1024 토큰)보다 짧으면 API 가 그냥 무시합니다."""
+    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
+
+
+def plain(content) -> str:
+    """cached() 로 감싼 블록(또는 그냥 문자열)을 글자로 되돌립니다. 지시서 출력·테스트용."""
+    if isinstance(content, str):
+        return content
+    return "".join(b.get("text", "") for b in content if isinstance(b, dict))
+
+
+def cost_of(usage, model: str, default=(5.00, 25.00)) -> float:
+    """응답 usage 로 계산한 비용(USD). 캐시 읽기·쓰기 토큰을 따로 쳐서, 캐싱을 켠 뒤에도 실제 청구액과 맞습니다."""
+    price_in, price_out = PRICES.get(model, default)
+    plain = getattr(usage, "input_tokens", 0) or 0
+    read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    write = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    out = getattr(usage, "output_tokens", 0) or 0
+    return (plain * price_in + read * price_in * CACHE_READ_RATE + write * price_in * CACHE_WRITE_RATE
+            + out * price_out) / 1_000_000
+
 
 def client() -> anthropic.Anthropic:
     return anthropic.Anthropic(max_retries=MAX_RETRIES)

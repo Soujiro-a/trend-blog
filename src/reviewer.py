@@ -113,12 +113,17 @@ class Review:
     card_ok: bool = True
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     model: str = ""
 
     @property
     def cost_usd(self) -> float:
         price_in, price_out = PRICES.get(self.model, (2.00, 10.00))
-        return (self.input_tokens * price_in + self.output_tokens * price_out) / 1_000_000
+        return (self.input_tokens * price_in
+                + self.cache_read_tokens * price_in * llm.CACHE_READ_RATE
+                + self.cache_write_tokens * price_in * llm.CACHE_WRITE_RATE
+                + self.output_tokens * price_out) / 1_000_000
 
     def approved(self, min_score: int) -> bool:
         return self.verdict == "publish" and self.score >= min_score
@@ -184,7 +189,7 @@ def review(
     response = client.messages.create(
         model=model,
         max_tokens=r.get("max_tokens", 6000),
-        system=SYSTEM,
+        system=llm.cached(SYSTEM),
         output_config={"effort": r.get("effort", "medium")},
         messages=[{"role": "user", "content": user}],
     )
@@ -198,6 +203,8 @@ def review(
 
     result.input_tokens = response.usage.input_tokens
     result.output_tokens = response.usage.output_tokens
+    result.cache_read_tokens = getattr(response.usage, "cache_read_input_tokens", 0) or 0
+    result.cache_write_tokens = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
     log.info(
         "[%s] 검수: %s (점수 %d) %s",
         article.keyword, result.verdict, result.score,
@@ -230,12 +237,11 @@ def same_meaning(cfg: dict, before_html: str, after_html: str, client: anthropic
     response = client.messages.create(
         model=r["model"],
         max_tokens=r.get("max_tokens", 6000),
-        system=SAME_MEANING_SYSTEM,
+        system=llm.cached(SAME_MEANING_SYSTEM),
         output_config={"effort": r.get("effort", "medium")},
         messages=[{"role": "user", "content": f"## 원래 글\n{before_html}\n\n## 다듬은 글\n{after_html}"}],
     )
-    price_in, price_out = PRICES.get(r["model"], (2.00, 10.00))
-    cost = (response.usage.input_tokens * price_in + response.usage.output_tokens * price_out) / 1_000_000
+    cost = llm.cost_of(response.usage, r["model"], (2.00, 10.00))
     if response.stop_reason == "refusal":
         return False, ["검수 모델이 내용을 거부함"], cost
     m = _JSON_BLOCK.search(llm.text_of(response, "다듬기 확인"))
@@ -245,3 +251,47 @@ def same_meaning(cfg: dict, before_html: str, after_html: str, client: anthropic
     problems = data.get("problems") or []
     problems = [str(p) for p in (problems if isinstance(problems, list) else [problems])][:8]
     return data.get("same") is True, problems, cost
+
+
+# ---- 사실 갱신 확인 (scripts/refresh_facts.py) ----
+# 대조 모델이 찾은 from→to 변경을 코드가 본문에 치환한 뒤, 각 변경이 공식 자료와 맞는지 검수 모델이 한 번 더 봅니다.
+FACT_CHANGES_SYSTEM = """당신은 한국어 생활정보 블로그의 발행 책임자입니다. 이미 공개된 글의 값(금액·기한·조건)을 공식 자료에 \
+맞춰 고치려는 변경 목록을 받습니다. 변경마다 **자료에 그 값이 분명히 적혀 있는지**만 확인합니다.
+
+이런 변경은 거부합니다.
+- 자료에 없는 값으로 바꿈, 자료를 넓게 해석해 추정한 값
+- 값만 고친 것이 아니라 조건·대상·예외가 달라지거나 새 주장이 들어감
+- 자료의 기준일이 분명히 더 오래됨
+
+JSON 한 덩어리만 출력합니다: {"ok": true 또는 false, "problems": ["거부 이유: 변경 번호와 근거", ...]}"""
+
+
+def fact_changes_ok(cfg: dict, changes: list[dict], official_block: str, client: anthropic.Anthropic | None = None,
+                    ) -> tuple[bool, list[str], float]:
+    """(모든 변경이 자료와 맞음, 문제 목록, 비용)."""
+    r = cfg["review"]
+    client = client or llm.client()
+    listed = "\n".join(
+        f"{i}. {c['from']} → {c['to']}\n   근거: {c.get('source', '')} — {c.get('why', '')}"
+        for i, c in enumerate(changes, start=1)
+    )
+    response = client.messages.create(
+        model=r["model"],
+        max_tokens=r.get("max_tokens", 6000),
+        system=llm.cached(FACT_CHANGES_SYSTEM),
+        output_config={"effort": r.get("effort", "medium")},
+        messages=[{"role": "user", "content": f"## 변경 목록\n{listed}\n{official_block}"}],
+    )
+    cost = llm.cost_of(response.usage, r["model"], (2.00, 10.00))
+    if response.stop_reason == "refusal":
+        return False, ["검수 모델이 내용을 거부함"], cost
+    m = _JSON_BLOCK.search(llm.text_of(response, "사실 갱신 확인"))
+    if not m:
+        return False, ["확인 응답에 JSON 이 없음"], cost
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return False, ["확인 응답 JSON 파싱 실패"], cost
+    problems = data.get("problems") or []
+    problems = [str(p) for p in (problems if isinstance(problems, list) else [problems])][:8]
+    return data.get("ok") is True, problems, cost

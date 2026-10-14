@@ -278,7 +278,6 @@ def _plain(html_text: str) -> str:
 def extract(cfg: dict, title: str, body_html: str, client=None) -> tuple[str, float]:
     """(카드 글, 비용 USD). 뽑을 게 없으면 ("", 비용)."""
     from . import llm
-    from .writer import PRICES
 
     model = (cfg.get("card") or {}).get("retrofit_model", "claude-sonnet-5-5")
     client = client or llm.client()
@@ -289,7 +288,6 @@ def extract(cfg: dict, title: str, body_html: str, client=None) -> tuple[str, fl
         output_config={"effort": "low"},
         messages=[{"role": "user", "content": f"제목: {title}\n\n본문:\n{_plain(body_html)[:12000]}"}],
     )
-    price_in, price_out = PRICES.get(model, (3.00, 15.00))
-    cost = (response.usage.input_tokens * price_in + response.usage.output_tokens * price_out) / 1_000_000
+    cost = llm.cost_of(response.usage, model, (3.00, 15.00))
     text = llm.text_of(response, f"[{title[:20]}] 카드 글 뽑기").strip()
     return ("" if text.startswith("없음") else text), cost

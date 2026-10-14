@@ -29,7 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src import fleet as fleet_mod  # noqa: E402
-from src import planner, research, reviewer, state, writer  # noqa: E402
+from src import llm, planner, research, reviewer, state, writer  # noqa: E402
 from src.config import OUT_DIR, ROOT, load_config  # noqa: E402
 from src.main import RunContext  # noqa: E402
 from src.publishers import local  # noqa: E402
@@ -81,10 +81,10 @@ def _print_request(title: str, request: dict, notes: list[str]) -> None:
     for line in notes:
         print(line)
     print("\n===== SYSTEM =====\n")
-    print(request.get("system", ""))
+    print(llm.plain(request.get("system", "")))
     for m in request.get("messages", []):
         print(f"\n===== {str(m.get('role', '')).upper()} =====\n")
-        print(m.get("content", ""))
+        print(llm.plain(m.get("content", "")))
 
 
 def _blog(blog_id: str) -> tuple[fleet_mod.Blog, dict]:

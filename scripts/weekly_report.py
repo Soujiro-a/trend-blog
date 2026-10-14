@@ -25,12 +25,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src import net, state  # noqa: E402
+from src import gsc, net, state  # noqa: E402
 from src.config import env, load_config  # noqa: E402
 from src.publishers import blogger  # noqa: E402
 from src.state import KST  # noqa: E402
 
-GSC_API = "https://searchconsole.googleapis.com/webmasters/v3/sites/{site}/searchAnalytics/query"
+GSC_API = gsc.API
 ADSENSE_API = "https://adsense.googleapis.com/v2"
 
 # 이 값들을 넘으면 보고서 맨 위에 경고를 띄웁니다.
@@ -167,43 +167,13 @@ def section_blogger(token: str) -> list[str]:
     return lines
 
 
-def _gsc_sites(token: str) -> list[str] | None:
-    """Search Console 에 등록된 속성 목록. 권한이 없으면 None."""
-    try:
-        resp = net.session().get(
-            "https://searchconsole.googleapis.com/webmasters/v3/sites",
-            headers={"Authorization": f"Bearer {token}"}, timeout=20,
-        )
-    except Exception:
-        return None
-    if resp.status_code != 200:
-        return None
-    return [s.get("siteUrl", "") for s in resp.json().get("siteEntry", [])]
-
-
-def _gsc_property(site: str, registered: list[str]) -> str | None:
-    """블로그 주소에 맞는 GSC 속성 이름. URL 접두어 속성이 없으면 도메인 속성(sc-domain:)을 씁니다."""
-    import urllib.parse
-    host = urllib.parse.urlparse(site).hostname or ""
-    for cand in (site, site.rstrip("/") + "/", f"sc-domain:{host}"):
-        if cand in registered:
-            return cand
-    # www. 유무 차이까지 허용
-    for r in registered:
-        if r.startswith("sc-domain:") and host.endswith(r.split(":", 1)[1]):
-            return r
-    return None
+# Search Console 조회는 src/gsc.py 로 옮겼습니다 (관리 에이전트·글감 기획·사실 갱신이 함께 씁니다).
+_gsc_sites = gsc.sites
+_gsc_property = gsc.property_for
 
 
 def _gsc_query(token: str, prop: str, start, end, row_limit: int = 10):
-    import urllib.parse
-    url = GSC_API.format(site=urllib.parse.quote(prop, safe=""))
-    return net.session().post(
-        url,
-        headers={"Authorization": f"Bearer {token}"},
-        json={"startDate": start.isoformat(), "endDate": end.isoformat(), "dimensions": ["page"], "rowLimit": row_limit},
-        timeout=30,
-    )
+    return gsc.query(token, prop, start, end, ["page"], row_limit)
 
 
 def section_search_console(token: str, site: str, days: int, heading: str = "## 검색 유입 (Search Console)") -> list[str]:
@@ -400,6 +370,10 @@ def build(days: int = 7) -> str:
         hist_lines += ["## 함대 슬롯표", "", fleet_mod.schedule_table(fleet), ""]
         hist_lines += ["## 블로그 주제 지도", "", "새 블로그는 아래 주제·하위 축과 겹치지 않게 정합니다.", "",
                        fleet_mod.subject_map(fleet), ""]
+        from src import manager as manager_mod
+        refresh = manager_mod.refresh_section()
+        if refresh:
+            hist_lines += refresh[1:] + [""]
         # 꺼진 블로그(계정 은퇴·수동 중지)는 슬롯표에만 둡니다. 글이 없는 게 정상이라 경고하지 않습니다.
         if any(not b.enabled for b in blogs):
             hist_lines += ["꺼진 블로그는 위 슬롯표에만 표시합니다.", ""]

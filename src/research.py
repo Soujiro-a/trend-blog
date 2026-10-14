@@ -189,7 +189,7 @@ def official(cfg: dict, candidate: Candidate, *, client=None) -> tuple[list[Offi
         model=oc.get("model", "claude-sonnet-5-5"),
         max_tokens=int(oc.get("max_tokens", 8000)),
         output_config={"effort": oc.get("effort", "low")},
-        system=OFFICIAL_SYSTEM,
+        system=llm.cached(OFFICIAL_SYSTEM),
         tools=[{
             "type": "web_search_20250305",
             "name": "web_search",
@@ -211,9 +211,8 @@ def official(cfg: dict, candidate: Candidate, *, client=None) -> tuple[list[Offi
         for _ in range(3):
             response = client.messages.create(messages=messages, **request)
             usage = response.usage
-            price_in, price_out = PRICES.get(request["model"], (2.00, 10.00))
             searches = getattr(getattr(usage, "server_tool_use", None), "web_search_requests", 0) or 0
-            cost += (usage.input_tokens * price_in + usage.output_tokens * price_out) / 1_000_000
+            cost += llm.cost_of(usage, request["model"], (2.00, 10.00))
             cost += searches * SEARCH_PRICE_USD
             for block in response.content:
                 if block.type == "web_search_tool_result" and isinstance(block.content, list):

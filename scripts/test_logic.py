@@ -9,6 +9,7 @@ config.yaml 을 만진 뒤 의도대로 동작하는지 30초 안에 확인할 �
 from __future__ import annotations
 
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -19,6 +20,7 @@ from src.main import decide  # noqa: E402
 from src.monetize import coupang  # noqa: E402
 from src.trends import Candidate, Variant  # noqa: E402
 from src.trends.base import NewsRef, TrendItem, similarity, tokenize  # noqa: E402
+from src.state import KST  # noqa: E402
 
 failures: list[str] = []
 
@@ -1239,23 +1241,35 @@ def test_agents(cfg: dict) -> None:
 
     # 작업 지시서는 자동화 함수를 그대로 불러 모델에 가기 직전의 요청을 가로챕니다 (모델 호출 없음).
     blog = fm.Blog(id="t", name="시험", blog_id="1", subject="세금 기초", pillars=["연말정산", "종합소득세"])
+    from src import llm as _llm
     req = agent_brief.capture(planner.propose, cfg, blog, [])
-    check("지시서: 기획 = planner.SYSTEM + 블로그 주제", req["system"] == planner.SYSTEM and "연말정산" in req["messages"][0]["content"])
+    check("지시서: 기획 = planner.SYSTEM + 블로그 주제", _llm.plain(req["system"]) == planner.SYSTEM and "연말정산" in req["messages"][0]["content"])
+    check("기획 지시문은 캐시 블록", isinstance(req["system"], list) and req["system"][0].get("cache_control"))
     req = agent_brief.capture(writer.write, cfg, mk_candidate("연말정산 의료비 공제"), "자료", [], "2026년 09월 25일", persona="표로 정리합니다.")
-    check("지시서: 작성 = 자동화 모델 + 블로그 성격", req["model"] == cfg["writer"]["model"] and "표로 정리합니다." in req["system"])
+    check("지시서: 작성 = 자동화 모델 + 블로그 성격", req["model"] == cfg["writer"]["model"] and "표로 정리합니다." in _llm.plain(req["system"]))
+    check("작성: 지시문·첫 자료 메시지에 캐시 지점", req["system"][0].get("cache_control")
+          and req["messages"][0]["content"][0].get("cache_control"))
 
     # 함대(planned) 글은 안내 글 요청문을 받아야 합니다. 예전엔 실시간 이슈 요청문이 가서 기사 요약처럼 나왔습니다.
     req = agent_brief.capture(writer.write, cfg, mk_candidate("청약철회 기간"), "자료", [], "2026년 09월 29일", mode="planned")
-    user = req["messages"][0]["content"]
+    user = _llm.plain(req["messages"][0]["content"])
     check("기획 글: 안내 글 요청문", "따라 할 수 있는 안내 글" in user and "실시간 인기 키워드" not in user, user[:80])
     check("기획 글: '보도 기준' 대신 공식 안내 확인 문구",
-          "공식 안내" in req["system"] and "공개된 보도를 기준" not in req["system"])
+          "공식 안내" in _llm.plain(req["system"]) and "공개된 보도를 기준" not in _llm.plain(req["system"]))
     req = agent_brief.capture(writer.write, cfg, mk_candidate("오늘 이슈"), "자료", [], "2026년 09월 29일", mode="trend")
     check("실시간 글: 기존 요청문·보도 기준 문구 유지",
-          "실시간 인기 키워드" in req["messages"][0]["content"] and "공개된 보도를 기준" in req["system"])
+          "실시간 인기 키워드" in _llm.plain(req["messages"][0]["content"]) and "공개된 보도를 기준" in _llm.plain(req["system"]))
     art = writer.Article(keyword="k", title="시험 제목", description="요약", labels=["연말정산"], body_html="<p>본문</p>")
     req = agent_brief.capture(reviewer.review, cfg, art, "자료")
-    check("지시서: 검수 = reviewer.SYSTEM + 심사 대상 글", req["system"] == reviewer.SYSTEM and "시험 제목" in req["messages"][0]["content"])
+    check("지시서: 검수 = reviewer.SYSTEM + 심사 대상 글", _llm.plain(req["system"]) == reviewer.SYSTEM and "시험 제목" in req["messages"][0]["content"])
+    # 비용 계산: 캐시 읽기는 입력의 1/10, 쓰기는 1.25배
+    from types import SimpleNamespace as _NS
+    u = _NS(input_tokens=1000, output_tokens=0, cache_read_input_tokens=10000, cache_creation_input_tokens=0)
+    check("캐시 읽기 토큰은 1/10 가격", abs(_llm.cost_of(u, "claude-sonnet-5-5") - (1000 * 2 + 10000 * 0.2) / 1e6) < 1e-9)
+    a = writer.Article(keyword="k", title="t", description="d", model="claude-opus-5-5",
+                       input_tokens=1000, output_tokens=100, cache_read_tokens=5000, cache_write_tokens=2000)
+    check("Article.cost_usd 가 캐시 토큰 포함", abs(a.cost_usd - (1000 * 4 + 5000 * 0.4 + 2000 * 5 + 100 * 20) / 1e6) < 1e-9)
+    check("캐시 토큰 없는 usage 도 계산", abs(_llm.cost_of(_NS(input_tokens=100, output_tokens=10), "claude-opus-5-5") - (400 + 200) / 1e6) < 1e-9)
 
 
 def test_workflows() -> None:
@@ -1267,7 +1281,7 @@ def test_workflows() -> None:
     wf = ROOT / ".github" / "workflows"
     fleet = fm.load_fleet()
     # 2026-09: 주간 보고 워크플로에만 second 계정 자격증명이 빠져, 켜진 블로그 전부의 Blogger·검색 유입이 보고서에서 빠졌습니다.
-    for name in ("fleet.yml", "manager.yml", "weekly_report.yml", "retrofit.yml"):
+    for name in ("fleet.yml", "manager.yml", "weekly_report.yml", "retrofit.yml", "refresh.yml"):
         text = (wf / name).read_text(encoding="utf-8")
         missing = [
             var for acc in fleet.accounts for base in fm.CREDENTIAL_VARS
@@ -1279,6 +1293,8 @@ def test_workflows() -> None:
         text = (wf / name).read_text(encoding="utf-8")
         check(f"{name}: 요약 카드 업로드 토큰·글꼴", "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in text
               and "NotoSansKR" in text and "contents: write" in text)
+    check("refresh.yml: 공식 자료 조사용 API 키·같은 그룹", "ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}"
+          in (wf / "refresh.yml").read_text(encoding="utf-8") and "group: fleet" in (wf / "refresh.yml").read_text(encoding="utf-8"))
     check("retrofit.yml: 카드 글 뽑기용 API 키", "ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}"
           in (wf / "retrofit.yml").read_text(encoding="utf-8"))
     check("fleet.yml: 실행기에 없는 --count 입력을 두지 않음",
@@ -1288,6 +1304,66 @@ def test_workflows() -> None:
           "--label report --label needs-attention" not in weekly)
     check("옛 단일 블로그 워크플로 없음 (막힌 default 계정으로 발행하던 수동 실행)",
           not (wf / "draft.yml").exists() and not (wf / "evergreen.yml").exists())
+
+
+def test_refresh(cfg: dict) -> None:
+    """사실 갱신: from→to 치환은 정확히 한 번, 새 숫자는 to 안의 것만, 구조는 그대로."""
+    section("오래된 사실 갱신")
+    from scripts import refresh_facts as rf
+    from src import fleet as fm
+    from src import demand, gsc
+
+    body = ("<p>소득 기준은 월 300만원 이하이고 신청 기한은 3월 31일까지입니다.</p>"
+            "<table><tr><td>한도</td><td>300만원</td></tr></table>"
+            '<p><em>2026년 09월 22일 기준으로 정리한 내용입니다. 제도와 금액은 바뀔 수 있으니 신청 전에 담당 기관의 공식 안내를 확인하세요.</em></p>')
+    new, applied, problems = rf.apply_changes(body, [
+        {"from": "월 300만원 이하이고", "to": "월 320만원 이하이고", "source": "https://www.gov.kr/a", "why": "기준 인상"},
+    ])
+    check("값 하나 치환", "월 320만원 이하이고" in new and len(applied) == 1 and not problems, str(problems))
+    new, applied, problems = rf.apply_changes(body, [{"from": "300만원", "to": "320만원", "source": "", "why": ""}])
+    check("본문에 두 번 나오는 조각은 거부", not applied and any("2번" in p for p in problems), str(problems))
+    new, applied, problems = rf.apply_changes(body, [{"from": "3월 31일", "to": "<b>4월 30일</b>", "source": "", "why": ""}])
+    check("태그가 든 변경은 거부", not applied and any("태그" in p for p in problems))
+    new, applied, problems = rf.apply_changes(body, [{"from": "3월 31일까지입니다", "to": "4월 30일까지이며 5회 가능합니다", "source": "", "why": ""}])
+    check("to 에 적힌 숫자만 새로 들어옴 (허용)", len(applied) == 1 and "5회" in new)
+    check("바뀐 것 없는 변경은 거부", not rf.apply_changes(body, [{"from": "3월 31일", "to": "3월 31일", "source": "", "why": ""}])[1])
+    bumped = rf.bump_footer_date(body, datetime(2026, 10, 14, tzinfo=KST))
+    check("끝 문구의 기준 날짜를 오늘로", "2026년 10월 14일 기준으로" in bumped and "2026년 09월 22일" not in bumped)
+    v = rf.parse_verdict('설명 {"verdict": "changed", "changes": [{"from": "a", "to": "b", "source": "u", "why": "w"}, {"from": "", "to": "x"}], "notes": ["n"]}')
+    check("대조 응답 파싱 (빈 from 은 버림)", v["verdict"] == "changed" and len(v["changes"]) == 1 and v["notes"] == ["n"])
+    check("JSON 없으면 unsure", rf.parse_verdict("모르겠습니다")["verdict"] == "unsure")
+
+    # 볼 순서: 보강 후보 → 클릭 많은 글 → 오래된 글, 최근 본 글·어린 글 제외
+    now = datetime(2026, 10, 14, 23, 0, tzinfo=KST)
+    blog = fm.Blog(id="b", name="b", blog_id="1", slots=["06:20"], subject="s")
+    mk = lambda u, d: {"url": u, "published": f"2026-{d}T10:00:00+09:00", "id": u[-1], "title": u}  # noqa: E731
+    posts = [(blog, mk("https://x/old1", "09-01")), (blog, mk("https://x/click2", "09-20")),
+             (blog, mk("https://x/boost3", "10-10")), (blog, mk("https://x/young4", "10-12")),
+             (blog, mk("https://x/seen5", "09-05"))]
+    got = rf.order(posts, ["https://x/boost3"], {"https://x/click2": 7}, {"https://x/seen5": {"at": "2026-10-01T00:00"}},
+                   now, min_age_days=14, recheck_days=30)
+    check("순서 = 보강 후보, 클릭, 오래된 순 · 어린 글·최근 본 글 제외",
+          [p["url"][-1] for _, p, _ in got] == ["3", "2", "1"], str([p["url"] for _, p, _ in got]))
+
+    # Search Console 검색 수요 걸러내기
+    rows = [{"keys": ["a"], "impressions": 50, "clicks": 0, "position": 12.0},
+            {"keys": ["b"], "impressions": 5, "clicks": 0, "position": 30.0},
+            {"keys": ["c"], "impressions": 100, "clicks": 20, "position": 2.0},
+            {"keys": ["d"], "impressions": 80, "clicks": 1, "position": 5.0}]
+    opps = gsc.select_opportunities(rows, min_impressions=10, min_position=8, max_ctr=0.02)
+    check("노출 적은 것·이미 잘 되는 것 제외, 노출 많은 순", [o.query for o in opps] == ["d", "a"], str([o.query for o in opps]))
+    check("검색 수요 블록", "노출 80회" in demand.demand_block(opps) and "아직 없음" in demand.demand_block([]))
+    sugg = demand.parse_naver({"items": [[["연말정산 의료비공제", "0"], ["연말정산 의료비 한도", "0"]]]})
+    check("네이버 자동완성 파싱·일치", sugg[0] == "연말정산 의료비공제" and demand.matches("의료비 공제", sugg)
+          and not demand.matches("자동차세", sugg))
+
+    # 기획: 이력 전체와 겹치는 글감은 보강 후보로
+    from src import planner
+    hist = [{"keyword": "연말정산 의료비 공제 조건", "title": "연말정산 의료비 공제 조건 총정리", "url": "https://x/1", "status": "live"}]
+    fresh, reinforce = planner.split_cannibal(cfg, [{"topic": "연말정산 의료비 공제 조건과 한도", "search": "x"},
+                                                    {"topic": "종합소득세 신고 기한", "search": "y"}], hist)
+    check("겹치는 글감은 보강 후보, 나머지는 새 글", [t["topic"] for t in fresh] == ["종합소득세 신고 기한"]
+          and reinforce and reinforce[0]["url"] == "https://x/1", str(reinforce))
 
 
 def test_retrofit(cfg: dict) -> None:
@@ -1701,6 +1777,7 @@ def main() -> int:
     test_dedupe(cfg)
     test_context(cfg)
     test_official(cfg)
+    test_refresh(cfg)
     test_retrofit(cfg)
     test_card(cfg)
     test_polish(cfg)

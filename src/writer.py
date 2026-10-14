@@ -15,16 +15,7 @@ from .trends.base import NewsRef
 log = logging.getLogger(__name__)
 
 # $ / 1M 토큰 (입력, 출력) — 비용 추정용
-PRICES = {
-    "claude-fable-5-1": (10.00, 50.00),
-    "claude-fable-5": (10.00, 50.00),
-    "claude-opus-5-5": (4.00, 20.00),
-    "claude-opus-5": (5.00, 25.00),
-    "claude-opus-4-8": (5.00, 25.00),
-    "claude-sonnet-5-5": (2.00, 10.00),
-    "claude-sonnet-5": (2.00, 10.00),
-    "claude-haiku-4-5": (1.00, 5.00),
-}
+PRICES = llm.PRICES   # 가격표는 src/llm.py 가 원본입니다 (다른 모듈이 writer.PRICES 로 참조해서 남겨 둠)
 
 # AI 가 쓴 티가 나는 문장 습관. humanizer-kr 스킬(https://github.com/hjongc/humanizer-kr, MIT License,
 # Copyright (c) 2026 humanizer-kr contributors)의 기준 가운데 우리 글에 실제로 많이 나온 것만 골라 줄였습니다.
@@ -228,6 +219,8 @@ class Article:
     card: str = ""          # 요약 카드 글 (src/card.py 가 그림으로 만듭니다). 없으면 카드 없이 발행
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0       # 프롬프트 캐시에서 읽은 입력 (입력 가격의 1/10)
+    cache_write_tokens: int = 0      # 프롬프트 캐시에 쓴 입력 (입력 가격의 1.25배)
     model: str = ""
     revised: bool = False   # 검수 보류 뒤 지적을 고쳐 다시 쓴 글 (src/main.py)
 
@@ -235,7 +228,10 @@ class Article:
     def cost_usd(self) -> float:
         price_in, price_out = PRICES.get(self.model, (5.00, 25.00))
         return (
-            self.input_tokens * price_in + self.output_tokens * price_out
+            self.input_tokens * price_in
+            + self.cache_read_tokens * price_in * llm.CACHE_READ_RATE
+            + self.cache_write_tokens * price_in * llm.CACHE_WRITE_RATE
+            + self.output_tokens * price_out
         ) / 1_000_000
 
 
@@ -314,10 +310,16 @@ def _call(cfg: dict, client, system: str, messages: list[dict], keyword: str, wh
     w = cfg["writer"]
     model = w["model"]
     # max_tokens 가 크고 사고(thinking) 시간이 길 수 있어 스트리밍으로 받습니다.
+    # 프롬프트 캐싱: 지시문(system)과 첫 사용자 메시지(참고 자료)에 캐시 지점을 둡니다. 고쳐 쓰기는 같은 지시문·
+    # 같은 자료를 몇 분 안에 다시 보내므로 그 부분을 입력 가격의 1/10 로 읽습니다 (2026-10-14).
+    messages = [
+        {**m, "content": llm.cached(m["content"])} if i == 0 and isinstance(m.get("content"), str) else m
+        for i, m in enumerate(messages)
+    ]
     with client.messages.stream(
         model=model,
         max_tokens=w["max_tokens"],
-        system=system,
+        system=llm.cached(system),
         output_config={"effort": w.get("effort", "high")},
         messages=messages,
     ) as stream:
@@ -332,6 +334,8 @@ def _call(cfg: dict, client, system: str, messages: list[dict], keyword: str, wh
     article = _parse(raw, keyword, model)
     article.input_tokens = response.usage.input_tokens
     article.output_tokens = response.usage.output_tokens
+    article.cache_read_tokens = getattr(response.usage, "cache_read_input_tokens", 0) or 0
+    article.cache_write_tokens = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
     return article
 
 
@@ -461,13 +465,12 @@ def polish(cfg: dict, body_html: str, keyword: str = "", client: anthropic.Anthr
     with client.messages.stream(
         model=w["model"],
         max_tokens=w["max_tokens"],
-        system=POLISH_SYSTEM,
+        system=llm.cached(POLISH_SYSTEM),
         output_config={"effort": w.get("effort", "high")},
         messages=[{"role": "user", "content": "아래 글을 다듬어 주세요.\n\n<<<BODY>>>\n" + body_html}],
     ) as stream:
         response = stream.get_final_message()
-    price_in, price_out = PRICES.get(w["model"], (5.00, 25.00))
-    cost = (response.usage.input_tokens * price_in + response.usage.output_tokens * price_out) / 1_000_000
+    cost = llm.cost_of(response.usage, w["model"])
     if response.stop_reason == "refusal":
         raise SkippedByModel("모델이 다듬기를 거부했습니다.")
     raw = llm.text_of(response, f"[{keyword}] 다듬기")

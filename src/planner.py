@@ -20,7 +20,7 @@ import re
 
 import anthropic
 
-from . import llm
+from . import demand, llm
 from .trends import Candidate, Variant
 from .trends.base import similarity
 
@@ -47,6 +47,9 @@ SYSTEM = """당신은 한국어 블로그의 콘텐츠 기획자입니다. 주�
 넓은 주제는 이미 쓴 글감 목록에 비슷한 것이 있으면 그 글에서 다루지 못한 구체적인 상황으로 좁히세요. \
 다만 너무 좁아 한 달에 몇 명도 검색하지 않을 표현(지역·제품 모델명까지 붙은 것)은 피합니다.
 
+## 실제 검색 수요가 있으면 그것부터
+요청에 '실제 검색 수요' 목록이 있으면, 그것은 이 블로그가 구글에 **이미 노출되는데 순위나 클릭이 낮은 검색어**입니다. 그 검색어에 바로 답하는 글감을 먼저 고르세요(이미 쓴 글과 겹치면 그 글이 놓친 상황으로 좁혀서). 주제 밖의 검색어는 무시합니다.
+
 ## 피해야 할 것
 - 특정 개인의 사생활·의혹·수사, 사건사고
 - 의료 진단, 투자 권유, 법률 자문으로 읽힐 수 있는 단정
@@ -64,7 +67,11 @@ USER_TEMPLATE = """## 이 블로그
 - 독자: {audience}
 - 다루지 않음 (함대의 다른 블로그 몫이라 이 블로그 글감으로 고르면 안 됨): {excludes}
 
-## 이미 쓴 글감 (겹치면 안 됨)
+## 실제 검색 수요 (Search Console, 최근 4주 — 노출은 되는데 순위·클릭이 낮은 검색어)
+
+{demand}
+
+## 이미 쓴 글감 (겹치면 안 됨 — 이 블로그의 전체 글)
 
 {done}
 
@@ -150,8 +157,13 @@ def propose(
             f"블로그 '{blog.id}' 에 subject 가 없습니다. fleet/blogs.yaml 에서 고유 주제를 정하세요."
         )
 
-    done = [h.get("keyword", "") for h in history][-60:]
+    # 이 블로그의 **전체** 글(최근 400편). 예전엔 최근 60편만 넘겨, 글이 쌓이면 같은 검색어를 두고 내 글끼리
+    # 경쟁하는 글이 나올 수 있었습니다(2026-10-14 개선점 2). 400편 ≈ 6천 토큰, Sonnet 기준 $0.01 안팎.
+    done = [h.get("keyword", "") for h in history if h.get("keyword")][-400:]
     done_lines = "\n".join(f"- {k}" for k in done) or "- (없음)"
+    opps = demand.search_console(blog, cfg)
+    if opps:
+        log.info("[%s] Search Console 검색 수요 %d개 (노출 최다: %s)", blog.id, len(opps), opps[0].query)
 
     # 글감 목록 뽑기는 깊이 생각할 일이 아닙니다. effort 를 낮춰 thinking 이 출력 자리를 먹지 않게 하고,
     # max_tokens 도 넉넉히 둡니다(thinking 토큰도 이 안에서 씁니다 — src/llm.py 참고).
@@ -159,7 +171,7 @@ def propose(
         model=pl["model"],
         max_tokens=int(pl.get("max_tokens", 8000)),
         output_config={"effort": pl.get("effort", "low")},
-        system=SYSTEM,
+        system=llm.cached(SYSTEM),
         messages=[
             {
                 "role": "user",
@@ -168,6 +180,7 @@ def propose(
                     pillars=", ".join(blog.pillars) or "(지정 없음 — 주제에서 스스로 나누세요)",
                     audience=blog.audience or "해당 주제를 검색해서 들어오는 일반 독자",
                     excludes=" / ".join(blog.excludes) or "(없음)",
+                    demand=demand.demand_block(opps),
                     done=done_lines,
                     n=pl.get("candidates", 8),
                 ),
@@ -182,6 +195,12 @@ def propose(
         response.usage.input_tokens, response.usage.output_tokens,
     )
 
+    topics, reinforce = split_cannibal(cfg, topics, history)
+    if reinforce:
+        log.info("[%s] 기존 글과 겹치는 글감 %d개 → 새 글 대신 보강 후보로 기록", blog.id, len(reinforce))
+        record_reinforce(blog, reinforce)
+
+    use_naver = bool(pl.get("naver_autocomplete", True))
     candidates: list[Candidate] = []
     for rank, t in enumerate(topics, start=1):
         c = Candidate(
@@ -194,5 +213,50 @@ def propose(
         # 리서치 자료에 섞이면 "왜 지금 검색되는가" 같은 도입부 섹션으로 나옵니다.
         c.note = " · ".join(x for x in (t["pillar"], t["why"]) if x)
         c.pillar = match_pillar(t["pillar"], blog.pillars)
+        # 네이버 자동완성에 뜨는 검색 표현이면 사람들이 실제로 치는 말이므로 앞에 둡니다 (조회 실패는 무시).
+        if use_naver and demand.has_naver_demand(t["search"]):
+            c.score = round(c.score + 0.1, 4)
+            c.note = (c.note + " · " if c.note else "") + "네이버 자동완성 ○"
         candidates.append(c)
+    candidates.sort(key=lambda c: -c.score)
     return candidates
+
+
+def split_cannibal(cfg: dict, topics: list[dict], history: list[dict]) -> tuple[list[dict], list[dict]]:
+    """글감을 (새 글로 쓸 것, 기존 글과 겹쳐 보강으로 돌릴 것) 으로 나눕니다.
+
+    state.filter_seen 은 최근 14일만 봅니다(실시간 이슈용). 기획 글은 몇 달 뒤에도 같은 검색어를 두고
+    내 글끼리 경쟁하므로 **이력 전체**와 비교합니다. 겹친 글감은 버리지 않고, 그 기존 글을 공식 자료로 다시
+    확인·보강하는 후보(scripts/refresh_facts.py)로 넘깁니다.
+    """
+    threshold = float(cfg["dedupe"]["similarity_threshold"])
+    live = [h for h in history if h.get("status") == "live" and h.get("url")]
+    fresh, reinforce = [], []
+    for t in topics:
+        hit = next((h for h in live if similarity(t["topic"], h.get("keyword", "")) >= threshold
+                    or similarity(t["topic"], h.get("title", "")) >= threshold), None)
+        if hit:
+            reinforce.append({"topic": t["topic"], "url": hit["url"], "title": hit.get("title", ""),
+                              "keyword": hit.get("keyword", "")})
+        else:
+            fresh.append(t)
+    return fresh, reinforce
+
+
+def record_reinforce(blog, items: list[dict]) -> None:
+    """겹친 글감을 data/blogs/<id>/reinforce.json 에 남깁니다 (사실 갱신이 이 글들을 먼저 봅니다)."""
+    from datetime import datetime
+    from .state import KST
+    path = blog.dir / "reinforce.json"
+    try:
+        cur = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        cur = []
+    known = {c.get("url") for c in cur}
+    stamp = datetime.now(KST).isoformat(timespec="minutes")
+    for it in items:
+        if it["url"] not in known:
+            cur.append({**it, "at": stamp})
+            known.add(it["url"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cur[-100:], ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
