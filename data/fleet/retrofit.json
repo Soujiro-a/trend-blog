@@ -1,5 +1,5 @@
 {
- "last_date": "2026-10-12",
+ "last_date": "2026-10-15",
  "done": [
   {
    "at": "2026-09-30T05:39:29+09:00",
@@ -100,12 +100,21 @@
     "끝 문구를 안내 글 문구로 교체",
     "요약 카드 추가"
    ]
+  },
+  {
+   "at": "2026-10-16T02:51:26+09:00",
+   "blog": "gaganamc1",
+   "url": "https://gaganamc1.blogspot.com/2026/09/blog-post.html",
+   "changes": [
+    "문장 다듬기"
+   ],
+   "cost_usd": 0.2024
   }
  ],
  "no_card": [],
- "remaining": 102,
- "checked_at": "2026-10-15T05:08+09:00",
- "last_result": "2026-10-14 고칠 것 없음 (https://gaganam1.blogspot.com/2026/09/blog-post.html, 카드·다듬기 실패 또는 뽑을 값 없음)",
+ "remaining": 100,
+ "checked_at": "2026-10-16T02:51+09:00",
+ "last_result": "2026-10-15 고침 — gaganamc1 https://gaganamc1.blogspot.com/2026/09/blog-post.html",
  "polish_skip": [
   {
    "url": "https://gaganamc1.blogspot.com/2026/09/7.html",
@@ -117,5 +126,8 @@
    "at": "2026-10-14",
    "why": "뜻이 달라짐: 도입부: 원래 글의 마지막 문장 \"이 글은 유효기간을 확인하는 경로, 놓쳤을 때 생기는 불이익, 검사 전에 챙길 것을 순서대로 정리했습니다.\"가 다듬은 글에서 삭제됨 (글의 구성을 안내하는 내용이 빠짐)"
   }
+ ],
+ "polished": [
+  "https://gaganamc1.blogspot.com/2026/09/blog-post.html"
  ]
 }
