@@ -113,8 +113,8 @@
  ],
  "no_card": [],
  "remaining": 100,
- "checked_at": "2026-10-16T02:51+09:00",
- "last_result": "2026-10-15 고침 — gaganamc1 https://gaganamc1.blogspot.com/2026/09/blog-post.html",
+ "checked_at": "2026-10-17T02:37+09:00",
+ "last_result": "2026-10-16 고칠 것 없음 (https://gaganam1.blogspot.com/2026/09/blog-post_22.html, 카드·다듬기 실패 또는 뽑을 값 없음)",
  "polish_skip": [
   {
    "url": "https://gaganamc1.blogspot.com/2026/09/7.html",
@@ -125,6 +125,11 @@
    "url": "https://gaganam1.blogspot.com/2026/09/blog-post.html",
    "at": "2026-10-14",
    "why": "뜻이 달라짐: 도입부: 원래 글의 마지막 문장 \"이 글은 유효기간을 확인하는 경로, 놓쳤을 때 생기는 불이익, 검사 전에 챙길 것을 순서대로 정리했습니다.\"가 다듬은 글에서 삭제됨 (글의 구성을 안내하는 내용이 빠짐)"
+  },
+  {
+   "url": "https://gaganam1.blogspot.com/2026/09/blog-post_22.html",
+   "at": "2026-10-16",
+   "why": "뜻이 달라짐: 자기부담금 지원 서비스 문단: 원래 '자기 차량의 조건에 맞는지 비교해 판단하는 것이 필요합니다' → '내 차의 조건에 맞는지 비교해 판단해야 합니다' (필요하다는 서술이 의무 표현으로 강해짐)"
   }
  ],
  "polished": [
