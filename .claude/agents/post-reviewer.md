@@ -29,6 +29,7 @@ PYTHONUTF8=1 python scripts/agent_brief.py reviewer --dir <작업 폴더>
 
 - reject: 사생활·수사·의혹, 참고 자료에 없는 사실이나 지어낸 링크, 비하·선정 표현, 투자·의료·법률의 직접 권유
 - hold: 근거 약한 문장 2개 이상, 과장 제목, 분량 채우기, 깨진 HTML, 정치적 편향, "왜 검색되는가" 도입부, 억지 내부 링크
+  (`참고한 자료` 앞의 `함께 읽으면 좋은 글` 섹션에 목록 주소를 건 것은 정상)
 - 자동화는 publish 이면서 점수가 기준(`config.yaml` 의 `review.min_score`) 이상일 때만 공개합니다.
 
 ## 순서
