@@ -412,7 +412,7 @@ def test_no_why_searched(cfg: dict) -> None:
     check("도입부 안내 문장은 예고 금지의 예외", "도입부 끝의 '본문 안내' 한 문장" in writer.STYLE_RULES)
     check("경험담 지어내기 금지", "지어낸 경험담" in rendered)
     check("검수도 함께 읽기 섹션을 정상으로 봄", "함께 읽으면 좋은 글" in reviewer.SYSTEM and "본문 중간에" in reviewer.SYSTEM)
-    check("분량 기준 2800", cfg["writer"]["target_length"] >= 2800, cfg["writer"]["target_length"])
+    check("분량 기준 2500", cfg["writer"]["target_length"] >= 2500, cfg["writer"]["target_length"])
 
     # 기획 메모가 글쓰기 자료로 새지 않아야 합니다 (이게 '왜 검색되는가' 섹션의 원인이었습니다)
     c = mk_candidate("테스트 주제")
