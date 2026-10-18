@@ -1,5 +1,5 @@
 {
- "last_date": "2026-10-17",
+ "last_date": "2026-10-18",
  "checked": {
   "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html": {
    "at": "2026-10-15T03:11+09:00",
@@ -30,6 +30,11 @@
    "at": "2026-10-18T01:40+09:00",
    "blog": "gaganamc1",
    "result": "공식 자료 없음 — 확인 필요"
+  },
+  "https://gaganam1.blogspot.com/2026/09/blog-post_22.html": {
+   "at": "2026-10-19T01:57+09:00",
+   "blog": "gaganam1",
+   "result": "공식 자료 없음 — 확인 필요"
   }
  },
  "done": [],
@@ -45,7 +50,13 @@
    "blog": "gaganamc1",
    "at": "2026-10-18",
    "note": "공식 안내 자료를 찾지 못해 사람이 확인해야 합니다"
+  },
+  {
+   "url": "https://gaganam1.blogspot.com/2026/09/blog-post_22.html",
+   "blog": "gaganam1",
+   "at": "2026-10-19",
+   "note": "공식 안내 자료를 찾지 못해 사람이 확인해야 합니다"
   }
  ],
- "last_result": "2026-10-17 자료 없음 — gaganamc1 https://gaganamc1.blogspot.com/2026/09/blog-post.html"
+ "last_result": "2026-10-18 자료 없음 — gaganam1 https://gaganam1.blogspot.com/2026/09/blog-post_22.html"
 }
