@@ -1520,6 +1520,19 @@ def test_polish(cfg: dict) -> None:
         reviewer.same_meaning = lambda cfg_, a, b: (False, ["할 수 있습니다 → 해야 합니다"], 0.02)
         out, why, _ = rp.polish_post(cfg, before, "t")
         check("뜻이 달라졌다고 보면 쓰지 않음", out is None and "뜻이 달라짐" in why[0])
+        same, facts = reviewer.meaning_verdict({"changes": [
+            {"kind": "표현", "where": "빈발한다 → 자주 일어난다"},
+            {"kind": "표현", "where": "도메인 표기는 남고 어순만 바뀜"}]})
+        check("표현 변경만 있으면 같은 글", same and not facts, str(facts))
+        same, facts = reviewer.meaning_verdict({"changes": [
+            {"kind": "표현", "where": "a"}, {"kind": "사실", "where": "할 수 있습니다 → 해야 합니다"}]})
+        check("사실 변경이 하나라도 있으면 다른 글", not same and facts == ["할 수 있습니다 → 해야 합니다"], str(facts))
+        check("kind 가 없으면 사실로 봄", reviewer.meaning_verdict({"changes": [{"where": "x"}]})[0] is False)
+        check("변경 없음은 같은 글", reviewer.meaning_verdict({"changes": []}) == (True, []))
+        check("옛 형식 응답도 읽음", reviewer.meaning_verdict({"same": False, "problems": ["p"]}) == (False, ["p"]))
+        check("다듬기 확인 지시문: 사실/표현 구분",
+              all(k in reviewer.SAME_MEANING_SYSTEM for k in ("`사실`", "`표현`", "글의 구성을 안내하는 문장")))
+        check("다듬기 지시문: 사이트 주소·예시 나열 보존", "나열한 예시" in writer.POLISH_SYSTEM)
         writer.polish = lambda cfg_, body, kw="": (body.replace("3~8%", "몇 %"), 0.2)
         out, why, _ = rp.polish_post(cfg, before, "t")
         check("숫자가 바뀌면 확인 모델도 부르지 않고 버림", out is None and "숫자" in why[0])

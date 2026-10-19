@@ -218,22 +218,50 @@ def review(
 # ---- 기존 글 다듬기 확인 (scripts/retrofit_posts.py) ----
 # 숫자·링크·구조는 writer.polish_problems 가 코드로 봅니다. 여기서는 숫자 없이도 뜻이 바뀌는 경우
 # ("할 수 있습니다" → "해야 합니다", 조건·예외가 빠짐, 단정이 세짐)를 검수 모델이 전후 비교로 봅니다.
-SAME_MEANING_SYSTEM = """당신은 한국어 생활정보 블로그의 발행 책임자입니다. 이미 공개된 글의 문장을 교정 편집자가 다듬었습니다. \
-다듬은 글이 원래 글과 **같은 사실을 같은 강도로** 말하는지만 확인합니다. 문체가 나아졌는지는 판단하지 않습니다.
+# 2026-10-19: same true/false 한 값만 받았더니 모델이 "표현만 바뀌고 사실은 같음", "경미"라고 적고도 false 를
+# 내 다듬기 8편 중 6편이 버려졌습니다. 바뀐 곳마다 사실/표현을 나누게 하고, 사실이 하나라도 있을 때만 버립니다.
+SAME_MEANING_SYSTEM = """당신은 한국어 생활정보 블로그의 발행 책임자입니다. 이미 공개된 글의 문장을 교정 편집자가 다듬었습니다. 다듬은 글이 원래 글과 **같은 사실을 같은 강도로** 말하는지만 확인합니다. 문체가 나아졌는지는 판단하지 않습니다.
+문장을 다듬었으니 표현이 달라진 곳은 당연히 많습니다. 바뀐 곳을 하나씩 보고 `사실` 인지 `표현` 인지 나눕니다.
 
-이런 것이 있으면 다르다고 봅니다.
-- 가능·권장이 의무로, 또는 그 반대로 바뀜 ("할 수 있습니다" ↔ "해야 합니다")
-- 조건·예외·대상·기한이 빠지거나 넓어지거나 좁아짐
+`사실` — 독자가 아는 내용이나 할 일이 달라지는 변경입니다.
+- 가능·권장이 의무로, 또는 그 반대로 바뀜 ("할 수 있습니다" ↔ "해야 합니다", "~하면 좋습니다" → "~하세요")
+- 조건·예외·대상·기한·금액이 빠지거나 넓어지거나 좁아짐
+- 나열한 예시·항목이 빠지거나 바뀜 (예: "물에 젖음·찢어짐·낙서" → "낙서 등")
+- 기관명·사이트 주소·전화번호·서식 이름이 빠짐
 - 원래 글에 없던 이유·조언·전망·사실이 더해짐
-- 단정의 강도가 바뀜 ("~로 안내합니다" → "~입니다", "약" 이 빠짐)
-- 누가 하는지(주체)가 바뀜
+- 범위·강도를 정하는 말이 더해지거나 빠짐 ("약", "보통", "만", "반드시", "~로 안내합니다" → "~입니다")
+- 독자가 할 일을 누가 하는지(신청인·기관·회사)가 바뀜
 
-JSON 한 덩어리만 출력합니다: {"same": true 또는 false, "problems": ["바뀐 곳: 원래 → 다듬은 글", ...]}"""
+`표현` — 같은 사실을 다르게 말한 것입니다. 이것만 있으면 같은 글입니다.
+- 어순·문장 구조·문장 나누기와 합치기, 쉬운 말로 바꿈 ("빈발한다" → "자주 일어난다", "판독" → "읽기")
+- 같은 강도의 의무 표현끼리 바꿈 ("~하는 것이 필요합니다" ↔ "~해야 합니다")
+- 피동과 능동 사이를 바꿨지만 할 일과 하는 사람은 그대로임
+- "결국", "핵심은", "참고로" 같은 연결어가 빠지거나 바뀜
+- 글의 구성을 안내하는 문장("이 글은 ~을 정리했습니다")이 빠짐 — 본문의 사실이 아닙니다
+- 시제·어미가 바뀌었지만 사실은 그대로임 ("거부하는 경우도 보도됐습니다" → "거부한 사례도 보도됐습니다")
+
+헷갈리면 "원래 글만 읽은 독자와 다듬은 글만 읽은 독자가 다르게 행동하거나 다른 사실을 알게 되는가"로 판단합니다. 그렇다면 `사실`, 아니면 `표현` 입니다.
+
+JSON 한 덩어리만 출력합니다. 바뀐 곳마다 먼저 원래와 다듬은 문장을 적고, 이유를 쓴 다음, 그 이유에 맞게 kind 를 정합니다. 이유에 "표현", "같은 내용", "의미 동일" 이라고 썼다면 kind 는 `표현` 입니다.
+{"changes": [{"where": "바뀐 곳: 원래 → 다듬은 글", "reason": "독자가 아는 사실·할 일이 달라지는지", "kind": "사실" 또는 "표현"}, ...]}"""
+
+
+def meaning_verdict(data: dict) -> tuple[bool, list[str]]:
+    """same_meaning 응답 JSON → (같음, 사실 변경 목록). `사실` 이 하나도 없으면 같은 글입니다."""
+    changes = data.get("changes")
+    if not isinstance(changes, list):
+        # 옛 형식({"same": ..., "problems": [...]}) 이나 이상한 응답은 안전하게 옛 판단을 따릅니다.
+        problems = data.get("problems") or []
+        problems = [str(p) for p in (problems if isinstance(problems, list) else [problems])][:8]
+        return data.get("same") is True, problems
+    facts = [str(c.get("where", "")) + (f' ({c["reason"]})' if c.get("reason") else "") for c in changes
+             if isinstance(c, dict) and str(c.get("kind", "사실")).strip().strip("`") != "표현"]
+    return not facts, facts[:8]
 
 
 def same_meaning(cfg: dict, before_html: str, after_html: str, client: anthropic.Anthropic | None = None,
                  ) -> tuple[bool, list[str], float]:
-    """다듬기 전후 본문의 뜻이 같은지. (같음, 문제 목록, 비용)"""
+    """다듬기 전후 본문의 뜻이 같은지. (같음, 사실 변경 목록, 비용)"""
     r = cfg["review"]
     client = client or llm.client()
     response = client.messages.create(
@@ -249,10 +277,8 @@ def same_meaning(cfg: dict, before_html: str, after_html: str, client: anthropic
     m = _JSON_BLOCK.search(llm.text_of(response, "다듬기 확인"))
     if not m:
         return False, ["확인 응답에 JSON 이 없음"], cost
-    data = json.loads(m.group(0))
-    problems = data.get("problems") or []
-    problems = [str(p) for p in (problems if isinstance(problems, list) else [problems])][:8]
-    return data.get("same") is True, problems, cost
+    same, facts = meaning_verdict(json.loads(m.group(0)))
+    return same, facts, cost
 
 
 # ---- 사실 갱신 확인 (scripts/refresh_facts.py) ----

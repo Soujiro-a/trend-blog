@@ -8,7 +8,8 @@
    뽑을 값이 없거나 카드를 못 만든 글은 retrofit.json 의 no_card 에 적어 다시 시도하지 않습니다.
 4) 문장 다듬기 규칙(src/writer.py STYLE_RULES, humanizer-kr 기준)이 생기기 전 글(config polish.before 이전 공개)은
    문장만 다듬습니다(글당 약 $0.2). 숫자·링크·소제목·표·참고 자료가 하나라도 달라지거나(writer.polish_problems)
-   검수 모델이 뜻이 달라졌다고 보면(reviewer.same_meaning) 다듬은 글을 버리고 polish_skip 에 적어 다시 시도하지 않습니다.
+   검수 모델이 사실(조건·대상·강도·예시 등)이 바뀐 곳을 하나라도 찾으면(reviewer.same_meaning — 표현만 바뀐 곳은
+   세지 않음) 다듬은 글을 버리고 polish_skip 에 적어 다시 시도하지 않습니다.
 1)~3) 은 본문 내용을 건드리지 않습니다. 고칠 것이 여럿이면 한 번의 수정 요청으로 함께 고칩니다.
 
 한 번에 몰아서 고치지 않는 이유: 2026-09-20 에 짧은 시간 여러 건을 올린 계정의 API 쓰기가 막혔습니다.
