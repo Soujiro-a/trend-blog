@@ -404,7 +404,8 @@ def test_no_why_searched(cfg: dict) -> None:
     check("검수가 내부 링크를 지어낸 링크로 보지 않음", "그 목록에 없는 같은 블로그 주소" in reviewer.SYSTEM)
 
     # 2026-10-17 글 구조: 도입부(답→불이익→본문 안내) → h2 5~7개(표 2개) → 함께 읽기 → FAQ 3~5 → 정리 → 참고 자료
-    for mark in ("### 도입부", "표 1개", "표 2개째", "함께 읽으면 좋은 글", "자주 묻는 질문", "<h2>정리</h2>", "1,000자당 3회"):
+    for mark in ("### 도입부", "표 1개", "표 2개째", "함께 읽으면 좋은 글", "자주 묻는 질문", "<h2>정리</h2>", "1,000자당 3회",
+                 "(선택) 헷갈리기", "(선택) 상황별 정리표", "단계마다 식을 보이고", "계산식이 통째로"):
         check(f"작성 지시문에 글 구조: {mark}", mark in rendered)
     check("뒷부분 순서: 함께 읽기 → FAQ → 정리 → 참고 자료",
           rendered.index("<h2>함께 읽으면 좋은 글</h2>") < rendered.index("<h2>자주 묻는 질문</h2>")
@@ -412,6 +413,8 @@ def test_no_why_searched(cfg: dict) -> None:
     check("도입부 안내 문장은 예고 금지의 예외", "도입부 끝의 '본문 안내' 한 문장" in writer.STYLE_RULES)
     check("경험담 지어내기 금지", "지어낸 경험담" in rendered)
     check("검수도 함께 읽기 섹션을 정상으로 봄", "함께 읽으면 좋은 글" in reviewer.SYSTEM and "본문 중간에" in reviewer.SYSTEM)
+    from src import planner as planner_mod
+    check("기획: 다른 블로그 몫을 섞는 글감 금지", "한 글에 섞는 글감" in planner_mod.SYSTEM)
     check("분량 기준 2500", cfg["writer"]["target_length"] >= 2500, cfg["writer"]["target_length"])
 
     # 기획 메모가 글쓰기 자료로 새지 않아야 합니다 (이게 '왜 검색되는가' 섹션의 원인이었습니다)
