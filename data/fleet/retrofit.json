@@ -131,9 +131,15 @@
  ],
  "no_card": [],
  "remaining": 100,
- "checked_at": "2026-10-20T04:26+09:00",
- "last_result": "2026-10-19 고침 — gaganamc1 https://gaganamc1.blogspot.com/2026/09/7.html",
- "polish_skip": [],
+ "checked_at": "2026-10-21T03:04+09:00",
+ "last_result": "2026-10-20 고칠 것 없음 (https://gaganam1.blogspot.com/2026/09/blog-post.html, 카드·다듬기 실패 또는 뽑을 값 없음)",
+ "polish_skip": [
+  {
+   "url": "https://gaganam1.blogspot.com/2026/09/blog-post.html",
+   "at": "2026-10-20",
+   "why": "뜻이 달라짐: 예약 후 방문하는 방식이 일반적입니다 → 예약한 뒤 방문하는 것이 일반적입니다; 검사소별로 … 확인하면 됩니다 → 문장 분리 (표현 차이뿐)"
+  }
+ ],
  "polished": [
   "https://gaganamc1.blogspot.com/2026/09/blog-post.html",
   "https://gaganam1.blogspot.com/2026/09/75-3.html",
