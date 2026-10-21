@@ -242,7 +242,7 @@ SAME_MEANING_SYSTEM = """당신은 한국어 생활정보 블로그의 발행 �
 
 헷갈리면 "원래 글만 읽은 독자와 다듬은 글만 읽은 독자가 다르게 행동하거나 다른 사실을 알게 되는가"로 판단합니다. 그렇다면 `사실`, 아니면 `표현` 입니다.
 
-JSON 한 덩어리만 출력합니다. 바뀐 곳마다 먼저 원래와 다듬은 문장을 적고, 이유를 쓴 다음, 그 이유에 맞게 kind 를 정합니다. 이유에 "표현", "같은 내용", "의미 동일" 이라고 썼다면 kind 는 `표현` 입니다.
+JSON 한 덩어리만 출력합니다. 바뀐 곳마다 먼저 원래와 다듬은 문장을 적고, 이유를 쓴 다음, 그 이유에 맞게 kind 를 정합니다. 이유에 "표현", "같은 내용", "의미 동일" 이라고 썼다면 kind 는 `표현` 입니다. reason 은 비워 두지 않습니다.
 {"changes": [{"where": "바뀐 곳: 원래 → 다듬은 글", "reason": "독자가 아는 사실·할 일이 달라지는지", "kind": "사실" 또는 "표현"}, ...]}"""
 
 
@@ -255,8 +255,25 @@ def meaning_verdict(data: dict) -> tuple[bool, list[str]]:
         problems = [str(p) for p in (problems if isinstance(problems, list) else [problems])][:8]
         return data.get("same") is True, problems
     facts = [str(c.get("where", "")) + (f' ({c["reason"]})' if c.get("reason") else "") for c in changes
-             if isinstance(c, dict) and str(c.get("kind", "사실")).strip().strip("`") != "표현"]
+             if isinstance(c, dict) and not _style_only(c)]
     return not facts, facts[:8]
+
+
+# 이유에는 "표현 차이뿐" 이라고 쓰고 kind 는 `사실` 로 붙이는 일이 있습니다(2026-10-20 gaganam1). 이유가 표현만 바뀌었다고
+# 말하고 사실이 달라졌다는 말이 없으면 이유를 따릅니다. 이유가 비었으면 kind 를 그대로 믿습니다(안전한 쪽).
+_STYLE_REASON = re.compile(r"표현\s*(?:차이|만|뿐|상의|의\s*차이)|같은\s*(?:내용|뜻|의미|사실)|의미\s*(?:는|가)?\s*(?:동일|같|그대로|변화\s*없)"
+                           r"|뜻\s*(?:은|이)?\s*(?:같|그대로|동일)|사실\s*(?:은|이)?\s*(?:같|그대로|동일|변화\s*없)")
+_SAME_PHRASE = re.compile(r"(?:달라지|바뀌|변하|변경되)지\s*않|차이\s*(?:가|는)?\s*없|같은\s*(?:강도|의무)(?:의\s*의무)?")
+_FACT_REASON = re.compile(r"아니|않|다르|달라|빠[지졌짐]|빠뜨|추가|더해|넓어|좁아|의무|강도|약해|강해")
+
+
+def _style_only(c: dict) -> bool:
+    if str(c.get("kind", "사실")).strip().strip("`") == "표현":
+        return True
+    reason = str(c.get("reason", ""))
+    if not (_STYLE_REASON.search(reason) or _SAME_PHRASE.search(reason)):
+        return False
+    return not _FACT_REASON.search(_SAME_PHRASE.sub(" ", reason))
 
 
 def same_meaning(cfg: dict, before_html: str, after_html: str, client: anthropic.Anthropic | None = None,

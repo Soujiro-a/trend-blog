@@ -1533,6 +1533,14 @@ def test_polish(cfg: dict) -> None:
         check("kind 가 없으면 사실로 봄", reviewer.meaning_verdict({"changes": [{"where": "x"}]})[0] is False)
         check("변경 없음은 같은 글", reviewer.meaning_verdict({"changes": []}) == (True, []))
         check("옛 형식 응답도 읽음", reviewer.meaning_verdict({"same": False, "problems": ["p"]}) == (False, ["p"]))
+        mv = lambda reason: reviewer.meaning_verdict({"changes": [{"where": "a → b", "reason": reason, "kind": "사실"}]})[0]
+        check("이유가 '표현 차이뿐'이면 kind 가 사실이어도 표현", mv("문장 분리 (표현 차이뿐)") is True)
+        check("이유가 '의미 동일'이면 표현", mv("어순만 바뀌었고 의미 동일") is True)
+        check("이유가 '달라지지 않음'이면 표현", mv("독자가 할 일은 달라지지 않음") is True)
+        check("'같은 강도의 의무 표현'은 표현", mv("필요합니다와 해야 합니다는 같은 강도의 의무 표현") is True)
+        check("표현이라 써도 의무로 바뀌면 사실", mv("표현만 바뀐 게 아니라 가능이 의무로 바뀜") is False)
+        check("이유가 비면 kind 를 따름", mv("") is False)
+        check("사실 이유는 사실", mv("조건 '7일 이내'가 빠짐") is False)
         check("다듬기 확인 지시문: 사실/표현 구분",
               all(k in reviewer.SAME_MEANING_SYSTEM for k in ("`사실`", "`표현`", "글의 구성을 안내하는 문장")))
         check("다듬기 지시문: 사이트 주소·예시 나열 보존", "나열한 예시" in writer.POLISH_SYSTEM)
