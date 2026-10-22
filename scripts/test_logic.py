@@ -872,6 +872,53 @@ def test_decide(cfg: dict) -> None:
     check("폐기 켬: --draft 강제는 임시저장", decide(disc, low, 0, True) == "draft")
 
 
+def test_write_to_the_end(cfg: dict) -> None:
+    section("글 끝까지 쓰기 (분량 상한 때문에 잘리지 않게)")
+    from contextlib import contextmanager
+    from types import SimpleNamespace as NS
+
+    tail = writer._footer_tail(cfg, "planned")
+    check("맨 끝 문구 표지 있음", bool(tail), tail)
+    end = f"<h2>참고한 자료</h2><ul><li>a</li></ul><p><em>2026년 10월 22일 {tail}</em></p>"
+    check("끝까지 쓴 글은 빠진 것 없음", writer.missing_ending("<p>본문</p>" + end, tail) == [])
+    check("참고한 자료·끝 문구 없음 잡음", len(writer.missing_ending("<h2>정리</h2><p>요약</p>", tail)) == 2)
+    check("중간에 끊긴 글 잡음", "마지막 문장·태그(중간에 끊김)" in writer.missing_ending("<p>본문" + end + "<p>추가 문장이 이어지", tail))
+    check("작성 지시에 '상한 넘어도 끝까지'", "넘어도 괜찮습니다. 글은 반드시 끝까지 씁니다" in writer.SYSTEM)
+
+    def raw(body):
+        return f"<<<TITLE>>>제목<<<DESCRIPTION>>>설명<<<LABELS>>>a<<<CARD>>>카드<<<BODY>>>{body}"
+
+    class Fake:
+        def __init__(self, replies):
+            self.messages, self.replies, self.calls = self, list(replies), []
+
+        @contextmanager
+        def stream(self, **kw):
+            self.calls.append(kw)
+            text, stop = self.replies.pop(0)
+            msg = NS(content=[NS(type="text", text=text)], stop_reason=stop, stop_details=None,
+                     usage=NS(input_tokens=100, output_tokens=1000, cache_read_input_tokens=0, cache_creation_input_tokens=0))
+            yield NS(get_final_message=lambda: msg)
+
+    cand = Candidate(keyword="k", sources={"planner": 1}, seen=[Variant("k", "planner", 1)])
+    short, full = raw("<h2>정리</h2><p>요약</p>"), raw("<h2>정리</h2><p>요약</p>" + end)
+    fc = Fake([(short, "end_turn"), (full, "end_turn")])
+    art = writer.write(cfg, cand, "자료", [], "2026년 10월 22일", client=fc, mode="planned")
+    check("끝부분 빠지면 한 번 더 써서 끝까지 채움", len(fc.calls) == 2 and tail in art.body_html, len(fc.calls))
+    check("완성 요청에 '분량 상한은 신경 쓰지 말고'", "분량 상한은 신경 쓰지 말고" in fc.calls[1]["messages"][-1]["content"])
+    check("두 번 쓴 토큰 모두 비용에 넣음", art.output_tokens == 2000, art.output_tokens)
+    fc = Fake([(full, "end_turn")])
+    writer.write(cfg, cand, "자료", [], "2026년 10월 22일", client=fc, mode="planned")
+    check("끝까지 쓴 글은 한 번만 호출", len(fc.calls) == 1)
+    fc = Fake([(short, "max_tokens"), (full, "end_turn")])
+    art = writer.write(cfg, cand, "자료", [], "2026년 10월 22일", client=fc, mode="planned")
+    check("max_tokens 에서 잘리면 한도를 늘려 다시 씀",
+          len(fc.calls) == 2 and fc.calls[1]["max_tokens"] > fc.calls[0]["max_tokens"] and tail in art.body_html)
+    fc = Fake([(short, "end_turn"), (short, "end_turn")])
+    art = writer.write(cfg, cand, "자료", [], "2026년 10월 22일", client=fc, mode="planned")
+    check("완성 시도도 실패하면 처음 글로 진행(검수가 판단)", len(fc.calls) == 2 and art.output_tokens == 2000)
+
+
 def test_revise_loop(cfg: dict) -> None:
     section("보류 글 고쳐 쓰기")
     from src import main as main_mod
@@ -1832,6 +1879,7 @@ def main() -> int:
     test_history_guard()
     test_decide(cfg)
     test_revise_loop(cfg)
+    test_write_to_the_end(cfg)
     test_coupang(cfg)
     test_evergreen_parse(cfg)
     test_config_shape(cfg)

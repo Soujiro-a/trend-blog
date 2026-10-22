@@ -174,7 +174,9 @@ HTML 본문.
 
 ### 분량·검색어
 - 문단은 2~4문장으로 짧게 끊습니다. 5문장을 넘으면 나눕니다. 모바일에서 읽기 쉬워야 합니다.
-- 분량은 공백 제외 **{target_length}~{max_length}자**. 이보다 길어지면 같은 내용을 두 번 말한 곳부터 줄입니다. 분량을 채우려고 같은 말을 \
+- 분량은 공백 제외 **{target_length}~{max_length}자**. 이보다 길어지면 같은 내용을 두 번 말한 곳부터 줄입니다. \
+상한은 목표일 뿐이라 **넘어도 괜찮습니다. 글은 반드시 끝까지 씁니다** — `정리`·`자주 묻는 질문`·`참고한 자료`·맨 끝 문구까지. \
+분량을 맞추려고 뒤 섹션을 빼거나 문장·표·목록을 중간에 끊지 마세요. 분량을 채우려고 같은 말을 \
 다시 쓰거나 뻔한 일반론을 덧붙이지 마세요. 쓸 내용이 부족하면 자료에 있는 조건·예외·절차·용어를 더 자세히 \
 풀어 쓰세요. 자료 밖 내용으로 늘리는 것보다 조금 짧은 글이 낫습니다.
 - 핵심 검색어는 제목·첫 단락·`<h2>` 2개 이상·정리에 자연스럽게 들어갑니다. 억지 반복은 금지(본문 1,000자당 3회 이내).
@@ -342,37 +344,115 @@ def _render(article: Article) -> str:
     )
 
 
-def _call(cfg: dict, client, system: str, messages: list[dict], keyword: str, what: str) -> Article:
+COMPLETE_TEMPLATE = """이 글이 끝까지 쓰이지 않았습니다. 빠진 것: {missing}.
+
+분량 상한은 신경 쓰지 말고, 앞부분은 그대로 둔 채 빠진 부분까지 채워 **같은 5개 블록 형식으로 글 전체를** 다시 출력하세요.
+- 새로 쓰는 부분도 자료에 있는 내용만 씁니다.
+- `정리`·`자주 묻는 질문`·`참고한 자료`·맨 끝 문구 순서를 지킵니다."""
+
+_REFS_H2 = re.compile(r"<h2[^>]*>\s*참고한 자료\s*</h2>")
+
+
+def _footer_tail(cfg: dict, mode: str) -> str:
+    """맨 끝 안내 문구에서 날짜 뒤 고정 문장. 글이 끝까지 쓰였는지 확인하는 표지로 씁니다."""
+    w = cfg["writer"]
+    note = (w.get("footer_note_guide" if mode != "trend" else "footer_note", w.get("footer_note")) or "").strip()
+    return note.split("{date}")[-1].strip()[:20] if note else ""
+
+
+def missing_ending(body: str, footer_tail: str = "") -> list[str]:
+    """글 끝부분 가운데 빠진 것. 분량 상한에 맞추려다 뒤를 잘라 먹은 글을 잡습니다 (2026-10-22)."""
+    missing = []
+    if not _REFS_H2.search(body):
+        missing.append("'참고한 자료' 섹션")
+    if footer_tail and footer_tail not in body:
+        missing.append("맨 끝 안내 문구")
+    if not body.rstrip().endswith(">"):
+        missing.append("마지막 문장·태그(중간에 끊김)")
+    return missing
+
+
+def _stream(cfg: dict, client, system: str, messages: list[dict], max_tokens: int):
+    w = cfg["writer"]
+    with client.messages.stream(
+        model=w["model"],
+        max_tokens=max_tokens,
+        system=llm.cached(system),
+        output_config={"effort": w.get("effort", "high")},
+        messages=messages,
+    ) as stream:
+        return stream.get_final_message()
+
+
+def _add_usage(article: "Article", usage) -> None:
+    article.input_tokens += usage.input_tokens
+    article.output_tokens += usage.output_tokens
+    article.cache_read_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
+    article.cache_write_tokens += getattr(usage, "cache_creation_input_tokens", 0) or 0
+
+
+def _call(cfg: dict, client, system: str, messages: list[dict], keyword: str, what: str,
+          footer_tail: str = "", complete: bool = True) -> Article:
     w = cfg["writer"]
     model = w["model"]
     # max_tokens 가 크고 사고(thinking) 시간이 길 수 있어 스트리밍으로 받습니다.
     # 프롬프트 캐싱: 지시문(system)과 첫 사용자 메시지(참고 자료)에 캐시 지점을 둡니다. 고쳐 쓰기는 같은 지시문·
     # 같은 자료를 몇 분 안에 다시 보내므로 그 부분을 입력 가격의 1/10 로 읽습니다 (2026-10-14).
+    first_user = messages[0]
     messages = [
         {**m, "content": llm.cached(m["content"])} if i == 0 and isinstance(m.get("content"), str) else m
         for i, m in enumerate(messages)
     ]
-    with client.messages.stream(
-        model=model,
-        max_tokens=w["max_tokens"],
-        system=llm.cached(system),
-        output_config={"effort": w.get("effort", "high")},
-        messages=messages,
-    ) as stream:
-        response = stream.get_final_message()
+    response = _stream(cfg, client, system, messages, w["max_tokens"])
+    spent = [response.usage]
+    # 글은 끝까지 써서 올립니다(2026-10-22 사용자 지시). max_tokens 에서 잘리면 한도를 늘려 한 번 더 씁니다.
+    if response.stop_reason == "max_tokens":
+        bigger = int(w.get("max_tokens_retry", w["max_tokens"] * 2))
+        log.warning("[%s] %s 응답이 max_tokens(%d)에서 잘려 %d 로 다시 씁니다.", keyword, what, w["max_tokens"], bigger)
+        response = _stream(cfg, client, system, messages, bigger)
+        spent.append(response.usage)
 
     if response.stop_reason == "refusal":
         detail = getattr(response.stop_details, "explanation", "") or ""
         raise SkippedByModel(f"모델이 작성을 거부했습니다. {detail}")
-    # 잘린 글은 FAQ·참고 자료가 빠진 채 끝납니다. 예전엔 경고만 하고 그대로 발행했는데,
-    # 검수관이 못 잡으면 반쪽짜리 글이 공개됩니다. 실패로 처리해 다른 글감으로 넘어갑니다.
+    # 두 번 다 잘리면 실패로 처리해 다른 글감으로 넘어갑니다. 반쪽짜리 글을 공개하지 않습니다.
     raw = llm.text_of(response, f"[{keyword}] {what}")
     article = _parse(raw, keyword, model)
-    article.input_tokens = response.usage.input_tokens
-    article.output_tokens = response.usage.output_tokens
-    article.cache_read_tokens = getattr(response.usage, "cache_read_input_tokens", 0) or 0
-    article.cache_write_tokens = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+    for u in spent:
+        _add_usage(article, u)
+
+    # 응답은 끝났는데 글 끝부분(참고한 자료·맨 끝 문구)이 없으면, 분량 상한을 무시하고 끝까지 채우게 한 번 더 씁니다.
+    missing = missing_ending(article.body_html, footer_tail) if complete else []
+    if missing:
+        log.warning("[%s] %s 글이 끝까지 쓰이지 않음(%s) — 끝까지 채워 다시 씁니다.", keyword, what, ", ".join(missing))
+        follow = [first_user, *messages[1:], {"role": "assistant", "content": _render(article)},
+                  {"role": "user", "content": COMPLETE_TEMPLATE.format(missing=", ".join(missing))}]
+        try:
+            done = _call(cfg, client, system, follow, keyword, "끝까지 완성", footer_tail, complete=False)
+        except (llm.Truncated, ValueError) as exc:
+            log.warning("[%s] 끝까지 완성 실패 — 처음 글로 진행: %s", keyword, exc)
+            return article
+        still = missing_ending(done.body_html, footer_tail)
+        if len(still) < len(missing):
+            for u in spent:
+                _add_usage(done, u)
+            done.labels = article.labels
+            return done
+        log.warning("[%s] 끝까지 완성 후에도 빠짐(%s) — 처음 글로 진행", keyword, ", ".join(still))
+        _add_usage(article, _Usage.of(done))
     return article
+
+
+@dataclass
+class _Usage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+
+    @classmethod
+    def of(cls, a: "Article") -> "_Usage":
+        return cls(a.input_tokens, a.output_tokens, a.cache_read_tokens, a.cache_write_tokens)
 
 
 def write(
@@ -387,7 +467,8 @@ def write(
 ) -> Article:
     client = client or llm.client()
     return _call(cfg, client, _system(cfg, date_str, mode, persona),
-                 [{"role": "user", "content": _user(context, date_str, mode)}], candidate.keyword, "글 작성")
+                 [{"role": "user", "content": _user(context, date_str, mode)}], candidate.keyword, "글 작성",
+                 footer_tail=_footer_tail(cfg, mode))
 
 
 REVISE_TEMPLATE = """검수관이 이 글을 공개하지 않고 보류했습니다. 지적은 다음과 같습니다.
@@ -397,7 +478,7 @@ REVISE_TEMPLATE = """검수관이 이 글을 공개하지 않고 보류했습니
 지적된 곳만 고쳐 **같은 5개 블록 형식으로 글 전체를** 다시 출력하세요.
 - 자료로 뒷받침되는 표현으로 고칠 수 있으면 고치고, 고칠 수 없으면 그 문장·표의 행·질문을 뺍니다. 빈자리를 새 사실이나 일반론으로 메우지 마세요.
 - 곁가지·반복이라고 지적된 단락은 통째로 뺍니다.
-- 지적되지 않은 부분은 그대로 둡니다. 분량이 기준보다 조금 줄어도 괜찮습니다.
+- 지적되지 않은 부분은 그대로 둡니다. 분량이 기준보다 조금 줄어도 괜찮고, 상한을 넘어도 괜찮습니다. 글은 `참고한 자료`·맨 끝 문구까지 끝까지 출력합니다.
 - 요약 카드도 고친 본문과 맞게 고칩니다."""
 
 
@@ -423,7 +504,8 @@ def revise(
         {"role": "assistant", "content": _render(article)},
         {"role": "user", "content": REVISE_TEMPLATE.format(issues="\n".join(f"- {i}" for i in issues) or "- (구체적 지적 없음)")},
     ]
-    revised = _call(cfg, client, _system(cfg, date_str, mode, persona), messages, candidate.keyword, "고쳐 쓰기")
+    revised = _call(cfg, client, _system(cfg, date_str, mode, persona), messages, candidate.keyword, "고쳐 쓰기",
+                    footer_tail=_footer_tail(cfg, mode))
     revised.labels = article.labels   # 라벨은 기획 단계의 하위 축 그대로
     return revised
 
