@@ -55,7 +55,8 @@ SYSTEM = """당신은 한국어 생활정보 블로그의 사실 확인 담당�
 - from 은 본문에서 한 번만 나오는 조각이어야 합니다. 같은 값이 여러 곳에 있으면 곳마다 따로 적습니다(표의 칸 포함).
 - 기준 연도가 글에 "2025년" 처럼 적혀 있고 자료가 2026년 기준이면 연도와 값을 함께 고칩니다.
 - 자료가 글보다 오래된 것 같으면(자료의 기준일이 글의 작성일보다 앞) 바꾸지 말고 notes 에 적습니다.
-- 바뀐 곳이 없으면 verdict 를 "same", 자료가 너무 적어 판단할 수 없으면 "unsure" 로 합니다.
+- 자료로 확인한 값이 모두 맞으면 verdict 는 "same" 입니다. 자료에 없는 값이 몇 개 있어도(notes 에 "확인 불가"로 적고) "same" 입니다.
+- "unsure" 는 자료가 글의 **핵심 값(금액·기한·대상)을 거의 다루지 않아** 맞는지 틀린지 판단할 수 없을 때만 씁니다.
 
 JSON 한 덩어리만 출력합니다:
 {"verdict": "same" | "changed" | "unsure",
@@ -195,6 +196,19 @@ def apply_changes(body: str, changes: list[dict]) -> tuple[str, list[dict], list
         if rp.split_card(body)[0] != rp.split_card(new)[0]:
             return body, [], problems + ["요약 카드 블록이 바뀜"]
     return new, applied, problems
+
+
+_MATCHED = re.compile(r"일치|맞습니다|같습니다|다르지 않")
+_NEGATED = re.compile(r"(?:틀린|다른|달라진|바뀐)\s*(?:것은|것이|게|건)?\s*아니|(?:다르|틀리|바뀌|달라지)지\s*않")
+_MISMATCH = re.compile(r"다릅니다|달라|틀렸|틀린|오래된|바뀌었|바꿔야|개정|변경됨|고쳐야")
+
+
+def matched_only(notes: list[str]) -> bool:
+    """메모에 '일치'가 있고, 값이 다르다·바뀌었다는 말은 없을 때. '확인 불가'만 남은 경우입니다."""
+    text = " ".join(notes)
+    # 링크는 이 확인이 바꾸지 않습니다. "링크 주소의 파라미터 순서만 다릅니다" 같은 메모는 값 불일치가 아닙니다.
+    values = " ".join(n for n in notes if "링크" not in n and "주소" not in n)
+    return bool(_MATCHED.search(text)) and not _MISMATCH.search(_NEGATED.sub(" ", values))
 
 
 def bump_footer_date(body: str, now: datetime) -> str:
@@ -351,6 +365,10 @@ def main(argv: list[str] | None = None) -> int:
         rp.announce(f"🔍 사실 갱신 미리보기 — {blog.id} {url} → out/refresh-preview/{stem}.*")
         return 0
 
+    # 바꿀 값이 없고 대조 모델이 "자료와 일치"라고 적은 unsure 는 같음으로 봅니다. 자료에 없는 값 몇 개 때문에
+    # unsure 를 내 사람 확인 목록에 쌓이던 일(2026-10-22 issuecatch1, 값은 모두 일치)을 막습니다.
+    if verdict["verdict"] == "unsure" and not verdict["changes"] and matched_only(verdict["notes"]):
+        verdict["verdict"] = "same"
     if verdict["verdict"] == "unsure" or (verdict["verdict"] == "changed" and not applied):
         note = "; ".join(verdict["notes"][:3] + problems[:3])
         _note(st, blog, url, now, f"판단 보류 — {note[:120]}", review=note or "대조 모델이 판단하지 못함")

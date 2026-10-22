@@ -1381,6 +1381,14 @@ def test_refresh(cfg: dict) -> None:
     """사실 갱신: from→to 치환은 정확히 한 번, 새 숫자는 to 안의 것만, 구조는 그대로."""
     section("오래된 사실 갱신")
     from scripts import refresh_facts as rf
+    real = ["연 5,166,667원 기준, 연금소득공제 한도 900만원은 모두 자료와 일치합니다.",
+            "값 자체는 다르지 않아 고치지 않았습니다.", "기본공제 1인당 150만원은 제공된 자료에 없어 확인 불가입니다.",
+            "글은 이 나이 요건을 언급하지 않았습니다. 글의 값이 틀린 것은 아니므로 고치지 않았습니다.",
+            "자료 2의 국세청 링크 주소는 글의 링크와 파라미터 순서만 다릅니다. 링크는 건드리지 않았습니다."]
+    check("사실 갱신: 일치 + 확인 불가만 있으면 같음", rf.matched_only(real))
+    check("사실 갱신: 값이 다르다는 메모가 있으면 확인 필요", not rf.matched_only(real + ["신청 기한이 자료와 다릅니다."]))
+    check("사실 갱신: 일치 언급 없으면 확인 필요", not rf.matched_only(["자료가 부족해 확인 불가입니다."]))
+    check("사실 갱신: 지시문에 unsure 는 핵심 값을 못 볼 때만", "핵심 값(금액·기한·대상)을 거의 다루지 않아" in rf.SYSTEM)
     from src import fleet as fm
     from src import demand, gsc
 
