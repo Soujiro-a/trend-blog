@@ -151,13 +151,7 @@
  "remaining": 97,
  "checked_at": "2026-10-22T03:10+09:00",
  "last_result": "2026-10-21 고침 — gaganamc1 https://gaganamc1.blogspot.com/2026/09/blog-post_23.html",
- "polish_skip": [
-  {
-   "url": "https://gaganam1.blogspot.com/2026/09/blog-post.html",
-   "at": "2026-10-20",
-   "why": "뜻이 달라짐: 예약 후 방문하는 방식이 일반적입니다 → 예약한 뒤 방문하는 것이 일반적입니다; 검사소별로 … 확인하면 됩니다 → 문장 분리 (표현 차이뿐)"
-  }
- ],
+ "polish_skip": [],
  "polished": [
   "https://gaganamc1.blogspot.com/2026/09/blog-post.html",
   "https://gaganam1.blogspot.com/2026/09/75-3.html",

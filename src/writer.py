@@ -174,7 +174,7 @@ HTML 본문.
 
 ### 분량·검색어
 - 문단은 2~4문장으로 짧게 끊습니다. 5문장을 넘으면 나눕니다. 모바일에서 읽기 쉬워야 합니다.
-- 분량은 공백 포함 **{target_length}자 이상**. 다만 분량을 채우려고 같은 말을 \
+- 분량은 공백 제외 **{target_length}~{max_length}자**. 이보다 길어지면 같은 내용을 두 번 말한 곳부터 줄입니다. 분량을 채우려고 같은 말을 \
 다시 쓰거나 뻔한 일반론을 덧붙이지 마세요. 쓸 내용이 부족하면 자료에 있는 조건·예외·절차·용어를 더 자세히 \
 풀어 쓰세요. 자료 밖 내용으로 늘리는 것보다 조금 짧은 글이 낫습니다.
 - 핵심 검색어는 제목·첫 단락·`<h2>` 2개 이상·정리에 자연스럽게 들어갑니다. 억지 반복은 금지(본문 1,000자당 3회 이내).
@@ -320,7 +320,8 @@ def _system(cfg: dict, date_str: str, mode: str, persona: str) -> str:
         footer_rule = "- 글 끝에 고지·안내 성격의 문장을 따로 붙이지 마세요."
 
     system = SYSTEM.format(
-        target_length=w["target_length"], date=date_str, footer_rule=footer_rule
+        target_length=w["target_length"], max_length=w.get("max_length", w["target_length"] + 500),
+        date=date_str, footer_rule=footer_rule,
     )
     # 함대 모드: 블로그마다 다른 문체·관점. 같은 이슈를 여러 블로그가 써도 글이 달라지게 하는 장치입니다.
     if persona.strip():

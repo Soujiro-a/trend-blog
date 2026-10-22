@@ -308,7 +308,7 @@ python scripts/account_cli.py resume <계정> --yes   # 비상정지 해제 — 
 
 | 설정 | 파일 | 의미 |
 |---|---|---|
-| `writer.model` · `effort` · `target_length` | config | 작성 모델(Opus 5.5) · 생각 깊이 · 최소 글자 수(1,900자) |
+| `writer.model` · `effort` · `target_length` · `max_length` | config | 작성 모델(Opus 5.5) · 생각 깊이 · 글자 수 범위(공백 제외 2,500~3,000자) |
 | `review.min_score` | config | 공개 기준 점수(80). 낮추면 더 많이 공개되고 위험도 올라갑니다 |
 | `review.model` · `planner.model` · `manager.model` | config | 검수 · 기획 · 관리(모두 Sonnet 5.5). 검수 보류 시 고쳐 쓰기는 `review.revise_on_hold` |
 | `publish.mode` | config | `auto` 검수 통과 시 공개 / `draft` 전부 임시저장 (불안하면 draft) |

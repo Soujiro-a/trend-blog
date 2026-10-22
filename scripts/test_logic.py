@@ -395,7 +395,7 @@ def test_llm_robustness(cfg: dict) -> None:
 
 def test_no_why_searched(cfg: dict) -> None:
     section("'왜 검색되는가' 금지")
-    rendered = writer.SYSTEM.format(target_length=1900, date="2026년 09월 23일", footer_rule="- 없음")
+    rendered = writer.SYSTEM.format(target_length=1900, max_length=2400, date="2026년 09월 23일", footer_rule="- 없음")
     check("작성 규칙에 금지 문구 있음", "왜 검색되는가" in rendered and "만들지 마세요" in rendered)
     check("도입부가 답부터", "독자가 찾으러 온 답을 바로" in rendered)
     check("옛 지시문 제거", "왜 지금 검색되는지부터 파악" not in writer.USER_TEMPLATE)
@@ -416,6 +416,9 @@ def test_no_why_searched(cfg: dict) -> None:
     from src import planner as planner_mod
     check("기획: 다른 블로그 몫을 섞는 글감 금지", "한 글에 섞는 글감" in planner_mod.SYSTEM)
     check("분량 기준 2500", cfg["writer"]["target_length"] >= 2500, cfg["writer"]["target_length"])
+    w = cfg["writer"]
+    check("분량 상한이 하한보다 큼", w.get("max_length", 0) > w["target_length"], (w["target_length"], w.get("max_length")))
+    check("작성 지시에 분량 범위(공백 제외)", "공백 제외 **{target_length}~{max_length}자**" in writer.SYSTEM)
 
     # 기획 메모가 글쓰기 자료로 새지 않아야 합니다 (이게 '왜 검색되는가' 섹션의 원인이었습니다)
     c = mk_candidate("테스트 주제")
@@ -626,7 +629,7 @@ def test_footer(cfg: dict) -> None:
     section("안내 문구 설정")
     note = (cfg["writer"].get("footer_note") or "").strip()
     rendered = writer.SYSTEM.format(
-        target_length=1900,
+        target_length=1900, max_length=2400,
         date="2026년 09월 18일",
         footer_rule=f"- 맨 끝: {note.format(date='2026년 09월 18일')}" if note else "- 없음",
     )
