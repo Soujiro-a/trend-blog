@@ -42,6 +42,9 @@ fleet:
   # 계정이 비상정지(Blogger 403)됐다가 풀리면 두 램프 모두 처음 단계부터 다시 셉니다.
   blog_ramp: [[0, 1], [28, 2]]
   account_ramp: [[0, 4], [28, 6], [56, 8]]
+  # 2026-10-22: 두 번째 슬롯은 애드센스 사이트 승인(READY)을 받은 블로그만 켭니다. 4주가 지나도 승인 전이면 하루 1건.
+  # 승인 상태는 함대 실행이 몇 시간마다 애드센스 API 로 받아 data/fleet/adsense.json 에 적습니다(src/adsense.py).
+  extra_slot_needs_adsense: true
   # 계정 하나에 켤 수 있는 블로그 수. 넘으면 validate 가 막습니다 — 새 블로그는 새 계정에.
   # 한 계정이 막혔을 때 함께 멈추는 블로그 수(피해 범위)를 묶어 두는 장치입니다.
   max_blogs_per_account: 6

@@ -39,6 +39,8 @@ CLAIMS_PATH = FLEET_DATA / "claims.json"
 # 계정 비상정지 상태. manager_state 와 파일을 나눈 이유: 함대 실행(비상정지)과 관리 에이전트(매일 밤)가
 # 서로 다른 워크플로에서 쓰므로, 한 파일을 같이 쓰면 깃 병합 충돌이 날 수 있습니다.
 ACCOUNT_STATE_PATH = FLEET_DATA / "account_state.json"
+# 애드센스 사이트 승인 상태 (src/adsense.py 가 함대 실행 때 갱신). 두 번째 슬롯은 승인된 블로그만 켭니다.
+ADSENSE_STATE_PATH = FLEET_DATA / "adsense.json"
 
 # 램프업 기본값 — [나이(일), 값] 목록. 나이가 그 일수 이상이면 그 값이 적용됩니다.
 # 블로그: 하루에 켜지는 슬롯 수. 계정: 계정 전체의 하루 공개 상한.
@@ -568,11 +570,31 @@ def blog_age_days(fleet: Fleet, blog: Blog, now: datetime | None = None, st: dic
     return (now.date() - start).days
 
 
-def planned_slots(fleet: Fleet, now: datetime | None = None, st: dict | None = None) -> dict[str, list[str]]:
-    """오늘 실제로 켜지는 슬롯 {블로그 id: [슬롯, ...]}. 램프업·계정 상한·비상정지를 모두 반영합니다."""
+def adsense_ready_domains() -> set[str]:
+    """애드센스 사이트 상태가 READY(승인)인 도메인. 기록이 없으면 빈 집합(= 승인 없음)."""
+    try:
+        sites = json.loads(ADSENSE_STATE_PATH.read_text(encoding="utf-8")).get("sites") or {}
+    except (FileNotFoundError, json.JSONDecodeError, AttributeError):
+        return set()
+    return {d.lower() for d, state in sites.items() if state == "READY"}
+
+
+def extra_slot_allowed(fleet: Fleet, blog: Blog, ready: set[str] | None = None) -> bool:
+    """두 번째 슬롯부터 켜도 되는지. fleet.extra_slot_needs_adsense 가 켜져 있으면 애드센스 승인 블로그만."""
+    if not fleet.settings.get("extra_slot_needs_adsense", False):
+        return True
+    ready = adsense_ready_domains() if ready is None else ready
+    return blog.domain.lower() in ready
+
+
+def planned_slots(fleet: Fleet, now: datetime | None = None, st: dict | None = None,
+                  ready: set[str] | None = None) -> dict[str, list[str]]:
+    """오늘 실제로 켜지는 슬롯 {블로그 id: [슬롯, ...]}. 램프업·애드센스 승인·계정 상한·비상정지를 모두 반영합니다."""
     now = now or datetime.now(KST)
     st = load_account_state() if st is None else st
     blog_ramp = fleet.settings.get("blog_ramp") or DEFAULT_BLOG_RAMP
+    if fleet.settings.get("extra_slot_needs_adsense", False) and ready is None:
+        ready = adsense_ready_domains()
     out: dict[str, list[str]] = {}
     for acc in fleet.accounts:
         blogs = fleet.blogs_of(acc)
@@ -587,6 +609,10 @@ def planned_slots(fleet: Fleet, now: datetime | None = None, st: dict | None = N
             b.id: (b.slots[: _stage(blog_ramp, ages[b.id])] if ages[b.id] >= 0 else [])
             for b in blogs
         }
+        # 4주가 지나도 애드센스 승인 전이면 하루 1건 (2026-10-22 사용자 지시).
+        for b in blogs:
+            if len(active[b.id]) > 1 and not extra_slot_allowed(fleet, b, ready):
+                active[b.id] = active[b.id][:1]
         cap = account_cap(fleet, acc, now, st)
         # 상한을 넘으면 어린 블로그부터 줄입니다: 먼저 추가 슬롯을, 그래도 넘으면 첫 슬롯까지.
         youngest_first = sorted(blogs, key=lambda b: (ages[b.id], b.id))

@@ -135,6 +135,7 @@ Anthropic 사용 한도나 인증 문제는 모든 블로그가 똑같이 실패
 | `fleet.account_ramp` | 4 → 6 → 8 | 계정 전체의 오늘 상한. 계정 나이 4주마다 한 단계 (구글이 보는 단위는 계정) |
 | `max_live_per_day_account` | 기본 6 · `second` 8 | 계정 상한의 최종값. 램프업이 이 값을 넘지 않음 |
 | `fleet.blog_ramp` | 1 → 2 | 블로그 나이 4주 전에는 첫 슬롯만. 계정 상한을 넘으면 가장 어린 블로그의 슬롯부터 꺼짐 |
+| `fleet.extra_slot_needs_adsense` | true | 두 번째 슬롯은 애드센스 사이트 승인(READY) 블로그만. 상태는 함대 실행이 3시간마다 `data/fleet/adsense.json` 에 갱신 |
 | `fleet.account_gap_minutes` | 30 (+0~10분) | 같은 계정 블로그들이 밀린 슬롯을 연달아 올리는 것 |
 | `publish.min_gap_minutes` | 45 | 같은 블로그가 몇 분 사이에 연속 공개 (걸리면 임시저장) |
 | `fleet.max_blogs_per_account` | 6 | 한 계정이 막혔을 때 함께 멈추는 블로그 수 |
@@ -261,7 +262,7 @@ python scripts/fleet_cli.py add --name "이름" --blog-id <ID> --subject "고유
 python scripts/fleet_cli.py discover --account second [--add]   # 그 계정의 Blogger 블로그 조회 / 미등록 블로그 일괄 등록
 ```
 
-슬롯은 자동 배정(블로그당 2개)되고, 두 번째 슬롯은 램프업이 4주 뒤에 켭니다. 새 블로그에는 `since:`(첫 글 날짜)를 적고,
+슬롯은 자동 배정(블로그당 2개)되고, 두 번째 슬롯은 4주가 지나고 애드센스 승인을 받은 뒤에 켜집니다. 새 블로그에는 `since:`(첫 글 날짜)를 적고,
 같은 계정에서 여러 개를 동시에 시작하지 말고 `since` 를 1주 이상 벌리세요(미래 날짜면 그날부터 돕니다).
 비상정지된 계정에는 블로그를 추가할 수 없습니다. 등록한 뒤에는 위 표의 8~10단계(주제 채우기 → `validate`,
 `setup_pages.py --blog <id>`, Search Console 속성 추가·사이트맵 제출)를 하고 커밋·푸시합니다.

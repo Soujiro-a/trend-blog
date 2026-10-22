@@ -478,6 +478,13 @@ def test_scale_safety() -> None:
     check("첫 4주: 블로그당 1건, 계정 4건", total(p) == 4 and all(len(v) == 1 for v in p.values()), f"{p}")
     p = fm.planned_slots(fl, at("2026-10-19"), empty)
     check("4주 지난 블로그만 2건, 계정 상한 6", total(p) == 6 and len(p["old1"]) == 2 and len(p["new1"]) == 1, f"{p}")
+    gated = fm.Fleet({**settings, "extra_slot_needs_adsense": True}, accounts, blogs)
+    p = fm.planned_slots(gated, at("2026-11-16"), empty, ready=set())
+    check("애드센스 승인 전이면 4주 지나도 블로그당 1건", total(p) == 4 and all(len(v) == 1 for v in p.values()), f"{p}")
+    p = fm.planned_slots(gated, at("2026-11-16"), empty, ready={"old2.blogspot.com", "new1.blogspot.com"})
+    check("승인(READY) 블로그만 2건", len(p["old2"]) == 2 and len(p["new1"]) == 2 and len(p["old1"]) == 1, f"{p}")
+    p = fm.planned_slots(gated, at("2026-10-19"), empty, ready={"new1.blogspot.com"})
+    check("승인돼도 4주 전이면 1건", len(p["new1"]) == 1, f"{p}")
     p = fm.planned_slots(fl, at("2026-11-16"), empty)
     check("8주 뒤 전부 2건 (계정 8)", total(p) == 8, f"{p}")
 
@@ -1112,7 +1119,7 @@ def test_fleet(cfg: dict) -> None:
         fm.DATA_DIR = Path(tmp)
         try:
             # 실제 계정(default 등)은 since·재개일이 테스트 날짜보다 늦을 수 있어 가짜 계정을 씁니다.
-            f2 = fm.Fleet({**fleet.settings, "catch_up": True}, {"t": {}}, [
+            f2 = fm.Fleet({**fleet.settings, "catch_up": True, "extra_slot_needs_adsense": False}, {"t": {}}, [
                 fm.Blog(id="x", name="x", blog_id="1", slots=["06:20", "15:00"], subject="가", since="2026-01-01", account="t"),
                 fm.Blog(id="y", name="y", blog_id="2", slots=["09:00"], subject="나", since="2026-01-01", account="t"),
                 fm.Blog(id="z", name="z", blog_id="3", slots=["12:00"], subject="다", enabled=False, account="t"),

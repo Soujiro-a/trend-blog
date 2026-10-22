@@ -20,10 +20,11 @@ import sys
 import time
 from datetime import datetime
 
+from . import adsense
 from . import fleet as fleet_mod
 from . import guard
 from . import main as single
-from .config import DATA_DIR
+from .config import DATA_DIR, load_dotenv
 from .state import KST
 
 log = logging.getLogger("fleet")
@@ -88,6 +89,14 @@ def main(argv: list[str] | None = None) -> int:
 
     def blog_mode(b: fleet_mod.Blog) -> str:
         return b.content_mode if args.mode == "auto" else args.mode
+
+    # 두 번째 슬롯은 애드센스 승인 블로그만 켭니다. 슬롯을 고르기 전에 승인 상태를 갱신합니다(3시간마다, 실패하면 이전 기록).
+    if fleet.settings.get("extra_slot_needs_adsense", False) and not args.dry_run:
+        try:
+            load_dotenv()
+            adsense.refresh(fleet)
+        except Exception as exc:  # noqa: BLE001 — 조회 실패로 함대가 멈추면 안 됩니다
+            log.warning("애드센스 승인 상태 갱신 실패 — 이전 기록으로 진행: %s", exc)
 
     if args.blog:
         b = fleet.get(args.blog)

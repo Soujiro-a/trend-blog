@@ -119,4 +119,4 @@ python scripts/registration_check.py --blog <id>
 |---|---|---|
 | 2~3주 뒤 | Claude | 주간 보고·Search Console 검색어로 노출되는 하위 주제 확인 → 잘 되는 쪽으로 기획 조정 |
 | 공개 글 25개↑, 운영 28일↑ | 사람 | `python scripts/adsense_check.py --blog <id>` 전부 ✅ 이면 Blogger 수익 메뉴에서 애드센스 신청 |
-| 4주 뒤 | 자동 | 램프업이 두 번째 슬롯을 켬 (사람이 당기지 않습니다) |
+| 4주 뒤 + 애드센스 승인 | 자동 | 두 번째 슬롯이 켜짐 — 사이트 상태가 READY 가 된 뒤 몇 시간 안에 (사람이 당기지 않습니다) |
