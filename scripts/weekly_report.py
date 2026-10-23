@@ -281,14 +281,15 @@ def section_adsense(token: str, days: int, heading: str = "## 광고 수익 (애
     return lines
 
 
-# 같은 운영자의 다른 블로그. 이쪽은 PC 의 예약 작업이 돌리므로, 공개 글 수를 밖에서
-# 세어 "PC 쪽 파이프라인이 멈췄는지"를 이 보고서가 대신 알려줍니다.
-WP_SITES = [
-    {"name": "withsmartcontent.com (WordPress, PC 예약 작업)", "url": "https://withsmartcontent.com", "min_per_week": 4},
-]
+# 같은 운영자의 다른 블로그(WordPress). 공개 글 수를 밖에서 세어 "PC 쪽 파이프라인이 멈췄는지" 알려 주던 자리입니다.
+# 2026-10-24 사용자가 withsmartcontent.com 운영을 접어 목록을 비웠습니다(그 블로그는 10/16부터 작성이 멈춰 있었음).
+# 다시 볼 블로그가 생기면 {"name", "url", "min_per_week"} 로 넣으면 아래 절이 되살아납니다.
+WP_SITES: list[dict] = []
 
 
 def section_wordpress(days: int) -> tuple[list[str], list[str]]:
+    if not WP_SITES:
+        return [], []
     lines = ["## 다른 블로그 현황", ""]
     alerts: list[str] = []
     since = (datetime.now(KST) - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00")
