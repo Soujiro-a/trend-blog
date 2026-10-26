@@ -1,5 +1,5 @@
 {
- "last_date": "2026-10-25",
+ "last_date": "2026-10-26",
  "checked": {
   "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html": {
    "at": "2026-10-21T09:20+09:00",
@@ -94,6 +94,16 @@
     "글은 신청 기한(15일)과 과태료 금액을 일부러 적지 않았으므로 바꿀 값이 없습니다. 자료에는 매매 15일 이내가 있으나 글에 해당 수치가 없어 수정하지 않았습니다.",
     "글의 신청 장소(전국 어느 등록관청), 양도인 인감증명서·본인서명사실확인서(매도용), 양도증명서, 양수인 책임보험, 위임장 및 대리인 서류, 양도인의 대리 신청 가능 내용은 자료와 일치합니다.",
     "수수료(1,000원, 다른 시도 1,500원)는 글에 적혀 있지 않아 수정하지 않았습니다."
+   ]
+  },
+  "https://gaganamissue.blogspot.com/2026/09/blog-post.html": {
+   "at": "2026-10-27T04:35+09:00",
+   "blog": "gaganamissue",
+   "result": "고침 1곳",
+   "notes": [
+    "본문의 '정부24에서 온라인으로 재발급 신청' 설명은 분실·훼손·정보변경 재발급이 온라인 불가라는 자료와 충돌할 수 있으나, 본문이 대상 요건이 있다고 이미 단서를 달아 별도 수정은 하지 않음.",
+    "소요 기간: 자료상 통상 근무일 기준 8일(국내)이나 본문은 구체 일수를 적지 않아 수정 대상이 아님.",
+    "수수료: 자료는 10년 복수여권 52,000원(58면) 등으로 적혀 있으나 본문은 금액을 쓰지 않아 수정 대상이 아님."
    ]
   }
  },
@@ -191,8 +201,20 @@
    ],
    "cost_usd": 0.0026,
    "manual": true
+  },
+  {
+   "at": "2026-10-27T04:35:28+09:00",
+   "blog": "gaganamissue",
+   "url": "https://gaganamissue.blogspot.com/2026/09/blog-post.html",
+   "changes": [
+    "분실하거나 도난당했다면 분실 신고 절차를 거친 뒤 재발급을 신청합니다. → 분실하거나 도난당했다면 분실 신고 절차를 거친 뒤 방문하여 재발급을 신청"
+   ],
+   "sources": [
+    "https://www.passport.go.kr/home/kor/contents.do?menuPos=7"
+   ],
+   "cost_usd": 0.1439
   }
  ],
  "needs_review": [],
- "last_result": "2026-10-25 변경 없음 — gaganam1 https://gaganam1.blogspot.com/2026/09/blog-post_24.html"
+ "last_result": "2026-10-26 고침 1곳 — gaganamissue https://gaganamissue.blogspot.com/2026/09/blog-post.html"
 }
