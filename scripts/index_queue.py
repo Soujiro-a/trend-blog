@@ -17,6 +17,7 @@
     python scripts/index_queue.py next --fresh          # 매시간 작업용: 최근 72시간 새 글 + 하루 한 번 밀린 주소 3건
     python scripts/index_queue.py mark <URL> requested  # 요청 완료 기록 (requested | quota | failed)
     python scripts/index_queue.py status                # 블로그별 색인·요청 현황
+    python scripts/index_queue.py login-alert gsc default   # 로그인 풀림 기록. NOTIFY 면 알림, ALREADY 면 오늘 이미 알림
 
 기록은 out/gsc/index_requests.json (깃에 올리지 않는 로컬 파일, 이 PC 에서만 요청하므로).
 """
@@ -44,6 +45,9 @@ REREQUEST_DAYS = 30
 FRESH_HOURS = 72          # --fresh: 이 시간 안에 공개된 글을 '새 글'로 봅니다 (할당량에 밀려도 다음 날 다시 나오게 넉넉히)
 BACKLOG_PER_DAY = 3      # --fresh: 하루 한 번 밀린 주소를 이만큼 더 붙입니다. 나머지 한도는 새 글 몫
 BACKLOG_DAY_PATH = OUT_DIR / "gsc" / "backlog_day.txt"
+# 로그인 풀림 알림 기록 (하루 한 번만 알리기 위해). 예약 작업이 파일을 직접 쓰면 승인 창에서 멈춰서
+# (2026-10-24~26 세 번) 허용된 이 스크립트로 씁니다.
+LOGIN_ALERT_PATHS = {"blogger": OUT_DIR / "blogger" / "login_alert.txt", "gsc": OUT_DIR / "gsc" / "login_alert.txt"}
 
 
 def load_log() -> list[dict]:
@@ -227,6 +231,27 @@ def cmd_mark(args, fleet) -> int:
     return 0
 
 
+def record_login_alert(path: Path, account: str, today: str) -> bool:
+    """오늘 그 계정 줄이 없으면 덧붙이고 True(알림 보낼 차례), 이미 있으면 False."""
+    line = f"{today} {account}"
+    try:
+        if line in path.read_text(encoding="utf-8").splitlines():
+            return False
+    except FileNotFoundError:
+        pass
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    return True
+
+
+def cmd_login_alert(args, fleet) -> int:
+    today = datetime.now(KST).date().isoformat()
+    new = record_login_alert(LOGIN_ALERT_PATHS[args.kind], args.account, today)
+    print("NOTIFY" if new else "ALREADY")
+    return 0
+
+
 def cmd_status(args, fleet) -> int:
     now = datetime.now(KST)
     done = recently_requested(load_log(), now)
@@ -258,13 +283,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("url")
     p.add_argument("result", choices=["requested", "quota", "failed"])
     sub.add_parser("status")
+    p = sub.add_parser("login-alert")
+    p.add_argument("kind", choices=sorted(LOGIN_ALERT_PATHS))
+    p.add_argument("account")
     args = ap.parse_args(argv)
 
     for s in (sys.stdout, sys.stderr):
         s.reconfigure(encoding="utf-8", errors="replace")
     load_dotenv()
     fleet = fleet_mod.load_fleet()
-    return {"next": cmd_next, "mark": cmd_mark, "status": cmd_status}[args.cmd](args, fleet)
+    return {"next": cmd_next, "mark": cmd_mark, "status": cmd_status,
+            "login-alert": cmd_login_alert}[args.cmd](args, fleet)
 
 
 if __name__ == "__main__":

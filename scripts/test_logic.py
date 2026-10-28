@@ -1522,6 +1522,15 @@ def test_retrofit(cfg: dict) -> None:
           iq.account_of(_fl, "https://picktopic1.blogspot.com/2026/10/a.html?m=1") == "default"
           and iq.account_of(_fl, "https://gaganam1.blogspot.com/?m=1") == "second"
           and iq.account_of(_fl, "https://picktopic.blogspot.com/") == "")
+    with tempfile.TemporaryDirectory() as d:
+        ap = Path(d) / "gsc" / "login_alert.txt"
+        first = iq.record_login_alert(ap, "default", "2026-10-28")
+        again = iq.record_login_alert(ap, "default", "2026-10-28")
+        other = iq.record_login_alert(ap, "second", "2026-10-28")
+        nextday = iq.record_login_alert(ap, "default", "2026-10-29")
+        check("로그인 풀림 기록: 계정·날짜마다 한 번만 알림",
+              (first, again, other, nextday) == (True, False, True, True)
+              and ap.read_text(encoding="utf-8").splitlines()[-1] == "2026-10-29 default")
     check("관리 모델: 신생 블로그 클릭 0 은 메모 안 함", "42일 미만" in manager.SYSTEM)
 
     # 글별 검색 설명 (Blogger API 에 칸이 없어 이력에 남겨 두고 브라우저로 넣습니다)
