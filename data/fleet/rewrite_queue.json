@@ -127,5 +127,373 @@
   "action": "revert",
   "url": "https://gaganam1.blogspot.com/2026/10/blog-post_706.html",
   "into": "https://gaganam1.blogspot.com/2026/09/blog-post_24.html"
+ },
+ {
+  "action": "rewrite",
+  "url": "https://nowissue1.blogspot.com/2026/10/1.html",
+  "topic": "청약통장 1순위 조건과 가입기간 인정 기준",
+  "absorb": [
+   "https://nowissue1.blogspot.com/2026/10/5.html",
+   "https://nowissue1.blogspot.com/2026/10/blog-post_22.html",
+   "https://nowissue1.blogspot.com/2026/10/blog-post_23.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://nowissue1.blogspot.com/2026/10/24.html",
+  "topic": "청약통장 납입 인정 회차와 연체·선납 기준",
+  "absorb": [
+   "https://nowissue1.blogspot.com/2026/10/blog-post.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://nowissue1.blogspot.com/2026/10/2_0677389600.html",
+  "topic": "청약 가점 계산, 무주택기간과 부양가족 기준",
+  "absorb": [
+   "https://nowissue1.blogspot.com/2026/10/3.html",
+   "https://nowissue1.blogspot.com/2026/10/30.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://nowissue1.blogspot.com/2026/10/blog-post_09.html",
+  "topic": "신혼부부 특별공급 자격, 소득기준과 혼인기간",
+  "absorb": [
+   "https://nowissue1.blogspot.com/2026/10/7.html"
+  ]
+ },
+ {
+  "action": "revert",
+  "url": "https://nowissue1.blogspot.com/2026/10/5.html",
+  "into": "https://nowissue1.blogspot.com/2026/10/1.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://nowissue1.blogspot.com/2026/10/blog-post_22.html",
+  "into": "https://nowissue1.blogspot.com/2026/10/1.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://nowissue1.blogspot.com/2026/10/blog-post_23.html",
+  "into": "https://nowissue1.blogspot.com/2026/10/1.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://nowissue1.blogspot.com/2026/10/blog-post.html",
+  "into": "https://nowissue1.blogspot.com/2026/10/24.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://nowissue1.blogspot.com/2026/10/3.html",
+  "into": "https://nowissue1.blogspot.com/2026/10/2_0677389600.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://nowissue1.blogspot.com/2026/10/30.html",
+  "into": "https://nowissue1.blogspot.com/2026/10/2_0677389600.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://nowissue1.blogspot.com/2026/10/7.html",
+  "into": "https://nowissue1.blogspot.com/2026/10/blog-post_09.html"
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/09/7.html",
+  "topic": "온라인 쇼핑 청약철회 7일 기준과 환불 거부 대처",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/09/blog-post_27.html",
+   "https://gaganamc1.blogspot.com/2026/10/7-1372.html",
+   "https://gaganamc1.blogspot.com/2026/10/7.html",
+   "https://gaganamc1.blogspot.com/2026/10/7_01284402116.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/10/3.html",
+  "topic": "청약철회 제한 상품, 개봉·택 제거·주문제작 환불 기준",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/10/blog-post_08.html",
+   "https://gaganamc1.blogspot.com/2026/10/blog-post_14.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/09/blog-post_24.html",
+  "topic": "정기구독·무료체험 자동결제 해지와 환불",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/10/7_02117023222.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/09/blog-post.html",
+  "topic": "해외직구 관세 환급, 반품·과다납부 신청 방법",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/10/6-200.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/10/200.html",
+  "topic": "해외직구 면세 기준, 목록통관과 합산과세",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/09/150.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/09/blog-post_23.html",
+  "topic": "택배 파손·분실 환불, 배송 사고 때 요구하는 법",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/10/30.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/10/310.html",
+  "topic": "중고거래 하자 환불 기준, 3일·10일 안에 요구할 것",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/10/310_0126228298.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html",
+  "topic": "중고거래 사기 신고, 경찰 신고와 지급정지 순서",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/10/blog-post_29.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_11.html",
+  "topic": "할부항변권 신청, 쇼핑몰 폐업·환불 지연 때 할부금 거절",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/10/blog-post_12.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post.html",
+  "topic": "해외직구 반품 배송비 부담 기준과 오배송 대응",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/10/blog-post_19.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamc1.blogspot.com/2026/10/330.html",
+  "topic": "광고와 다른 제품·불량품 환불, 3개월·30일 기한",
+  "absorb": [
+   "https://gaganamc1.blogspot.com/2026/10/3_02044664666.html"
+  ]
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/09/blog-post_27.html",
+  "into": "https://gaganamc1.blogspot.com/2026/09/7.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/7-1372.html",
+  "into": "https://gaganamc1.blogspot.com/2026/09/7.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/7.html",
+  "into": "https://gaganamc1.blogspot.com/2026/09/7.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/7_01284402116.html",
+  "into": "https://gaganamc1.blogspot.com/2026/09/7.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_08.html",
+  "into": "https://gaganamc1.blogspot.com/2026/10/3.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_14.html",
+  "into": "https://gaganamc1.blogspot.com/2026/10/3.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/7_02117023222.html",
+  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post_24.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/6-200.html",
+  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/09/150.html",
+  "into": "https://gaganamc1.blogspot.com/2026/10/200.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/30.html",
+  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post_23.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/310_0126228298.html",
+  "into": "https://gaganamc1.blogspot.com/2026/10/310.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_29.html",
+  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_12.html",
+  "into": "https://gaganamc1.blogspot.com/2026/10/blog-post_11.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_19.html",
+  "into": "https://gaganamc1.blogspot.com/2026/10/blog-post.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamc1.blogspot.com/2026/10/3_02044664666.html",
+  "into": "https://gaganamc1.blogspot.com/2026/10/330.html"
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/09/blog-post.html",
+  "topic": "여권 재발급 기간과 필요서류, 훼손 시 재발급 기준",
+  "absorb": [
+   "https://gaganamissue.blogspot.com/2026/10/blog-post_08.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_19.html",
+  "topic": "긴급여권 발급 조건과 절차, 재발급이 늦을 때",
+  "absorb": [
+   "https://gaganamissue.blogspot.com/2026/10/blog-post_27.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/09/6.html",
+  "topic": "여권 유효기간 6개월 규정, 국가별 입국 조건",
+  "absorb": [
+   "https://gaganamissue.blogspot.com/2026/10/6.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/09/esta.html",
+  "topic": "미국 ESTA 신청과 여권 재발급 후 재신청",
+  "absorb": [
+   "https://gaganamissue.blogspot.com/2026/10/esta.html",
+   "https://gaganamissue.blogspot.com/2026/10/esta_01074215971.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_04.html",
+  "topic": "항공권 영문 이름 오류·변경, 여권과 다를 때 대처",
+  "absorb": [
+   "https://gaganamissue.blogspot.com/2026/10/vs.html",
+   "https://gaganamissue.blogspot.com/2026/10/blog-post_13.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_12.html",
+  "topic": "환불불가 항공권 환불, 질병·비자 거절 때 신청",
+  "absorb": [
+   "https://gaganamissue.blogspot.com/2026/10/blog-post_20.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/10/7.html",
+  "topic": "위탁수하물 파손·분실 보상 신청과 기한",
+  "absorb": [
+   "https://gaganamissue.blogspot.com/2026/10/721.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/10/dcc.html",
+  "topic": "해외결제 원화결제(DCC) 수수료와 차단 방법",
+  "absorb": [
+   "https://gaganamissue.blogspot.com/2026/10/blog-post_15.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/09/blog-post_27.html",
+  "absorb": []
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/09/blog-post_28.html",
+  "absorb": []
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganamissue.blogspot.com/2026/09/2028.html",
+  "absorb": []
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_08.html",
+  "into": "https://gaganamissue.blogspot.com/2026/09/blog-post.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_27.html",
+  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_19.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/6.html",
+  "into": "https://gaganamissue.blogspot.com/2026/09/6.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/esta.html",
+  "into": "https://gaganamissue.blogspot.com/2026/09/esta.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/esta_01074215971.html",
+  "into": "https://gaganamissue.blogspot.com/2026/09/esta.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/vs.html",
+  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_04.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_13.html",
+  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_04.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_20.html",
+  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_12.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/721.html",
+  "into": "https://gaganamissue.blogspot.com/2026/10/7.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_15.html",
+  "into": "https://gaganamissue.blogspot.com/2026/10/dcc.html"
  }
 ]
