@@ -1,5 +1,5 @@
 {
- "last_date": "2026-10-28",
+ "last_date": "2026-10-29",
  "done": [
   {
    "at": "2026-09-30T05:39:29+09:00",
@@ -214,12 +214,24 @@
     "요약 카드 추가"
    ],
    "cost_usd": 0.2374
+  },
+  {
+   "at": "2026-10-30T04:07:23+09:00",
+   "blog": "gaganamc1",
+   "url": "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html",
+   "changes": [
+    "네이버 뉴스 검색 링크 1줄 삭제",
+    "끝 문구를 안내 글 문구로 교체",
+    "문장 다듬기",
+    "요약 카드 추가"
+   ],
+   "cost_usd": 0.3005
   }
  ],
  "no_card": [],
- "remaining": 91,
- "checked_at": "2026-10-29T03:59+09:00",
- "last_result": "2026-10-28 고침 — gaganamissue https://gaganamissue.blogspot.com/2026/09/esta.html",
+ "remaining": 90,
+ "checked_at": "2026-10-30T04:07+09:00",
+ "last_result": "2026-10-29 고침 — gaganamc1 https://gaganamc1.blogspot.com/2026/09/blog-post_26.html",
  "polish_skip": [],
  "polished": [
   "https://gaganamc1.blogspot.com/2026/09/blog-post.html",
@@ -233,6 +245,7 @@
   "https://gaganamc1.blogspot.com/2026/09/blog-post_24.html",
   "https://gaganams1.blogspot.com/2026/09/blog-post.html",
   "https://gaganam1.blogspot.com/2026/09/5w30.html",
-  "https://gaganamissue.blogspot.com/2026/09/esta.html"
+  "https://gaganamissue.blogspot.com/2026/09/esta.html",
+  "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html"
  ]
 }

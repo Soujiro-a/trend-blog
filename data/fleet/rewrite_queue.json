@@ -76,7 +76,9 @@
  {
   "action": "revert",
   "url": "https://gaganam1.blogspot.com/2026/09/1.html",
-  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html"
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html",
+  "night": "2026-10-29",
+  "done_at": "2026-10-30T04:09:09+09:00"
  },
  {
   "action": "revert",
@@ -136,7 +138,10 @@
    "https://nowissue1.blogspot.com/2026/10/5.html",
    "https://nowissue1.blogspot.com/2026/10/blog-post_22.html",
    "https://nowissue1.blogspot.com/2026/10/blog-post_23.html"
-  ]
+  ],
+  "night": "2026-10-29",
+  "failed_at": "2026-10-30T04:09:06+09:00",
+  "reason": "검수 hold 72점: 요약 카드 '종합저축 해지 | 가입기간·납입 횟수 등 사라짐' 은 자료 문구('청약통장 해지')를 '종합저축'으로 좁혀 쓴 것이라 카드 문구가 정확하지 않습니다(card_ok false 처리).; 본문 표의 '청약통장(주택청약종합저축) 중도 해지' 와 '청약예금·부금·저축 해지 후 청약통장 재가입' 이 서로 어긋나 보여 독자가 혼동할 수 있습니다. 해지가 곧 실적 소멸이라는 서술과 '해지 후 재가입 시 실적 인정' 이 충돌하는 인상이 있고, 두 경우를 가르는 기준 설명이 부족합니다.; 전환 기한에 대해 '국토교통부가 정한 기한 안에만'이라고 하고 2026년 10월 30일 현재 가능 여부는 은행에 확인하라고만 함. 자료에는 내년 9월 30일까지 연장이라고 있으나 기준 연도가 불명확해 핵심(기한)을 명확히 주지 못했습니다."
  },
  {
   "action": "rewrite",
@@ -207,7 +212,10 @@
    "https://gaganamc1.blogspot.com/2026/10/7-1372.html",
    "https://gaganamc1.blogspot.com/2026/10/7.html",
    "https://gaganamc1.blogspot.com/2026/10/7_01284402116.html"
-  ]
+  ],
+  "night": "2026-10-29",
+  "new_description": "온라인 쇼핑은 상품을 받은 다음 날부터 7일 안에 단순변심으로도 청약철회할 수 있습니다. 기간 계산법, 판매자에게 보낼 문구, 거부당했을 때 1372 상담과 피해구제 순서를 정리했습니다.",
+  "done_at": "2026-10-30T04:25:26+09:00"
  },
  {
   "action": "rewrite",
@@ -371,7 +379,10 @@
   "topic": "여권 재발급 기간과 필요서류, 훼손 시 재발급 기준",
   "absorb": [
    "https://gaganamissue.blogspot.com/2026/10/blog-post_08.html"
-  ]
+  ],
+  "night": "2026-10-29",
+  "new_description": "여권 재발급은 국내 기준 근무일 통상 8일이 걸리고, 훼손·분실 재발급은 방문 신청만 됩니다. 훼손으로 보는 상태와 사유별 필요서류, 해외·미성년자 신청법을 정리했습니다.",
+  "done_at": "2026-10-30T04:30:18+09:00"
  },
  {
   "action": "rewrite",
@@ -495,5 +506,11 @@
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_15.html",
   "into": "https://gaganamissue.blogspot.com/2026/10/dcc.html"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/3000-3.html",
+  "night": "2026-10-29",
+  "done_at": "2026-10-30T04:32:20+09:00"
  }
 ]
