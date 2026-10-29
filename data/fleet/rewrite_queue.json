@@ -301,7 +301,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/09/blog-post_27.html",
-  "into": "https://gaganamc1.blogspot.com/2026/09/7.html"
+  "into": "https://gaganamc1.blogspot.com/2026/09/7.html",
+  "night": "2026-10-29",
+  "done_at": "2026-10-30T05:59:45+09:00"
  },
  {
   "action": "revert",
@@ -460,7 +462,9 @@
  {
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_08.html",
-  "into": "https://gaganamissue.blogspot.com/2026/09/blog-post.html"
+  "into": "https://gaganamissue.blogspot.com/2026/09/blog-post.html",
+  "night": "2026-10-29",
+  "done_at": "2026-10-30T06:01:47+09:00"
  },
  {
   "action": "revert",
@@ -512,5 +516,17 @@
   "url": "https://gaganam1.blogspot.com/2026/10/3000-3.html",
   "night": "2026-10-29",
   "done_at": "2026-10-30T04:32:20+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/330.html",
+  "night": "2026-10-29",
+  "done_at": "2026-10-30T06:05:49+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_19.html",
+  "night": "2026-10-29",
+  "done_at": "2026-10-30T06:07:52+09:00"
  }
 ]
