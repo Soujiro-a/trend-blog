@@ -1537,6 +1537,10 @@ def test_retrofit(cfg: dict) -> None:
     from scripts import search_desc as sd
     long = "가" * 90 + "입니다. " + "나" * 100
     check("검색 설명: 150자 안이면 그대로", sd.fit("  짧은  설명입니다. ") == "짧은 설명입니다.")
+    check("검색 설명 오타 위치 표시",
+          sd.typo_diff("면 헝겊으로 왁스로", "면 헝깊으로 왕스로") == "4번째 '겊'→'깊', 8번째 '왁'→'왕'"
+          and sd.typo_diff("가나", "가나다").startswith("길이가 다름") and sd.typo_diff("가", "가") == "없음",
+          sd.typo_diff("면 헝겊으로 왁스로", "면 헝깊으로 왕스로"))
     check("검색 설명: 넘치면 문장 끝에서 자름", sd.fit(long) == "가" * 90 + "입니다.", sd.fit(long))
     check("검색 설명: 문장 끝 없으면 150자", len(sd.fit("다" * 300)) == 150 and sd.fit("다" * 300).endswith("…"))
     h = state.record([], "k", "t", url="u", status="live", description="설명")

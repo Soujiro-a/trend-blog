@@ -172,7 +172,17 @@ def cmd_verify(args, fleet, cfg) -> int:
         print(f"OK 반영됨: {args.url}")
         return 0
     print(f"아직 다름: {args.url}\n  넣을 값: {want}\n  페이지 : {got or '(글별 설명 없음)'}")
+    if want and got:
+        print(f"  다른 곳: {typo_diff(want, got)}")
     return 1
+
+
+def typo_diff(want: str, got: str) -> str:
+    """두 설명이 어디서 다른지 사람이 읽을 수 있게. 한글 입력이 같은 길이의 다른 글자로 바뀌는 일이 잦습니다."""
+    if len(want) != len(got):
+        return f"길이가 다름 (넣을 값 {len(want)}자, 페이지 {len(got)}자)"
+    diffs = [f"{i + 1}번째 '{w}'→'{g}'" for i, (w, g) in enumerate(zip(want, got)) if w != g]
+    return ", ".join(diffs) or "없음"
 
 
 def cmd_mark(args, fleet, cfg) -> int:
