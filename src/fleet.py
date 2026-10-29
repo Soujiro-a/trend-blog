@@ -61,6 +61,9 @@ class Blog:
     # 첫 글을 올린 날(YYYY-MM-DD). 램프업 기준입니다. 비우면 '오늘 시작한 블로그'로 봅니다(가장 보수적).
     # 미래 날짜면 그날까지 글을 올리지 않습니다 — 새 블로그 여러 개를 날짜를 벌려 순서대로 시작할 때 씁니다.
     since: str = ""
+    # 이 날짜(YYYY-MM-DD) 전까지 새 글을 쓰지 않습니다. 그날부터 저절로 다시 씁니다. enabled: false 와 달리
+    # 기존 글 정리·사실 갱신·색인 요청은 계속 돕니다 (2026-10-29 gaganam1 애드센스 거절 뒤 정리 기간에 처음 씀).
+    pause_until: str = ""
     account: str = "default"
     enabled: bool = True
     # 2026-09-20 사고 이후 기본 운영 방식. planned: 블로그 고유 주제 안에서 글감을 기획(권장).
@@ -237,6 +240,7 @@ def load_fleet(path: Path = FLEET_PATH, manager_state: dict | None = None) -> Fl
             blog_id=str(entry["blog_id"]),
             slots=_read_slots(entry, settings),
             since=str(entry.get("since") or ""),
+            pause_until=str(entry.get("pause_until") or ""),
             account=str(entry.get("account", "default")),
             enabled=bool(entry.get("enabled", True)),
             content_mode=str(entry.get("content_mode", "planned")),
@@ -587,6 +591,11 @@ def extra_slot_allowed(fleet: Fleet, blog: Blog, ready: set[str] | None = None) 
     return blog.domain.lower() in ready
 
 
+def paused(blog: Blog, now: datetime) -> bool:
+    """pause_until 전이면 True (새 글만 멈춤)."""
+    return bool(blog.pause_until) and now.date().isoformat() < blog.pause_until
+
+
 def planned_slots(fleet: Fleet, now: datetime | None = None, st: dict | None = None,
                   ready: set[str] | None = None) -> dict[str, list[str]]:
     """오늘 실제로 켜지는 슬롯 {블로그 id: [슬롯, ...]}. 램프업·애드센스 승인·계정 상한·비상정지를 모두 반영합니다."""
@@ -606,7 +615,7 @@ def planned_slots(fleet: Fleet, now: datetime | None = None, st: dict | None = N
             continue
         ages = {b.id: blog_age_days(fleet, b, now, st) for b in blogs}
         active = {
-            b.id: (b.slots[: _stage(blog_ramp, ages[b.id])] if ages[b.id] >= 0 else [])
+            b.id: (b.slots[: _stage(blog_ramp, ages[b.id])] if ages[b.id] >= 0 and not paused(b, now) else [])
             for b in blogs
         }
         # 4주가 지나도 애드센스 승인 전이면 하루 1건 (2026-10-22 사용자 지시).
@@ -858,6 +867,8 @@ def schedule_table(fleet: Fleet, now: datetime | None = None) -> str:
         status = "켜짐" if b.enabled else "꺼짐"
         if b.enabled and account_halted(b.account, st):
             status = "⛔ 계정 비상정지"
+        elif b.enabled and paused(b, now):
+            status = f"새 글 중지 (~{b.pause_until[5:]} 전까지)"
         age = f"{blog_age_days(fleet, b, now, st)}일" if b.enabled else "-"
         lines.append(
             f"| {slots} | {b.id} | {b.name} | {b.account} | {status} | {age} | "

@@ -487,6 +487,11 @@ def test_scale_safety() -> None:
     check("승인돼도 4주 전이면 1건", len(p["new1"]) == 1, f"{p}")
     p = fm.planned_slots(fl, at("2026-11-16"), empty)
     check("8주 뒤 전부 2건 (계정 8)", total(p) == 8, f"{p}")
+    import dataclasses
+    paused = fm.Fleet(settings, accounts, [dataclasses.replace(blogs[0], pause_until="2026-11-12")] + blogs[1:])
+    p_in, p_out = fm.planned_slots(paused, at("2026-11-11"), empty), fm.planned_slots(paused, at("2026-11-12"), empty)
+    check("pause_until 전날까지 새 글 0건, 그날부터 다시",
+          p_in["old1"] == [] and len(p_in["old2"]) == 2 and len(p_out["old1"]) == 2, f"{p_in} / {p_out}")
 
     capped = fm.Fleet(settings, {"acc": {"since": "2026-01-01", "max_live_per_day_account": 5}}, blogs)
     p = fm.planned_slots(capped, at("2026-11-16"), empty)
