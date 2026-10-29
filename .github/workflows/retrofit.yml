@@ -27,7 +27,7 @@ permissions:
 jobs:
   retrofit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25   # 문장 다듬기(작성 모델 호출 1회 + 확인 1회)가 몇 분 걸립니다
+    timeout-minutes: 45   # 문장 다듬기 몇 분 + 다시 쓰기(공식 자료 조사·작성·검수·고쳐 쓰기) 10~20분
 
     steps:
       - uses: actions/checkout@v5
@@ -75,13 +75,28 @@ jobs:
             python scripts/retrofit_posts.py
           fi
 
+      - name: 다시 쓰기 대기열 (하룻밤 다시 쓰기 1건 + 임시저장 1건)
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          PYTHONUTF8: "1"
+          # 애드센스 '가치가 별로 없는 콘텐츠' 거절 뒤 겹치는 글 묶음·옛 뉴스형 글을 지금 기준으로 다시 씁니다(글당 약 $1)
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          BLOGGER_CLIENT_ID_SECOND: ${{ secrets.BLOGGER_CLIENT_ID_SECOND }}
+          BLOGGER_CLIENT_SECRET_SECOND: ${{ secrets.BLOGGER_CLIENT_SECRET_SECOND }}
+          BLOGGER_REFRESH_TOKEN_SECOND: ${{ secrets.BLOGGER_REFRESH_TOKEN_SECOND }}
+        run: python scripts/rewrite_post.py run-queue
+
       - name: 기록 커밋
         if: always()
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
-          git add data/fleet/
+          git add data/fleet/ data/blogs/
           if git diff --staged --quiet; then
             echo "변경 사항 없음."
           else

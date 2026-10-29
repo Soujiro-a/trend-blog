@@ -1,0 +1,128 @@
+[
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html",
+  "topic": "운전면허 적성검사 갱신 방법과 상황별 대처",
+  "absorb": [
+   "https://gaganam1.blogspot.com/2026/09/1.html",
+   "https://gaganam1.blogspot.com/2026/10/blog-post.html",
+   "https://gaganam1.blogspot.com/2026/10/3000-3.html",
+   "https://gaganam1.blogspot.com/2026/10/12.html",
+   "https://gaganam1.blogspot.com/2026/10/blog-post_19.html",
+   "https://gaganam1.blogspot.com/2026/10/blog-post_26.html"
+  ],
+  "hold": "2026-10-29 사용자에게 미리보기 확인 중 — 반영은 손으로"
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html",
+  "topic": "운전면허 취소·정지 기간 계산과 재취득 방법",
+  "absorb": [
+   "https://gaganam1.blogspot.com/2026/10/1-300.html",
+   "https://gaganam1.blogspot.com/2026/10/1.html",
+   "https://gaganam1.blogspot.com/2026/10/blog-post_28.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/10/30-43-2.html",
+  "topic": "자동차 정기검사 유효기간 확인과 지연 과태료",
+  "absorb": [
+   "https://gaganam1.blogspot.com/2026/09/blog-post.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/09/blog-post_24.html",
+  "topic": "중고차 명의이전 필요서류와 기한, 지연 과태료",
+  "absorb": [
+   "https://gaganam1.blogspot.com/2026/10/blog-post_706.html"
+  ]
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/09/blog-post_22.html",
+  "absorb": []
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/09/75-3.html",
+  "absorb": []
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/09/5w30.html",
+  "absorb": []
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/09/blog-post_27.html",
+  "absorb": []
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/09/blog-post_29.html",
+  "absorb": []
+ },
+ {
+  "action": "rewrite",
+  "url": "https://gaganam1.blogspot.com/2026/10/6-2.html",
+  "topic": "자동차 에어컨 필터 교체 주기와 셀프 교체 방법",
+  "absorb": []
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/09/1.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/10/3000-3.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/10/12.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_19.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_26.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/10/1-300.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/10/1.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_28.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/09/blog-post.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/30-43-2.html"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_706.html",
+  "into": "https://gaganam1.blogspot.com/2026/09/blog-post_24.html"
+ }
+]

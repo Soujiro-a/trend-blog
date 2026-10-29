@@ -1536,6 +1536,27 @@ def test_retrofit(cfg: dict) -> None:
         check("로그인 풀림 기록: 계정·날짜마다 한 번만 알림",
               (first, again, other, nextday) == (True, False, True, True)
               and ap.read_text(encoding="utf-8").splitlines()[-1] == "2026-10-29 default")
+    from scripts import rewrite_post as rw
+    check("다시 쓰기: 주소에서 경로만", rw.path_of("https://g.blogspot.com/2026/10/a.html?m=1") == "/2026/10/a.html")
+    ol = rw.outline("<h2>기준</h2><p>x</p><h3>해외 <b>체류</b></h3><h2>자주 묻는 질문</h2><h2>참고한 자료</h2>")
+    check("다시 쓰기: 합칠 글은 소제목만 범위로 (공통 섹션 제외)", ol == ["- 기준", "  - 해외 체류"], str(ol))
+    q = [{"action": "rewrite", "url": "https://g/2026/10/hub.html", "done_at": "2026-10-31T01:05:00+09:00",
+          "night": "2026-10-30"},
+         {"action": "rewrite", "url": "https://g/2026/09/b.html"},
+         {"action": "revert", "url": "https://g/2026/10/x.html", "into": "https://g/2026/10/hub.html"},
+         {"action": "revert", "url": "https://g/2026/10/y.html", "into": "https://g/2026/09/b.html"}]
+    st = rw.next_steps(q, "2026-10-31")
+    check("다시 쓰기 대기열: 하룻밤 다시 쓰기 1건 + 중심 글이 반영된 임시저장 1건",
+          [s["url"] for s in st] == ["https://g/2026/09/b.html", "https://g/2026/10/x.html"], str(st))
+    check("다시 쓰기 대기열: 오늘 밤(자정 넘어도 같은 밤) 이미 다시 쓴 뒤엔 임시저장만",
+          [s["action"] for s in rw.next_steps(q, "2026-10-30")] == ["revert"])
+    body, n = rw.relink('<a href="https://g/2026/10/x.html">옛 글</a> <a href="https://g/2026/10/z.html">그대로</a>',
+                        {"/2026/10/x.html": "https://g/2026/10/hub.html"})
+    check("임시저장된 글로 가는 링크만 중심 글로", n == 1 and 'href="https://g/2026/10/hub.html"' in body
+          and 'href="https://g/2026/10/z.html"' in body, body)
+    from src import planner as _planner
+    check("가치 부족 기준이 작성·검수·기획에", "가치가 별로 없는 콘텐츠" in writer.SYSTEM
+          and "가치 부족:" in reviewer.SYSTEM and "잘게 쪼개지 않기" in _planner.SYSTEM)
     check("관리 모델: 신생 블로그 클릭 0 은 메모 안 함", "42일 미만" in manager.SYSTEM)
 
     # 글별 검색 설명 (Blogger API 에 칸이 없어 이력에 남겨 두고 브라우저로 넣습니다)
