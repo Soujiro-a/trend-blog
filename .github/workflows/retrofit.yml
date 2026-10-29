@@ -27,7 +27,7 @@ permissions:
 jobs:
   retrofit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45   # 문장 다듬기 몇 분 + 다시 쓰기(공식 자료 조사·작성·검수·고쳐 쓰기) 10~20분
+    timeout-minutes: 150  # 문장 다듬기 몇 분 + 블로그마다 다시 쓰기(공식 자료 조사·작성·검수·고쳐 쓰기) 10~20분
 
     steps:
       - uses: actions/checkout@v5
@@ -75,7 +75,7 @@ jobs:
             python scripts/retrofit_posts.py
           fi
 
-      - name: 다시 쓰기 대기열 (하룻밤 다시 쓰기 1건 + 임시저장 1건)
+      - name: 다시 쓰기 대기열 (블로그마다 하룻밤 다시 쓰기 1건 + 임시저장 1건 + 링크 1건)
         if: github.event.inputs.dry_run != 'true'
         env:
           PYTHONUTF8: "1"

@@ -1550,6 +1550,10 @@ def test_retrofit(cfg: dict) -> None:
           [s["url"] for s in st] == ["https://g/2026/09/b.html", "https://g/2026/10/x.html"], str(st))
     check("다시 쓰기 대기열: 오늘 밤(자정 넘어도 같은 밤) 이미 다시 쓴 뒤엔 임시저장만",
           [s["action"] for s in rw.next_steps(q, "2026-10-30")] == ["revert"])
+    q2 = q + [{"action": "rewrite", "url": "https://h/2026/10/a.html"}, {"action": "rewrite", "url": "https://h/2026/10/b.html"}]
+    check("다시 쓰기 대기열: 블로그마다 따로 하룻밤 1건씩",
+          [s["url"] for s in rw.next_steps(q2, "2026-10-31")] == ["https://g/2026/09/b.html", "https://g/2026/10/x.html",
+                                                                 "https://h/2026/10/a.html"])
     body, n = rw.relink('<a href="https://g/2026/10/x.html">옛 글</a> <a href="https://g/2026/10/z.html">그대로</a>',
                         {"/2026/10/x.html": "https://g/2026/10/hub.html"})
     check("임시저장된 글로 가는 링크만 중심 글로", n == 1 and 'href="https://g/2026/10/hub.html"' in body

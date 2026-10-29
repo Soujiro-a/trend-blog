@@ -14,7 +14,7 @@ retrofit_posts.py 는 문장만 다듬어서 이런 글을 고칠 수 없습니�
     python scripts/rewrite_post.py run-queue [--dry-run]          # 밤마다: 대기열(data/fleet/rewrite_queue.json)에서 한 걸음
 
 쓰기 요청은 한 번에 몰지 않습니다(2026-09-20 짧은 시간 여러 건으로 계정 쓰기가 막힘). run-queue 는 하루 밤에
-다시 쓰기 1건 + 임시저장 1건까지만 하고, 임시저장은 그 글을 합친 중심 글이 반영된 뒤에만 합니다.
+블로그마다 다시 쓰기 1건 + 임시저장 1건 + 링크 고치기 1건까지만 하고, 임시저장은 그 글을 합친 중심 글이 반영된 뒤에만 합니다.
 """
 
 from __future__ import annotations
@@ -248,17 +248,24 @@ def save_queue(q: list[dict]) -> None:
     QUEUE_PATH.write_text(json.dumps(q, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
 
+def host_of(url: str) -> str:
+    return urllib.parse.urlparse(url).netloc.lower()
+
+
 def next_steps(q: list[dict], night: str) -> list[dict]:
-    """오늘 밤 할 일: 아직 안 한 다시 쓰기 1건 + 중심 글이 반영된 임시저장 1건. 오늘 밤 이미 한 종류는 건너뜁니다."""
+    """오늘 밤 할 일: **블로그마다** 아직 안 한 다시 쓰기 1건 + 중심 글이 반영된 임시저장 1건.
+    그 블로그가 오늘 밤 이미 한 종류는 건너뜁니다. (2026-10-29: 함대 전체 1건이면 세 블로그 정리에 한 달이 걸려 블로그별로)"""
     q = [it for it in q if not it.get("hold")]   # hold: 사람이 미리보기를 확인할 글 (손으로 apply 후 done_at 을 적음)
-    done_tonight = {it["action"] for it in q if it.get("night") == night}
     applied = {path_of(it["url"]) for it in q if it["action"] == "rewrite" and it.get("done_at")}
     out = []
-    if "rewrite" not in done_tonight:
-        out += [it for it in q if it["action"] == "rewrite" and not it.get("done_at") and not it.get("failed_at")][:1]
-    if "revert" not in done_tonight:
-        out += [it for it in q if it["action"] == "revert" and not it.get("done_at") and not it.get("failed_at")
-                and path_of(it["into"]) in applied][:1]
+    for host in dict.fromkeys(host_of(it["url"]) for it in q if it["action"] in ("rewrite", "revert")):
+        mine = [it for it in q if host_of(it["url"]) == host]
+        done_tonight = {it["action"] for it in mine if it.get("night") == night}
+        pending = [it for it in mine if not it.get("done_at") and not it.get("failed_at")]
+        if "rewrite" not in done_tonight:
+            out += [it for it in pending if it["action"] == "rewrite"][:1]
+        if "revert" not in done_tonight:
+            out += [it for it in pending if it["action"] == "revert" and path_of(it["into"]) in applied][:1]
     return out
 
 
@@ -277,33 +284,32 @@ def relink(content: str, moved: dict[str, str]) -> tuple[str, int]:
     return re.sub(r'(href=")(https?://[^"]+)"', sub, content), count
 
 
-def relink_one(fleet: fleet_mod.Fleet, q: list[dict]) -> str:
-    """임시저장된 글로 링크하는 공개 글 하나를 찾아 링크를 고칩니다(하룻밤 한 편). 고친 글 주소, 없으면 ''."""
-    done = [it for it in q if it["action"] == "revert" and it.get("done_at")]
+def relink_one(fleet: fleet_mod.Fleet, q: list[dict], host: str) -> str:
+    """그 블로그에서 임시저장된 글로 링크하는 공개 글 하나를 찾아 링크를 고칩니다(블로그마다 하룻밤 한 편).
+    고친 글 주소, 없으면 ''."""
+    done = [it for it in q if it["action"] == "revert" and it.get("done_at") and host_of(it["url"]) == host]
     if not done:
         return ""
     moved = {path_of(it["url"]): it["into"].split("?")[0] for it in done}
-    gone = set(moved)
-    for blog in {blog_of(fleet, it["url"]).id: blog_of(fleet, it["url"]) for it in done}.values():
-        fleet_mod.apply_env(fleet, blog)
-        page = None
-        while True:
-            params = {"status": "live", "maxResults": 100, "fetchBodies": "true", "view": "ADMIN"}
-            if page:
-                params["pageToken"] = page
-            data = net.get(f"{blogger.API_BASE}/blogs/{blog.blog_id}/posts", params=params, headers=_headers()).json()
-            for post in data.get("items", []):
-                if path_of(post["url"]) in gone:
-                    continue
-                new, n = relink(post.get("content", ""), moved)
-                if n:
-                    _patch(blog, post["id"], {"content": new})
-                    print(f"링크 고침: {post['url']} ({n}곳 → 중심 글)")
-                    return post["url"]
-            page = data.get("nextPageToken")
-            if not page:
-                break
-    return ""
+    blog = blog_of(fleet, done[0]["url"])
+    fleet_mod.apply_env(fleet, blog)
+    page = None
+    while True:
+        params = {"status": "live", "maxResults": 100, "fetchBodies": "true", "view": "ADMIN"}
+        if page:
+            params["pageToken"] = page
+        data = net.get(f"{blogger.API_BASE}/blogs/{blog.blog_id}/posts", params=params, headers=_headers()).json()
+        for post in data.get("items", []):
+            if path_of(post["url"]) in moved:
+                continue
+            new, n = relink(post.get("content", ""), moved)
+            if n:
+                _patch(blog, post["id"], {"content": new})
+                print(f"링크 고침: {post['url']} ({n}곳 → 중심 글)")
+                return post["url"]
+        page = data.get("nextPageToken")
+        if not page:
+            return ""
 
 
 def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
@@ -311,18 +317,21 @@ def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
     night = (now.date() if now.hour >= 12 else now.date() - timedelta(days=1)).isoformat()   # 밤 = 시작한 날
     q = load_queue()
     steps = next_steps(q, night)
-    relinked_tonight = any(r.get("night") == night for r in q if r["action"] == "relink")
-    if not steps and relinked_tonight:
+    hosts = list(dict.fromkeys(host_of(it["url"]) for it in q if it["action"] == "revert"))
+    relink_hosts = [h for h in hosts if not any(r["action"] == "relink" and r.get("night") == night
+                                                 and host_of(r["url"]) == h for r in q)]
+    if not steps and not relink_hosts:
         print("다시 쓰기 대기열: 오늘 할 일 없음")
         return 0
     if not dry_run and not any(now.hour in r for r in QUIET_HOURS):
         print(f"건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 22~06시에만 고칩니다.")
         return 0
-    for i, it in enumerate(steps):
+    wrote = False
+    for it in steps:
         print(f"{'(dry-run) ' if dry_run else ''}{it['action']}: {it['url']}")
         if dry_run:
             continue
-        if i:
+        if wrote:
             time.sleep(120)   # 쓰기 요청 사이 간격
         it["night"] = night
         try:
@@ -332,12 +341,14 @@ def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
                     it.update(failed_at=now.isoformat(timespec="seconds"),
                               reason=f"검수 {data['review']['verdict']} {data['review']['score']}점: "
                                      + "; ".join(data["review"]["issues"][:3]))
+                    save_queue(q)
                     continue
                 do_apply(cfg, fleet, it["url"])
                 it["new_description"] = data["description"]
             else:
                 do_revert(fleet, it["url"], it["into"])
-            it["done_at"] = now.isoformat(timespec="seconds")
+            it["done_at"] = datetime.now(KST).isoformat(timespec="seconds")
+            wrote = True
         except blogger.BloggerForbidden as exc:
             it.update(failed_at=now.isoformat(timespec="seconds"), reason=str(exc)[:300])
             save_queue(q)
@@ -345,19 +356,22 @@ def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
         except Exception as exc:  # noqa: BLE001 — 한 건 실패로 기록만 남기고 다음 밤에 사람이 봅니다
             it.update(failed_at=now.isoformat(timespec="seconds"), reason=str(exc)[:300])
         save_queue(q)
-    # 임시저장된 글로 가는 다른 공개 글의 링크를 하룻밤 한 편씩 중심 글로 바꿉니다 (깨진 내부 링크 방지).
-    if not dry_run and not relinked_tonight:
-        if steps:
+    # 임시저장된 글로 가는 다른 공개 글의 링크를 블로그마다 하룻밤 한 편씩 중심 글로 바꿉니다 (깨진 내부 링크 방지).
+    for host in ([] if dry_run else relink_hosts):
+        if wrote:
             time.sleep(120)
         try:
-            fixed = relink_one(fleet, q)
+            fixed = relink_one(fleet, q, host)
         except blogger.BloggerForbidden:
             raise
         except Exception as exc:  # noqa: BLE001
-            fixed = f"실패: {exc}"[:300]
+            print(f"링크 고치기 실패 ({host}): {exc}")
+            fixed = ""
         if fixed:
+            wrote = True
             q.append({"action": "relink", "url": fixed, "night": night,
-                      "done_at": now.isoformat(timespec="seconds")})
+                      "done_at": datetime.now(KST).isoformat(timespec="seconds")})
+            save_queue(q)
     save_queue(q)
     return 0
 
