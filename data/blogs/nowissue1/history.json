@@ -4,13 +4,15 @@
     "title": "청약통장 납입 연체 시 가점·납입인정 기준, 국민주택과 민영주택 차이",
     "post_id": "5396841923530346763",
     "url": "https://nowissue1.blogspot.com/2026/10/blog-post.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.5193,
     "review_score": 86,
     "extras": [],
     "description": "청약통장 월납입금을 연체해 냈을 때 국민주택은 회차별 납입인정일이 순연되고, 민영주택 가점제는 최초 가입일부터 모집공고일까지의 가입기간으로 점수를 매깁니다. 공식 안내를 기준으로 두 제도의 차이와 확인 방법을 정리했습니다.",
-    "posted_at": "2026-10-08T13:46:53+09:00"
+    "posted_at": "2026-10-08T13:46:53+09:00",
+    "merged_into": "https://nowissue1.blogspot.com/2026/10/24.html",
+    "reverted_at": "2026-10-31T05:39:14+09:00"
   },
   {
     "keyword": "청약통장 부부 합산 소득 기준 맞벌이 신혼부부 특별공급 초과했을 때",

@@ -403,13 +403,15 @@
     "title": "여권 재발급 늦을 때 단수 긴급여권 신청 조건과 절차",
     "post_id": "2186112755714962474",
     "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_27.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.5577,
     "review_score": 86,
     "extras": [],
     "description": "재발급 여권이 출국일까지 안 나오면 외교부 심사를 거쳐 긴급여권이나 48시간 내 발급여권을 신청할 수 있습니다. 인정 사유, 오후 2시 접수 시한, 준비 서류와 제외 대상을 정리했습니다.",
-    "posted_at": "2026-10-27T10:43:32+09:00"
+    "posted_at": "2026-10-27T10:43:32+09:00",
+    "merged_into": "https://gaganamissue.blogspot.com/2026/10/blog-post_19.html",
+    "reverted_at": "2026-10-31T05:41:14+09:00"
   },
   {
     "keyword": "남은 외화 동전 지폐 한국에서 환전 안 될 때 처리하는 방법",

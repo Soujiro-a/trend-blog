@@ -194,7 +194,9 @@
  {
   "action": "revert",
   "url": "https://nowissue1.blogspot.com/2026/10/blog-post.html",
-  "into": "https://nowissue1.blogspot.com/2026/10/24.html"
+  "into": "https://nowissue1.blogspot.com/2026/10/24.html",
+  "night": "2026-10-30",
+  "done_at": "2026-10-31T05:39:14+09:00"
  },
  {
   "action": "revert",
@@ -485,7 +487,9 @@
  {
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_27.html",
-  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_19.html"
+  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_19.html",
+  "night": "2026-10-30",
+  "done_at": "2026-10-31T05:41:14+09:00"
  },
  {
   "action": "revert",
@@ -556,5 +560,11 @@
   "url": "https://gaganamc1.blogspot.com/2026/10/7101.html",
   "night": "2026-10-30",
   "done_at": "2026-10-31T04:20:31+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://nowissue1.blogspot.com/2026/10/1.html",
+  "night": "2026-10-30",
+  "done_at": "2026-10-31T05:43:15+09:00"
  }
 ]
