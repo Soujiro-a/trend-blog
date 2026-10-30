@@ -78,6 +78,16 @@ def coverage_block(hub: dict, absorbed: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def fix_block(fix: str) -> str:
+    """기존 글 점검(2026-10-30)에서 이 글이 지적받은 점. 사실 근거가 아니라 '이번에 꼭 메울 빈칸'입니다."""
+    if not fix:
+        return ""
+    return ("\n\n## 이번 다시 쓰기에서 꼭 고칠 점 (기존 글 점검 결과)\n\n"
+            "기존 글이 아래 이유로 '가치가 별로 없는 콘텐츠' 위험 판정을 받았습니다. **사실 근거가 아닙니다.** "
+            "지적에 나온 수치·규칙도 위 공식 안내 자료로 확인될 때만 쓰고, 자료로 확인되지 않으면 그 질문을 "
+            "제목·범위에서 빼세요. 핵심 질문을 문의처로 넘기는 것으로 메우지 마세요.\n\n- " + fix + "\n")
+
+
 def _headers() -> dict:
     return {"Authorization": f"Bearer {blogger._access_token()}"}
 
@@ -128,7 +138,8 @@ def preview_path(blog: fleet_mod.Blog, post_id: str) -> Path:
     return PREVIEW_DIR / blog.id / f"{post_id}.json"
 
 
-def do_preview(cfg: dict, fleet: fleet_mod.Fleet, url: str, absorb: list[str], topic: str = "") -> dict:
+def do_preview(cfg: dict, fleet: fleet_mod.Fleet, url: str, absorb: list[str], topic: str = "",
+               fix: str = "") -> dict:
     blog = blog_of(fleet, url)
     fleet_mod.apply_env(fleet, blog)
     cfg = fleet_mod.apply_config(cfg, fleet, blog)
@@ -141,7 +152,7 @@ def do_preview(cfg: dict, fleet: fleet_mod.Fleet, url: str, absorb: list[str], t
     # 대기열에서 임시저장될 글(다른 묶음 몫 포함)도 링크 후보에서 뺍니다. 곧 사라질 주소로 링크하면 깨집니다.
     skip = {path_of(u) for u in [url, *absorb]} | {path_of(it["url"]) for it in load_queue() if it["action"] == "revert"}
     cand, context, cost = research_context(cfg, blog, topic, absorbed, history, skip)
-    context += coverage_block(hub, absorbed)
+    context += coverage_block(hub, absorbed) + fix_block(fix)
     date_str = datetime.now(KST).strftime("%Y-%m-%d")
     article = writer.write(cfg, cand, context, [], date_str, mode="planned", persona=blog.persona)
     cost += article.cost_usd
@@ -152,7 +163,7 @@ def do_preview(cfg: dict, fleet: fleet_mod.Fleet, url: str, absorb: list[str], t
     min_score = cfg["review"].get("min_score", 80)
     out = {
         "url": hub["url"], "post_id": hub["id"], "blog": blog.id, "topic": topic,
-        "absorb": [p["url"] for p in absorbed],
+        "absorb": [p["url"] for p in absorbed], "fix": fix,
         "old_title": hub["title"], "title": article.title, "description": article.description,
         "labels": hub.get("labels") or [], "card": article.card, "body_html": article.body_html,
         "review": {"verdict": rv.verdict, "score": rv.score, "issues": rv.issues, "card_ok": rv.card_ok,
@@ -336,7 +347,7 @@ def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
         it["night"] = night
         try:
             if it["action"] == "rewrite":
-                data = do_preview(cfg, fleet, it["url"], it.get("absorb") or [], it.get("topic", ""))
+                data = do_preview(cfg, fleet, it["url"], it.get("absorb") or [], it.get("topic", ""), it.get("fix", ""))
                 if not data["review"]["approved"]:
                     it.update(failed_at=now.isoformat(timespec="seconds"),
                               reason=f"검수 {data['review']['verdict']} {data['review']['score']}점: "
@@ -383,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("url")
     p.add_argument("--absorb", nargs="*", default=[])
     p.add_argument("--topic", default="")
+    p.add_argument("--fix", default="", help="기존 글 점검에서 지적받은 점 (이번에 메울 빈칸)")
     sub.add_parser("apply").add_argument("url")
     p = sub.add_parser("revert")
     p.add_argument("url")
@@ -396,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config()
     fleet = fleet_mod.load_fleet()
     if args.cmd == "preview":
-        do_preview(cfg, fleet, args.url, args.absorb, args.topic)
+        do_preview(cfg, fleet, args.url, args.absorb, args.topic, args.fix)
     elif args.cmd == "apply":
         do_apply(cfg, fleet, args.url)
     elif args.cmd == "revert":

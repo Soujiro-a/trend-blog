@@ -1558,6 +1558,11 @@ def test_retrofit(cfg: dict) -> None:
                         {"/2026/10/x.html": "https://g/2026/10/hub.html"})
     check("임시저장된 글로 가는 링크만 중심 글로", n == 1 and 'href="https://g/2026/10/hub.html"' in body
           and 'href="https://g/2026/10/z.html"' in body, body)
+    fb = rw.fix_block("계산 예시가 없음")
+    check("다시 쓰기: 점검 지적은 근거가 아닌 빈칸으로", rw.fix_block("") == ""
+          and "사실 근거가 아닙니다" in fb and "계산 예시가 없음" in fb)
+    check("핵심 답을 문의처로 넘기지 않기 (작성·검수)", "문의하세요\"로 넘기지" in writer.SYSTEM
+          and "126·1355·1350" in reviewer.SYSTEM and "댓글로 남겨 주세요\" 같은 매번" in writer.SYSTEM)
     from src import planner as _planner
     check("가치 부족 기준이 작성·검수·기획에", "가치가 별로 없는 콘텐츠" in writer.SYSTEM
           and "가치 부족:" in reviewer.SYSTEM and "잘게 쪼개지 않기" in _planner.SYSTEM)
