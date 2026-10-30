@@ -24,7 +24,10 @@
    "https://gaganam1.blogspot.com/2026/10/1-300.html",
    "https://gaganam1.blogspot.com/2026/10/1.html",
    "https://gaganam1.blogspot.com/2026/10/blog-post_28.html"
-  ]
+  ],
+  "night": "2026-10-30",
+  "new_description": "운전면허 정지 기간은 벌점 1점당 1일이고, 정지 중 운전하면 무면허운전으로 처벌받습니다. 교육 감경 조건, 무면허운전 결격기간, 적성검사 취소 후 재응시 순서를 정리했습니다.",
+  "done_at": "2026-10-31T03:52:17+09:00"
  },
  {
   "action": "rewrite",
@@ -83,7 +86,9 @@
  {
   "action": "revert",
   "url": "https://gaganam1.blogspot.com/2026/10/blog-post.html",
-  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html"
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html",
+  "night": "2026-10-30",
+  "done_at": "2026-10-31T03:54:17+09:00"
  },
  {
   "action": "revert",
@@ -149,7 +154,10 @@
   "topic": "청약통장 납입 인정 회차와 연체·선납 기준",
   "absorb": [
    "https://nowissue1.blogspot.com/2026/10/blog-post.html"
-  ]
+  ],
+  "night": "2026-10-30",
+  "new_description": "청약통장 연체·선납은 국민주택 청약에서 납입인정일을 늦추고, 종합저축의 민영주택 청약에는 적용되지 않습니다. 지역별 1순위 횟수, 가입기간 가점, 전환 시 주의점을 정리했습니다.",
+  "done_at": "2026-10-31T04:00:31+09:00"
  },
  {
   "action": "rewrite",
@@ -224,7 +232,10 @@
   "absorb": [
    "https://gaganamc1.blogspot.com/2026/10/blog-post_08.html",
    "https://gaganamc1.blogspot.com/2026/10/blog-post_14.html"
-  ]
+  ],
+  "night": "2026-10-30",
+  "new_description": "포장을 뜯은 것만으로는 청약철회를 거부할 수 없고, 주문제작도 3요건을 모두 갖춰야 제한됩니다. 택 뗀 의류 기준과 7일·3개월 기한, 판매자에게 보낼 문구를 정리했습니다.",
+  "done_at": "2026-10-31T04:05:50+09:00"
  },
  {
   "action": "rewrite",
@@ -308,7 +319,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/10/7-1372.html",
-  "into": "https://gaganamc1.blogspot.com/2026/09/7.html"
+  "into": "https://gaganamc1.blogspot.com/2026/09/7.html",
+  "night": "2026-10-30",
+  "done_at": "2026-10-31T04:07:51+09:00"
  },
  {
   "action": "revert",
@@ -392,7 +405,10 @@
   "topic": "긴급여권 발급 조건과 절차, 재발급이 늦을 때",
   "absorb": [
    "https://gaganamissue.blogspot.com/2026/10/blog-post_27.html"
-  ]
+  ],
+  "night": "2026-10-30",
+  "new_description": "긴급여권은 전자여권을 받을 시간이 없을 때 발급하는 유효기간 1년 단수여권이며 국내 수수료는 5만 원입니다. 서류·접수처와 상황별 준비, 해외 발급 시 주의점을 정리했습니다.",
+  "done_at": "2026-10-31T04:14:29+09:00"
  },
  {
   "action": "rewrite",
@@ -528,5 +544,17 @@
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_19.html",
   "night": "2026-10-29",
   "done_at": "2026-10-30T06:07:52+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/12.html",
+  "night": "2026-10-30",
+  "done_at": "2026-10-31T04:16:30+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/7101.html",
+  "night": "2026-10-30",
+  "done_at": "2026-10-31T04:20:31+09:00"
  }
 ]
