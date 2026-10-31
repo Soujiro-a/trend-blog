@@ -143,6 +143,43 @@ class Review:
 
 _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
 
+# 복제 콘텐츠 (애드센스 정책 '복제된 콘텐츠', 거절 사유 '가치가 별로 없는 콘텐츠'): 참고 자료 문장을 길게 그대로 옮긴 곳.
+# 공식 안내의 기관명·서식 이름처럼 짧게 같은 것은 정상이라, 공백을 정리한 뒤 COPY_SPAN 자 넘게 이어서 같은 곳만 셉니다.
+# 검수 모델은 대조를 눈으로 하므로 길게 베낀 곳을 놓칠 수 있어 코드로 봅니다(2026-10-31).
+COPY_SPAN = 80
+COPY_MAX = 2   # 이보다 많으면 publish 를 hold 로
+
+
+def _plain(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text)).strip()
+
+
+def copied_spans(body_html: str, context: str, span: int = COPY_SPAN) -> list[str]:
+    """본문에서 참고 자료와 span 자 넘게 그대로 같은 구간들."""
+    text, ctx = _plain(body_html), _plain(context)
+    out, i, step = [], 0, max(10, span // 4)
+    while i + span <= len(text):
+        if text[i:i + span] in ctx:
+            j = i + span
+            while j < len(text) and text[i:j + 1] in ctx:
+                j += 1
+            out.append(text[i:j])
+            i = j
+        else:
+            i += step
+    return out
+
+
+def flag_copies(result: "Review", article: Article, context: str) -> "Review":
+    spans = copied_spans(article.body_html, context)
+    if len(spans) > COPY_MAX:
+        result.issues = [f"복제 콘텐츠: 참고 자료 문장을 {COPY_SPAN}자 넘게 그대로 옮긴 곳 {len(spans)}군데 "
+                         f"(예: \"{spans[0][:40]}…\") — 사실만 취해 새 문장으로 쓰고 이 글만의 정리를 더할 것",
+                         *result.issues][:8]
+        if result.verdict == "publish":
+            result.verdict = "hold"
+    return result
+
 
 def _parse(raw: str, model: str) -> Review:
     """모델 응답에서 JSON 을 꺼냅니다. 코드 펜스가 섞여도 처리합니다."""
@@ -212,6 +249,7 @@ def review(
     else:
         raw = llm.text_of(response, f"[{article.keyword}] 검수")
         result = _parse(raw, model)
+        result = flag_copies(result, article, context)
 
     result.input_tokens = response.usage.input_tokens
     result.output_tokens = response.usage.output_tokens

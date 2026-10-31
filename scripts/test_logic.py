@@ -1860,6 +1860,42 @@ def test_local_trial(cfg: dict) -> None:
         tmp.cleanup()
 
 
+def test_adsense_readiness() -> None:
+    """애드센스 거절 사유별 사전 점검 (2026-10-31: 가치 부족 거절 뒤 공식 분류 전부를 미리 보게)."""
+    section("애드센스 거절 사유별 점검")
+    from scripts import adsense_check as ac
+
+    check("본문 글자 수: 태그·공백·스크립트 제외", ac.char_count("<p>가 나</p><script>var x=1</script>") == 2)
+    check("한글 비율", ac.hangul_ratio("한글 ab") == 0.5 and ac.hangul_ratio("") == 0.0)
+    posts = [{"url": "https://g.blogspot.com/2026/10/a.html",
+              "content": '<a href="https://g.blogspot.com/2026/10/gone.html">x</a>'
+                         '<a href="https://g.blogspot.com/2026/10/b.html?m=1">y</a>'
+                         '<a href="https://g.blogspot.com/p/about.html">p</a>'
+                         '<a href="https://other.blogspot.com/2026/10/z.html">o</a>'},
+             {"url": "https://g.blogspot.com/2026/10/b.html", "content": ""}]
+    check("깨진 내부 링크: 같은 블로그의 공개 목록에 없는 글만",
+          ac.broken_internal(posts, "g.blogspot.com") == [("https://g.blogspot.com/2026/10/a.html",
+                                                          "https://g.blogspot.com/2026/10/gone.html")])
+    cl = ac.biggest_cluster(["운전면허 적성검사 기간", "운전면허 적성검사 기간 연장", "국민연금 추납", "청약 가점 계산"])
+    check("제목이 비슷한 묶음", len(cl) == 2 and ac.biggest_cluster(["가", "나"]) == [], str(cl))
+    check("robots.txt: 전체 차단만 걸림",
+          ac.robots_blocks("User-agent: *\nDisallow: /") and ac.robots_blocks("User-agent: Mediapartners-Google\nDisallow: /")
+          and not ac.robots_blocks("User-agent: Mediapartners-Google\nDisallow:\n\nUser-agent: *\nDisallow: /search\nAllow: /"))
+    check("판정: 모두 통과면 신청, 아니면 분류별 보류",
+          ac.verdict([(True, "[연결] a")]).startswith("✅")
+          and "가치부족" in ac.verdict([(False, "[가치부족] 색인 0/20"), (True, "[연결] a")]))
+    src = "신청 대상은 공고일 현재 무주택세대구성원으로서 해당 지역에 거주하는 만 19세 이상인 사람이며 소득과 자산 기준을 모두 충족해야 합니다. " \
+          "제출 서류는 주민등록등본과 가족관계증명서이며 온라인으로 신청하면 간편인증으로 본인 확인을 거칩니다. "
+    ctx = "참고 자료: " + src * 1 + "다른 문장 " + src.replace("신청 대상은", "지원 대상은") + "끝. " + src.replace("만 19세", "만 20세")
+    copied = "<p>" + src + "</p><p>" + src.replace("신청 대상은", "지원 대상은") + "</p><p>" + src.replace("만 19세", "만 20세") + "</p>"
+    check("복제 콘텐츠: 자료 문장을 길게 옮긴 곳을 셈", len(reviewer.copied_spans(copied, ctx)) >= 3,
+          str(reviewer.copied_spans(copied, ctx)))
+    check("복제 콘텐츠: 자기 문장이면 0", reviewer.copied_spans("<p>" + "이 글은 직접 정리한 문장입니다. " * 10 + "</p>", ctx) == [])
+    art = writer.Article(keyword="k", title="t", description="d", labels=[], body_html=copied)
+    rv = reviewer.flag_copies(reviewer.Review(verdict="publish", score=90), art, ctx)
+    check("복제 콘텐츠가 많으면 publish → hold 와 지적", rv.verdict == "hold" and rv.issues[0].startswith("복제 콘텐츠"))
+
+
 def test_weekly_report(cfg: dict) -> None:
     """주간 보고 경고는 블로그마다 켜진 슬롯(램프업)으로 기대 글 수를 잡아 판단합니다."""
     section("주간 보고 기준")
@@ -1968,6 +2004,7 @@ def main() -> int:
     test_workflows()
     test_local_trial(cfg)
     test_weekly_report(cfg)
+    test_adsense_readiness()
 
     print("\n" + "=" * 50)
     if failures:

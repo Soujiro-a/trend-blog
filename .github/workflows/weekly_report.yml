@@ -13,7 +13,7 @@ permissions:
 jobs:
   report:
     runs-on: ubuntu-24.04   # fleet.yml 과 같은 이유로 고정 (ubuntu-latest 는 2026-10-19 에 바뀜)
-    timeout-minutes: 10
+    timeout-minutes: 25  # 2026-10-31: 블로그마다 애드센스 준비 점검(본문·공개 화면) 추가
 
     steps:
       - uses: actions/checkout@v5

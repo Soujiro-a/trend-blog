@@ -406,11 +406,18 @@ def build(days: int = 7) -> str:
             url = info.get("url", "")
             total = (info.get("posts") or {}).get("totalItems")
             if total is not None:
-                hist_lines += [
-                    f"- Blogger 공개 글 누적 {total}개 — 애드센스 준비 점검: "
-                    f"`python scripts/adsense_check.py --blog {b.id}`",
-                    "",
-                ]
+                hist_lines += [f"- Blogger 공개 글 누적 {total}개", ""]
+            # 애드센스 거절 사유별 사전 점검 (색인 비율은 블로그당 몇 분 걸려 빼고, 신청 직전에 손으로 돌립니다)
+            if b.domain.lower() not in fleet_mod.adsense_ready_domains():
+                try:
+                    from scripts import adsense_check as ac
+
+                    res, _ = ac.check(fleet, b, index=False)
+                    hist_lines += [f"- 애드센스 준비: {ac.verdict(res)} — 신청 직전 "
+                                   f"`python scripts/adsense_check.py --blog {b.id}` (색인 비율 포함)",
+                                   *[f"  - ❌ {t}" for ok, t in res if not ok][:8], ""]
+                except Exception as exc:  # noqa: BLE001 — 점검 실패로 보고서를 멈추지 않습니다
+                    hist_lines += [f"- 애드센스 준비 점검 실패: {str(exc)[:100]}", ""]
             if url:
                 gsc = section_search_console(blog_token, url, days, heading=f"### 검색 유입 — {url}")
                 hist_lines += gsc
