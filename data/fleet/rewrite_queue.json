@@ -611,7 +611,9 @@
   "action": "revert",
   "url": "https://picktopic1.blogspot.com/2026/10/blog-post_20.html",
   "into": "https://picktopic1.blogspot.com/2026/10/blog-post_10.html",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-10-31",
+  "done_at": "2026-11-01T04:52:11+09:00"
  },
  {
   "action": "rewrite",
@@ -710,7 +712,9 @@
   "action": "revert",
   "url": "https://issuepick1.blogspot.com/2026/10/blog-post_28.html",
   "into": "https://issuepick1.blogspot.com/2026/10/blog-post_15.html",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-10-31",
+  "done_at": "2026-11-01T04:54:11+09:00"
  },
  {
   "action": "rewrite",
@@ -777,5 +781,11 @@
   "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_14.html",
   "night": "2026-10-31",
   "done_at": "2026-11-01T04:00:21+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post_23.html",
+  "night": "2026-10-31",
+  "done_at": "2026-11-01T04:58:13+09:00"
  }
 ]

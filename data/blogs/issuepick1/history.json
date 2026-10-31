@@ -278,13 +278,15 @@
     "title": "국민연금 반납, 일시금 받은 기간 복원하는 신청 방법",
     "post_id": "1868320260615644115",
     "url": "https://issuepick1.blogspot.com/2026/10/blog-post_28.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.4165,
     "review_score": 86,
     "extras": [],
     "description": "반환일시금을 받은 뒤 국민연금에 다시 가입했다면 이자를 더해 반납하고 가입기간을 복원할 수 있습니다. 신청 대상, 반납금 산정, 분할 횟수, 고지·납부 일정을 정리했습니다.",
-    "posted_at": "2026-10-28T16:59:07+09:00"
+    "posted_at": "2026-10-28T16:59:07+09:00",
+    "merged_into": "https://issuepick1.blogspot.com/2026/10/blog-post_15.html",
+    "reverted_at": "2026-11-01T04:54:11+09:00"
   },
   {
     "keyword": "국가건강검진 대상인데 검진표 못 받았을 때 대상 여부 조회하고 검진받는 방법",
