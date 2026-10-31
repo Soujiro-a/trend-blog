@@ -14,7 +14,7 @@ retrofit_posts.py 는 문장만 다듬어서 이런 글을 고칠 수 없습니�
     python scripts/rewrite_post.py run-queue [--dry-run]          # 밤마다: 대기열(data/fleet/rewrite_queue.json)에서 한 걸음
 
 쓰기 요청은 한 번에 몰지 않습니다(2026-09-20 짧은 시간 여러 건으로 계정 쓰기가 막힘). run-queue 는 하루 밤에
-블로그마다 다시 쓰기 1건 + 임시저장 1건 + 링크 고치기 1건까지만 하고, 임시저장은 그 글을 합친 중심 글이 반영된 뒤에만 합니다.
+블로그마다 다시 쓰기 1건 + 임시저장 1건 + 링크 고치기 2건까지만 하고, 임시저장은 그 글을 합친 중심 글이 반영된 뒤에만 합니다.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ import re
 import sys
 import time
 import urllib.parse
+from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -44,6 +45,7 @@ PREVIEW_DIR = OUT_DIR / "rewrite"
 QUEUE_PATH = DATA_DIR / "fleet" / "rewrite_queue.json"
 FAIL_REPORT = OUT_DIR / "rewrite_failures.md"   # 있으면 워크플로가 이슈를 열어 메일로 알립니다
 QUIET_HOURS = range(22, 24), range(0, 6)
+RELINK_PER_NIGHT = 2   # 블로그마다 하룻밤 링크 고치기 편수 (2026-10-31: 1편이면 임시저장 속도를 못 따라가 깨진 링크가 쌓임)
 HUB_LENGTH = (4000, 5500)      # 묶음을 합친 중심 글은 상황이 많아 기본(2,500~3,000)보다 길게
 MAX_OFFICIAL_PAGES = 10
 
@@ -349,15 +351,20 @@ def relink_one(fleet: fleet_mod.Fleet, q: list[dict], host: str) -> str:
             return ""
 
 
+def relink_quota(q: list[dict], night: str) -> dict[str, int]:
+    """{블로그: 오늘 밤 더 고칠 수 있는 링크 편수}. 임시저장이 있었던 블로그만."""
+    hosts = dict.fromkeys(host_of(it["url"]) for it in q if it["action"] == "revert")
+    used = Counter(host_of(r["url"]) for r in q if r["action"] == "relink" and r.get("night") == night)
+    return {h: RELINK_PER_NIGHT - used[h] for h in hosts if used[h] < RELINK_PER_NIGHT}
+
+
 def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
     now = datetime.now(KST)
     night = (now.date() if now.hour >= 12 else now.date() - timedelta(days=1)).isoformat()   # 밤 = 시작한 날
     q = load_queue()
     steps = next_steps(q, night)
-    hosts = list(dict.fromkeys(host_of(it["url"]) for it in q if it["action"] == "revert"))
-    relink_hosts = [h for h in hosts if not any(r["action"] == "relink" and r.get("night") == night
-                                                 and host_of(r["url"]) == h for r in q)]
-    if not steps and not relink_hosts:
+    quota = relink_quota(q, night)
+    if not steps and not quota:
         print("다시 쓰기 대기열: 오늘 할 일 없음")
         return 0
     if not dry_run and not any(now.hour in r for r in QUIET_HOURS):
@@ -396,18 +403,20 @@ def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
             it.update(failed_at=now.isoformat(timespec="seconds"), reason=str(exc)[:300])
             note_failure(it)
         save_queue(q)
-    # 임시저장된 글로 가는 다른 공개 글의 링크를 블로그마다 하룻밤 한 편씩 중심 글로 바꿉니다 (깨진 내부 링크 방지).
-    for host in ([] if dry_run else relink_hosts):
-        if wrote:
-            time.sleep(120)
-        try:
-            fixed = relink_one(fleet, q, host)
-        except blogger.BloggerForbidden:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            print(f"링크 고치기 실패 ({host}): {exc}")
-            fixed = ""
-        if fixed:
+    # 임시저장된 글로 가는 다른 공개 글의 링크를 블로그마다 하룻밤 RELINK_PER_NIGHT 편까지 중심 글로 바꿉니다 (깨진 내부 링크 방지).
+    for host, left in ({} if dry_run else quota).items():
+        for _ in range(left):
+            if wrote:
+                time.sleep(120)
+            try:
+                fixed = relink_one(fleet, q, host)
+            except blogger.BloggerForbidden:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                print(f"링크 고치기 실패 ({host}): {exc}")
+                fixed = ""
+            if not fixed:
+                break
             wrote = True
             q.append({"action": "relink", "url": fixed, "night": night,
                       "done_at": datetime.now(KST).isoformat(timespec="seconds")})

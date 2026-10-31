@@ -1570,6 +1570,15 @@ def test_retrofit(cfg: dict) -> None:
     rf = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "retrofit.yml").read_text(encoding="utf-8")
     check("다시 쓰기 실패는 이슈로 알림", "issues: write" in rf and "rewrite_failures.md" in rf
           and str(rw.FAIL_REPORT).replace("\\", "/").endswith("out/rewrite_failures.md"))
+    rq = [{"action": "revert", "url": "https://g/2026/10/x.html", "into": "https://g/2026/10/hub.html"},
+          {"action": "revert", "url": "https://h/2026/10/x.html", "into": "https://h/2026/10/hub.html"},
+          {"action": "relink", "url": "https://g/2026/10/r1.html", "night": "2026-10-31"},
+          {"action": "relink", "url": "https://h/2026/10/r1.html", "night": "2026-10-31"},
+          {"action": "relink", "url": "https://h/2026/10/r2.html", "night": "2026-10-31"},
+          {"action": "relink", "url": "https://g/2026/10/r0.html", "night": "2026-10-30"}]
+    check("링크 고치기: 블로그마다 하룻밤 2편까지 (같은 밤 다시 돌면 남은 몫만)",
+          rw.relink_quota(rq, "2026-10-31") == {"g": 1} and rw.relink_quota(rq, "2026-11-01") == {"g": 2, "h": 2},
+          str(rw.relink_quota(rq, "2026-10-31")))
     body, n = rw.relink('<a href="https://g/2026/10/x.html">옛 글</a> <a href="https://g/2026/10/z.html">그대로</a>',
                         {"/2026/10/x.html": "https://g/2026/10/hub.html"})
     check("임시저장된 글로 가는 링크만 중심 글로", n == 1 and 'href="https://g/2026/10/hub.html"' in body
