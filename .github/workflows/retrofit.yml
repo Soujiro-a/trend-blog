@@ -23,6 +23,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write   # 다시 쓰기 실패 알림
 
 jobs:
   retrofit:
@@ -89,6 +90,21 @@ jobs:
           BLOGGER_CLIENT_SECRET_SECOND: ${{ secrets.BLOGGER_CLIENT_SECRET_SECOND }}
           BLOGGER_REFRESH_TOKEN_SECOND: ${{ secrets.BLOGGER_REFRESH_TOKEN_SECOND }}
         run: python scripts/rewrite_post.py run-queue
+
+      # 검수 보류·오류로 failed_at 이 적히면 이슈를 열어 메일로 알립니다 (2026-10-31: 대기열 기록에만 남아 늦게 알았습니다).
+      - name: 다시 쓰기 실패 알림
+        if: always() && hashFiles('out/rewrite_failures.md') != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "밤 다시 쓰기 대기열에서 실패한 항목입니다. 원래 글은 그대로 공개돼 있고, 이 글에 묶인 임시저장도 멈춰 있습니다."
+            echo
+            cat out/rewrite_failures.md
+            echo
+            echo "기록: data/fleet/rewrite_queue.json (failed_at·reason). 다시 하려면 지적을 fix 에 넣은 재시도 항목을 대기열에 추가하세요."
+          } > failure_issue.md
+          gh issue create --title "⚠️ 다시 쓰기 실패 $(date -u -d '+9 hours' +'%Y-%m-%d %H:%M') KST" --body-file failure_issue.md
 
       - name: 기록 커밋
         if: always()

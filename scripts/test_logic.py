@@ -1554,6 +1554,22 @@ def test_retrofit(cfg: dict) -> None:
     check("다시 쓰기 대기열: 블로그마다 따로 하룻밤 1건씩",
           [s["url"] for s in rw.next_steps(q2, "2026-10-31")] == ["https://g/2026/09/b.html", "https://g/2026/10/x.html",
                                                                  "https://h/2026/10/a.html"])
+    q3 = [{"action": "rewrite", "url": "https://h/2026/10/hub.html", "done_at": "2026-10-31T01:05:00+09:00"},
+          {"action": "revert", "url": "https://g/2026/10/x2.html", "into": "https://g/2026/10/hub.html"}]
+    check("다시 쓰기 대기열: 다른 블로그의 같은 경로 중심 글로는 임시저장 안 함", rw.next_steps(q3, "2026-10-31") == [])
+    bq = [{"action": "rewrite", "url": "https://g/2026/10/hub.html?m=1", "failed_at": "x"},
+          {"action": "rewrite", "url": "https://g/2026/10/hub.html"},
+          {"action": "rewrite", "url": "https://g/2026/09/dead.html", "failed_at": "x"},
+          {"action": "rewrite", "url": "https://g/2026/09/done.html", "done_at": "x"},
+          {"action": "revert", "url": "https://g/2026/10/a.html", "into": "https://g/2026/10/hub.html"},
+          {"action": "revert", "url": "https://g/2026/10/b.html", "into": "https://g/2026/09/done.html"},
+          {"action": "revert", "url": "https://g/2026/10/c.html", "into": "https://g/2026/09/dead.html"},
+          {"action": "revert", "url": "https://g/2026/10/d.html", "into": "https://g/2026/09/done.html", "done_at": "x"}]
+    check("대기열 글은 다듬기·사실 갱신에서 뺌 (실패로 멈춘 임시저장·끝난 글은 그대로)",
+          rw.busy_urls(bq) == {"g/2026/10/hub.html", "g/2026/10/a.html", "g/2026/10/b.html"}, str(rw.busy_urls(bq)))
+    rf = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "retrofit.yml").read_text(encoding="utf-8")
+    check("다시 쓰기 실패는 이슈로 알림", "issues: write" in rf and "rewrite_failures.md" in rf
+          and str(rw.FAIL_REPORT).replace("\\", "/").endswith("out/rewrite_failures.md"))
     body, n = rw.relink('<a href="https://g/2026/10/x.html">옛 글</a> <a href="https://g/2026/10/z.html">그대로</a>',
                         {"/2026/10/x.html": "https://g/2026/10/hub.html"})
     check("임시저장된 글로 가는 링크만 중심 글로", n == 1 and 'href="https://g/2026/10/hub.html"' in body

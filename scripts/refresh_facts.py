@@ -280,6 +280,9 @@ def main(argv: list[str] | None = None) -> int:
 
     fleet = fleet_mod.load_fleet()
     acc_state = fleet_mod.load_account_state()
+    from scripts import rewrite_post as rw
+
+    busy = set() if manual else rw.busy_urls(rw.load_queue())   # 곧 다시 쓰거나 임시저장할 글은 확인해도 헛일
     posts: list[tuple[fleet_mod.Blog, dict]] = []
     reinforce_urls: list[str] = []
     clicks: dict[str, int] = {}
@@ -288,7 +291,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         fleet_mod.apply_env(fleet, b)
         for p in rp._live_posts(b.blog_id):
-            if args.url and p["url"] != args.url:
+            if (args.url and p["url"] != args.url) or rw.key_of(p["url"]) in busy:
                 continue
             posts.append((b, p))
         reinforce_urls += [r["url"] for r in _reinforce(b) if r.get("url")]

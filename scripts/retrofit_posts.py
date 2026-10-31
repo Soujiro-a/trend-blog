@@ -153,9 +153,12 @@ def wants_card(content: str, url: str, card_on: bool, no_card: list[str]) -> boo
 
 def candidates(
     fleet: fleet_mod.Fleet, card_on: bool = False, no_card: list[str] | None = None,
-    polish_cfg: dict | None = None, state: dict | None = None,
+    polish_cfg: dict | None = None, state: dict | None = None, busy: set[str] | None = None,
 ) -> list[tuple[datetime, fleet_mod.Blog, dict]]:
-    """고칠 글 전체를 공개 시각 오름차순으로. 꺼진 블로그와 비상정지된 계정은 뺍니다."""
+    """고칠 글 전체를 공개 시각 오름차순으로. 꺼진 블로그와 비상정지된 계정, 다시 쓰기 대기열이 곧 새로 쓰거나
+    임시저장할 글(busy, rewrite_post.busy_urls)은 뺍니다."""
+    from scripts.rewrite_post import key_of
+
     out = []
     st = fleet_mod.load_account_state()
     for b in fleet.blogs:
@@ -163,6 +166,8 @@ def candidates(
             continue
         fleet_mod.apply_env(fleet, b)
         for p in _live_posts(b.blog_id):
+            if busy and key_of(p["url"]) in busy:
+                continue
             content = p.get("content", "")
             if (needs_retrofit(content) or wants_card(content, p["url"], card_on, no_card or [])
                     or wants_polish(p, polish_cfg or {}, state or {})):
@@ -214,7 +219,9 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config()
     card_on = bool((cfg.get("card") or {}).get("enabled"))
     polish_cfg = cfg.get("polish") or {}
-    todo = candidates(fleet, card_on, state.get("no_card", []), polish_cfg, state)
+    from scripts import rewrite_post as rw
+
+    todo = candidates(fleet, card_on, state.get("no_card", []), polish_cfg, state, busy=rw.busy_urls(rw.load_queue()))
     print(f"고칠 글 {len(todo)}편 (오래된 순)")
     for when, b, p in todo[:30]:
         print(f"  {when:%m-%d %H:%M}  {b.id:13} {p['url']}")

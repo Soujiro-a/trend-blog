@@ -161,6 +161,18 @@
  },
  {
   "action": "rewrite",
+  "url": "https://nowissue1.blogspot.com/2026/10/1.html",
+  "topic": "청약통장 1순위 조건과 가입기간 인정 기준",
+  "absorb": [
+   "https://nowissue1.blogspot.com/2026/10/5.html",
+   "https://nowissue1.blogspot.com/2026/10/blog-post_22.html",
+   "https://nowissue1.blogspot.com/2026/10/blog-post_23.html"
+  ],
+  "fix": "지난 시도(10/30)가 검수 72점으로 보류된 이유: (1) 요약 카드에서 자료의 '청약통장 해지'를 '종합저축 해지'로 좁혀 씀. 카드 문구는 자료 표현 그대로. (2) '중도 해지하면 실적 소멸'과 '청약예금·부금·저축 해지 후 청약통장 재가입 시 실적 인정'이 충돌해 보임. 두 경우를 가르는 기준을 분명히 쓸 것. (3) 전환 기한을 '국토교통부가 정한 기한', '은행에 확인'으로 넘김. 자료에 있는 연장 기한을 기준 연도까지 밝혀 쓰고, 자료로 연도가 확인되지 않으면 기한 질문을 범위에서 뺄 것.",
+  "plan": "retry-2026-10-31"
+ },
+ {
+  "action": "rewrite",
   "url": "https://nowissue1.blogspot.com/2026/10/2_0677389600.html",
   "topic": "청약 가점 계산, 무주택기간과 부양가족 기준",
   "absorb": [
@@ -701,17 +713,5 @@
   "url": "https://issuepick1.blogspot.com/2026/10/blog-post_12.html",
   "fix": "신청 경로와 임의·임의계속 비교표는 있으나 탈퇴 뒤 가입기간·낸 보험료가 어떻게 되는지(재가입, 10년 미만 시 반환일시금) 판단 정보가 없고, 임의계속가입 링크가 건강보험 글 [4]로 잘못 걸려 있음.",
   "plan": "lowvalue-2026-10-30"
- },
- {
-  "action": "rewrite",
-  "url": "https://nowissue1.blogspot.com/2026/10/1.html",
-  "topic": "청약통장 1순위 조건과 가입기간 인정 기준",
-  "absorb": [
-   "https://nowissue1.blogspot.com/2026/10/5.html",
-   "https://nowissue1.blogspot.com/2026/10/blog-post_22.html",
-   "https://nowissue1.blogspot.com/2026/10/blog-post_23.html"
-  ],
-  "fix": "지난 시도(10/30)가 검수 72점으로 보류된 이유: (1) 요약 카드에서 자료의 '청약통장 해지'를 '종합저축 해지'로 좁혀 씀. 카드 문구는 자료 표현 그대로. (2) '중도 해지하면 실적 소멸'과 '청약예금·부금·저축 해지 후 청약통장 재가입 시 실적 인정'이 충돌해 보임. 두 경우를 가르는 기준을 분명히 쓸 것. (3) 전환 기한을 '국토교통부가 정한 기한', '은행에 확인'으로 넘김. 자료에 있는 연장 기한을 기준 연도까지 밝혀 쓰고, 자료로 연도가 확인되지 않으면 기한 질문을 범위에서 뺄 것.",
-  "plan": "retry-2026-10-31"
  }
 ]

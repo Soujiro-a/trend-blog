@@ -42,6 +42,7 @@ from src.trends import Candidate, Variant  # noqa: E402
 
 PREVIEW_DIR = OUT_DIR / "rewrite"
 QUEUE_PATH = DATA_DIR / "fleet" / "rewrite_queue.json"
+FAIL_REPORT = OUT_DIR / "rewrite_failures.md"   # 있으면 워크플로가 이슈를 열어 메일로 알립니다
 QUIET_HOURS = range(22, 24), range(0, 6)
 HUB_LENGTH = (4000, 5500)      # 묶음을 합친 중심 글은 상황이 많아 기본(2,500~3,000)보다 길게
 MAX_OFFICIAL_PAGES = 10
@@ -263,11 +264,16 @@ def host_of(url: str) -> str:
     return urllib.parse.urlparse(url).netloc.lower()
 
 
+def key_of(url: str) -> str:
+    """블로그+경로. 경로만 비교하면 다른 블로그의 같은 주소(/2026/10/1.html)와 섞입니다."""
+    return host_of(url) + path_of(url)
+
+
 def next_steps(q: list[dict], night: str) -> list[dict]:
     """오늘 밤 할 일: **블로그마다** 아직 안 한 다시 쓰기 1건 + 중심 글이 반영된 임시저장 1건.
     그 블로그가 오늘 밤 이미 한 종류는 건너뜁니다. (2026-10-29: 함대 전체 1건이면 세 블로그 정리에 한 달이 걸려 블로그별로)"""
     q = [it for it in q if not it.get("hold")]   # hold: 사람이 미리보기를 확인할 글 (손으로 apply 후 done_at 을 적음)
-    applied = {path_of(it["url"]) for it in q if it["action"] == "rewrite" and it.get("done_at")}
+    applied = {key_of(it["url"]) for it in q if it["action"] == "rewrite" and it.get("done_at")}
     out = []
     for host in dict.fromkeys(host_of(it["url"]) for it in q if it["action"] in ("rewrite", "revert")):
         mine = [it for it in q if host_of(it["url"]) == host]
@@ -276,8 +282,28 @@ def next_steps(q: list[dict], night: str) -> list[dict]:
         if "rewrite" not in done_tonight:
             out += [it for it in pending if it["action"] == "rewrite"][:1]
         if "revert" not in done_tonight:
-            out += [it for it in pending if it["action"] == "revert" and path_of(it["into"]) in applied][:1]
+            out += [it for it in pending if it["action"] == "revert" and key_of(it["into"]) in applied][:1]
     return out
+
+
+def busy_urls(q: list[dict]) -> set[str]:
+    """곧 다시 쓰거나 임시저장할 글(key_of). 문장 다듬기·사실 갱신은 이 글을 건너뜁니다 — 고쳐 봐야 곧 새로 쓰이거나
+    내려가서 비용과 쓰기 요청만 듭니다(2026-10-31 점검: 다듬은 24편 중 17편이 대기열 글).
+    중심 글 다시 쓰기가 실패해 멈춘 임시저장은 사람이 정할 때까지 공개로 남으므로 넣지 않습니다."""
+    rewrites = [it for it in q if it["action"] == "rewrite"]
+    applied = {key_of(it["url"]) for it in rewrites if it.get("done_at")}
+    coming = {key_of(it["url"]) for it in rewrites if not it.get("done_at") and not it.get("failed_at")}
+    reverts = {key_of(it["url"]) for it in q if it["action"] == "revert" and not it.get("done_at")
+               and not it.get("failed_at") and key_of(it["into"]) in applied | coming}
+    return coming | reverts
+
+
+def note_failure(it: dict) -> None:
+    """실패를 out/ 에 적어 둡니다. 워크플로가 이 파일을 보고 이슈를 엽니다(2026-10-31: 검수 보류가 대기열 기록에만
+    남아 사람이 다음 보고 때에야 알았습니다)."""
+    FAIL_REPORT.parent.mkdir(parents=True, exist_ok=True)
+    with FAIL_REPORT.open("a", encoding="utf-8") as f:
+        f.write(f"- {it['action']} {it['url']}\n  - {it.get('reason', '')}\n")
 
 
 def relink(content: str, moved: dict[str, str]) -> tuple[str, int]:
@@ -352,6 +378,7 @@ def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
                     it.update(failed_at=now.isoformat(timespec="seconds"),
                               reason=f"검수 {data['review']['verdict']} {data['review']['score']}점: "
                                      + "; ".join(data["review"]["issues"][:3]))
+                    note_failure(it)
                     save_queue(q)
                     continue
                 do_apply(cfg, fleet, it["url"])
@@ -362,10 +389,12 @@ def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
             wrote = True
         except blogger.BloggerForbidden as exc:
             it.update(failed_at=now.isoformat(timespec="seconds"), reason=str(exc)[:300])
+            note_failure(it)
             save_queue(q)
             raise
-        except Exception as exc:  # noqa: BLE001 — 한 건 실패로 기록만 남기고 다음 밤에 사람이 봅니다
+        except Exception as exc:  # noqa: BLE001 — 한 건 실패로 기록을 남기고 이슈로 알립니다
             it.update(failed_at=now.isoformat(timespec="seconds"), reason=str(exc)[:300])
+            note_failure(it)
         save_queue(q)
     # 임시저장된 글로 가는 다른 공개 글의 링크를 블로그마다 하룻밤 한 편씩 중심 글로 바꿉니다 (깨진 내부 링크 방지).
     for host in ([] if dry_run else relink_hosts):
