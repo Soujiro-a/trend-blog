@@ -39,15 +39,17 @@
   },
   {
     "keyword": "정기구독 서비스 해지했는데 위약금 청구받았을 때 대처법",
-    "title": "정기구독 해지 위약금 청구받았을 때 대처법, 확인 순서와 이의제기 문구",
+    "title": "무료체험 자동결제 해지·환불 요청, 확인할 근거와 순서",
     "post_id": "2485934151676885066",
     "url": "https://gaganamc1.blogspot.com/2026/09/blog-post_24.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.4045,
-    "review_score": 87,
+    "review_score": 86,
     "extras": [],
-    "posted_at": "2026-09-25T14:04:58+09:00"
+    "posted_at": "2026-09-25T14:04:58+09:00",
+    "description": "무료체험 뒤 자동결제됐다면 먼저 해지하고, 유료 전환 시점에 따로 동의했는지 확인하세요. 상황별 근거, 환불 요청 문구, 해결 안 될 때 가는 곳을 정리했습니다.",
+    "rewritten_at": "2026-11-01T03:13:05+09:00"
   },
   {
     "keyword": "중고거래 사기 당했을 때 경찰 신고 방법과 절차",
@@ -142,12 +144,14 @@
     "title": "전자상거래법 청약철회 기간 기산일, 7일은 수령일 다음날부터",
     "post_id": "3991553090481470371",
     "url": "https://gaganamc1.blogspot.com/2026/10/7.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.3057,
     "review_score": 88,
     "extras": [],
-    "posted_at": "2026-10-03T12:36:26+09:00"
+    "posted_at": "2026-10-03T12:36:26+09:00",
+    "merged_into": "https://gaganamc1.blogspot.com/2026/09/7.html",
+    "reverted_at": "2026-11-01T03:15:06+09:00"
   },
   {
     "keyword": "무료체험 후 자동결제 됐는데 해지 전 결제된 금액 환불받는 방법",
