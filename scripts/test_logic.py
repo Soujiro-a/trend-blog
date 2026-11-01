@@ -1904,6 +1904,30 @@ def test_adsense_readiness() -> None:
     rv = reviewer.flag_copies(reviewer.Review(verdict="publish", score=90), art, ctx)
     check("복제 콘텐츠가 많으면 publish → hold 와 지적", rv.verdict == "hold" and rv.issues[0].startswith("복제 콘텐츠"))
 
+    lctx = ("1. 정책 안내\n   - 링크(걸어도 됨): https://www.korea.kr/news/policyNewsView.do?newsId=148964618&pWise=sub.\n"
+            "## 이 블로그의 다른 글 (내부 링크 후보)\n- 앞 글\n  https://g.blogspot.com/2026/10/a.html\n")
+    body = ('<p><a href="https://www.korea.kr/news/policyNewsView.do?newsId=148964618&amp;pWise=sub">정책</a>'
+            '<a href="https://g.blogspot.com/2026/10/a.html">앞 글</a><a href="#faq">FAQ</a></p>')
+    links, missing = reviewer.check_links(body, lctx)
+    check("링크 대조: &amp;·끝 마침표를 맞추고 앵커는 셈하지 않음", len(links) == 2 and missing == [], f"{links} {missing}")
+    _, missing = reviewer.check_links(body.replace("148964618", "148964619"), lctx)
+    check("링크 대조: 숫자 하나 다른 주소는 없는 주소", len(missing) == 1)
+    _, missing = reviewer.check_links('<a href="https://g.blogspot.com/2026/10/a.html2">x</a>', lctx)
+    check("링크 대조: 앞부분만 같은 주소는 없는 주소", len(missing) == 1)
+    check("검수 입력에 링크 대조 자리", "{links}" in reviewer.USER_TEMPLATE and "링크 대조 결과" in reviewer.SYSTEM)
+    fake = "참고 자료에 없는 링크 주소: 정책브리핑 링크가 newsId=148964618 이 아니라 148964618 로 바뀌어 있습니다."
+    rv = reviewer.settle_links(reviewer.Review(verdict="reject", score=40, issues=[fake]), links, [])
+    check("링크 대조: 주소가 맞으면 링크 지적만의 거부 → 보류", rv.verdict == "hold" and fake not in rv.issues, str(rv.issues))
+    other = "2027년 5월 신고는 자료에 없는 일반화"
+    rv = reviewer.settle_links(reviewer.Review(verdict="reject", score=40, issues=[fake, other]), links, [])
+    check("링크 대조: 다른 거부 사유가 있으면 거부 유지, 링크 지적만 뺌", rv.verdict == "reject" and rv.issues == [other])
+    contact = "공식 확인처에 없는 사이트 주소를 글자로 적음"
+    rv = reviewer.settle_links(reviewer.Review(verdict="hold", score=70, issues=[contact]), links, [])
+    check("링크 대조: 글자로 적은 연락처 지적은 그대로", rv.issues == [contact])
+    rv = reviewer.settle_links(reviewer.Review(verdict="publish", score=90), links, ["https://made.up/x"])
+    check("링크 대조: 자료에 없는 주소가 있으면 publish → hold 와 지적",
+          rv.verdict == "hold" and rv.issues[0].startswith("링크:"), str(rv.issues))
+
 
 def test_weekly_report(cfg: dict) -> None:
     """주간 보고 경고는 블로그마다 켜진 슬롯(램프업)으로 기대 글 수를 잡아 판단합니다."""

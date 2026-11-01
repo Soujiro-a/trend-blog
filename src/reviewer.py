@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import re
@@ -45,7 +46,8 @@ SYSTEM = """당신은 한국 시사·생활정보 블로그의 발행 책임자�
 글 맨 끝의 `○○ 기준으로 정리한 내용입니다` 같은 작성일 안내 문구는 운영자가 붙이게 한 것이라 근거를 따지지 않습니다.
 - 참고 자료에 없는 링크 주소를 만들어 넣음
   (단, 자료의 `## 이 블로그의 다른 글` 목록에 있는 주소를 본문에 건 것은 정상입니다. \
-그 목록에 없는 같은 블로그 주소를 지어냈을 때만 문제입니다.)
+그 목록에 없는 같은 블로그 주소를 지어냈을 때만 문제입니다. \
+주소가 자료에 있는지는 글 뒤의 `링크 대조 결과` 를 따릅니다. 코드가 글자 단위로 대조한 결과라 눈으로 다시 비교하지 않습니다.)
 - 특정 개인·집단을 비하하거나 혐오·선정·폭력 묘사가 있음
 - 투자·의료·법률에 대해 "사라/팔아라/복용하라" 식의 직접 권유
 
@@ -110,6 +112,8 @@ USER_TEMPLATE = """## 참고 자료 (작성 모델에게 주어진 자료 전부
 
 본문(HTML):
 {body}
+
+{links}
 
 위 기준대로 판정하고 JSON 만 출력하세요."""
 
@@ -181,6 +185,60 @@ def flag_copies(result: "Review", article: Article, context: str) -> "Review":
     return result
 
 
+# 링크 대조: 검수 모델이 같은 주소를 두고 "자료의 newsId=148964618 이 아니라 148964618" 처럼 다르다고 적어
+# 거부한 일이 있습니다(2026-10-31 issuecatch1 다시 쓰기). 주소가 자료에 그대로 있는지는 코드가 먼저 보고
+# 결과를 검수 모델에 넘기고, 판정 뒤에도 코드 결과와 어긋난 주소 지적을 걸러 냅니다.
+_HREF = re.compile(r'<a\s[^>]*href="([^"]+)"', re.I)
+_CTX_URL = re.compile(r'https?://[^\s<>"\')\]]+')
+# 링크(href) 주소를 문제 삼은 지적만. 글자로 적은 연락처·사이트 지적("공식 확인처에 없는 주소")은 건드리지 않습니다.
+_LINK_CLAIM = re.compile(r"(?:링크|href).{0,40}(?:주소|URL|newsId|지어|만들|다르|바뀌|없)|(?:주소|URL|newsId).{0,40}링크"
+                         r"|없는\s*링크", re.I)
+
+
+def _url_key(url: str) -> str:
+    return html.unescape(url).strip().rstrip(".,;:").rstrip("/")
+
+
+def check_links(body_html: str, context: str) -> tuple[list[str], list[str]]:
+    """(본문 링크 전부, 그중 참고 자료에 그대로 없는 주소). 같은 페이지 안 앵커·메일·전화는 셈하지 않습니다."""
+    links = list(dict.fromkeys(html.unescape(h).strip() for h in _HREF.findall(body_html)
+                               if h.strip().startswith(("http://", "https://"))))
+    known = {_url_key(u) for u in _CTX_URL.findall(context)}
+    return links, [u for u in links if _url_key(u) not in known]
+
+
+def links_block(links: list[str], missing: list[str]) -> str:
+    head = "## 링크 대조 결과 (코드가 본문 주소를 참고 자료와 글자 단위로 대조함)\n\n"
+    if not links:
+        return head + "본문에 링크가 없습니다."
+    if not missing:
+        return head + (f"본문 링크 {len(links)}개가 모두 참고 자료에 글자 하나 다르지 않고 그대로 있습니다. "
+                       "'자료에 없는 링크'·'주소가 바뀜'으로 판단하지 마세요. 링크 글자가 그 자료를 가리키는지만 봅니다.")
+    return head + (f"본문 링크 {len(links)}개 중 {len(missing)}개는 참고 자료에 그대로 있지 않습니다:\n"
+                   + "\n".join(f"- {u}" for u in missing))
+
+
+def settle_links(result: "Review", links: list[str], missing: list[str]) -> "Review":
+    """코드 대조 결과로 판정을 맞춥니다. 없는 주소가 있으면 공개하지 않고, 주소가 모두 맞으면 주소 지적을 뺍니다."""
+    if missing:
+        if result.verdict == "publish":
+            result.verdict = "hold"
+        if not any(_LINK_CLAIM.search(i) for i in result.issues):
+            result.issues = [f"링크: 참고 자료에 없는 주소 {len(missing)}개 (예: {missing[0]}) — 자료에 적힌 주소를 그대로 쓸 것",
+                             *result.issues][:8]
+        return result
+    kept = [i for i in result.issues if not _LINK_CLAIM.search(i)]
+    if not links or len(kept) == len(result.issues):
+        return result
+    log.info("링크 대조: 주소 %d개가 모두 자료에 있어 검수 지적 %d개를 뺌", len(links), len(result.issues) - len(kept))
+    result.issues = kept
+    if result.verdict == "reject" and not kept:
+        # 주소 지적만으로 거부했는데 주소가 맞았다면 거부할 근거가 없습니다. 점수는 믿을 수 없으니 보류로 둡니다.
+        result.verdict = "hold"
+        result.issues = ["링크 지적은 코드 대조로 확인해 뺐음(주소 모두 자료와 같음) — 나머지 내용은 다시 검수할 것"]
+    return result
+
+
 def _parse(raw: str, model: str) -> Review:
     """모델 응답에서 JSON 을 꺼냅니다. 코드 펜스가 섞여도 처리합니다."""
     m = _JSON_BLOCK.search(raw)
@@ -226,8 +284,10 @@ def review(
     model = r["model"]
     client = client or llm.client()
 
+    links, missing = check_links(article.body_html, context)
     user = USER_TEMPLATE.format(
         context=context,
+        links=links_block(links, missing),
         title=article.title,
         description=article.description,
         labels=", ".join(article.labels),
@@ -250,6 +310,7 @@ def review(
         raw = llm.text_of(response, f"[{article.keyword}] 검수")
         result = _parse(raw, model)
         result = flag_copies(result, article, context)
+        result = settle_links(result, links, missing)
 
     result.input_tokens = response.usage.input_tokens
     result.output_tokens = response.usage.output_tokens
