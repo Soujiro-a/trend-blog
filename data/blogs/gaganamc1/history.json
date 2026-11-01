@@ -15,15 +15,17 @@
   },
   {
     "keyword": "해외직구 관세 환급 신청 방법과 조건",
-    "title": "해외직구 관세 환급 신청 방법과 조건, 반품·과다납부 때 돌려받는 절차 정리",
+    "title": "해외직구 관세 환급, 반품 6개월 기준·과다납부 신청법",
     "post_id": "8192859054916817081",
     "url": "https://gaganamc1.blogspot.com/2026/09/blog-post.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.3755,
-    "review_score": 82,
+    "review_score": 86,
     "extras": [],
-    "posted_at": "2026-09-22T14:49:56+09:00"
+    "posted_at": "2026-09-22T14:49:56+09:00",
+    "description": "해외직구 반품 관세는 수입신고 수리일부터 6개월 안에 수출하면 돌려받고, 200만 원 이하는 수출신고 없이도 됩니다. 배대지 반품과 과다납부 때 내는 서류, 유니패스·앱 신청 순서를 정리했습니다.",
+    "rewritten_at": "2026-11-02T03:54:36+09:00"
   },
   {
     "keyword": "배송 중 파손된 제품 환불 및 교환 요청 방법",
@@ -471,13 +473,15 @@
     "title": "후기 작성 환불 불가 쇼핑몰, 청약철회 7일 요구하는 법",
     "post_id": "8997414543087748766",
     "url": "https://gaganamc1.blogspot.com/2026/10/7_01284402116.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.3661,
     "review_score": 90,
     "extras": [],
     "description": "후기를 쓰면 환불 불가라는 문구가 있어도 받은 다음 날부터 7일 안이면 청약철회를 요구할 수 있습니다. 기한 계산, 보낼 문구, 거부될 때 갈 곳을 정리했습니다.",
-    "posted_at": "2026-10-25T15:07:41+09:00"
+    "posted_at": "2026-10-25T15:07:41+09:00",
+    "merged_into": "https://gaganamc1.blogspot.com/2026/09/7.html",
+    "reverted_at": "2026-11-02T03:56:37+09:00"
   },
   {
     "keyword": "해외직구 물건 받았는데 관세 부과 안내서와 금액이 다를 때 이의신청 방법",

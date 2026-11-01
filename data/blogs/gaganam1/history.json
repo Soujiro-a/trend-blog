@@ -49,15 +49,17 @@
   },
   {
     "keyword": "중고차 명의이전 필요서류와 신청 기간",
-    "title": "중고차 명의이전 필요서류와 신청 기간, 양수인이 준비할 것 순서대로 정리",
+    "title": "중고차 명의이전 필요서류와 기한, 지연 과태료 계산",
     "post_id": "249234736805378964",
     "url": "https://gaganam1.blogspot.com/2026/09/blog-post_24.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.3566,
-    "review_score": 87,
+    "review_score": 86,
     "extras": [],
-    "posted_at": "2026-09-25T09:12:20+09:00"
+    "posted_at": "2026-09-25T09:12:20+09:00",
+    "description": "중고차 명의이전은 산 날부터 15일 안에 차량등록사무소에 신청해야 하고, 늦으면 최고 50만원이 부과됩니다. 거래별 기한, 양도인·양수인 서류, 지연 금액 계산법을 정리했습니다.",
+    "rewritten_at": "2026-11-02T03:33:07+09:00"
   },
   {
     "keyword": "엔진오일 교체 주기와 종류별 차이",
@@ -297,13 +299,15 @@
     "title": "운전면허 적성검사 시력 미달 불합격, 1종·2종 기준과 다시 준비할 것",
     "post_id": "6872196115764268398",
     "url": "https://gaganam1.blogspot.com/2026/10/12.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.3273,
     "review_score": 88,
     "extras": [],
     "description": "적성검사 시력 기준은 안경·콘택트렌즈를 낀 교정시력도 인정되며, 1종은 두 눈 0.8·각각 0.5 이상, 2종은 두 눈 0.5 이상입니다. 불합격하거나 기간을 1년 넘기면 면허가 취소되니 서류와 기한을 정리했습니다.",
-    "posted_at": "2026-10-14T08:51:23+09:00"
+    "posted_at": "2026-10-14T08:51:23+09:00",
+    "merged_into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html",
+    "reverted_at": "2026-11-02T03:35:08+09:00"
   },
   {
     "keyword": "겨울철 배터리 방전 후 재시동 안 걸릴 때 교체 시기 판단 기준",
