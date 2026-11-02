@@ -23,6 +23,8 @@ on:
         default: false
 
 # 함대 실행이 겹치면 이력·선점 파일이 충돌합니다. 진행 중이면 새 실행은 대기(큐)합니다.
+# 관리·사실 갱신·기존 글 정리는 2026-11-02 부터 그룹을 따로 씁니다. 같은 그룹이면 GitHub 이 대기 실행을 하나만 둬서
+# 대기하던 관리 작업이 뒤에 온 함대 실행에 밀려 취소됐습니다. 서로 겹치지 않게 하는 일은 scripts/wait_turn.py 가 합니다.
 concurrency:
   group: fleet
   cancel-in-progress: false
@@ -30,34 +32,50 @@ concurrency:
 permissions:
   contents: write
   issues: write   # 계정 비상정지 알림
+  actions: read   # 앞선 함대 워크플로 실행 확인 (scripts/wait_turn.py)
 
 jobs:
   fleet:
     # ubuntu-latest 는 2026-10-19 부터 Ubuntu 26 으로 바뀝니다. 이미지가 바뀌는 날 자동화가 깨지지 않게 고정합니다.
     runs-on: ubuntu-24.04
     # 밀린 슬롯을 처리할 때 같은 계정 글 사이를 30~40분씩 벌리므로 길게 둡니다.
-    # fleet/blogs.yaml 의 run_budget_minutes(150) 보다 커야 합니다. 공개 저장소라 Actions 시간은 무료입니다.
-    timeout-minutes: 200
+    # fleet/blogs.yaml 의 run_budget_minutes(150) + 차례 기다리기(30)보다 커야 합니다. 공개 저장소라 Actions 시간은 무료입니다.
+    timeout-minutes: 230   # + 차례 기다리기 30분
 
     steps:
       - uses: actions/checkout@v5
 
+      # 관리·정리 작업이 먼저 와 있으면 30분까지 기다리고, 그래도 안 끝났으면 이번 실행은 건너뜁니다.
+      # 밀린 슬롯은 다음 실행이 따라잡습니다.
+      - name: 차례 기다리기
+        id: turn
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/wait_turn.py --max-wait 30 --on-timeout skip
+          # 기다리는 동안 앞선 실행이 커밋한 이력을 받아 둡니다.
+          git pull -q --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+
       - uses: actions/setup-python@v6
+        if: steps.turn.outputs.go == 'true'
         with:
           python-version: "3.12"
           cache: pip
 
       - name: 의존성 설치
+        if: steps.turn.outputs.go == 'true'
         run: pip install -r requirements.txt
 
       # 요약 카드(src/card.py)에 쓰는 한글 글꼴. 10MB 라 저장소에 올리지 않고 받아서 캐시해 둡니다.
       # 받지 못해도 실행은 계속되고 글이 카드 없이 발행됩니다.
       - uses: actions/cache@v5
+        if: steps.turn.outputs.go == 'true'
         with:
           path: assets/fonts
           key: noto-sans-kr-vf-1
 
       - name: 요약 카드 글꼴
+        if: steps.turn.outputs.go == 'true'
         run: |
           mkdir -p assets/fonts
           F=assets/fonts/NotoSansKR-VF.ttf
@@ -65,6 +83,7 @@ jobs:
             || { rm -f "$F"; echo "글꼴을 받지 못했습니다 — 이번 실행은 요약 카드 없이 진행합니다."; }
 
       - name: 함대 실행
+        if: steps.turn.outputs.go == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
@@ -96,7 +115,7 @@ jobs:
           python -m src.fleet_run $ARGS
 
       - name: 실행 결과를 요약에 남기기
-        if: always()
+        if: always() && steps.turn.outputs.go == 'true'
         run: |
           if [ -f data/fleet/last_fleet_run.md ]; then
             cat data/fleet/last_fleet_run.md >> "$GITHUB_STEP_SUMMARY"
@@ -107,7 +126,7 @@ jobs:
           fi
 
       - name: 계정 비상정지 알림
-        if: always()
+        if: always() && steps.turn.outputs.go == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -119,7 +138,7 @@ jobs:
           fi
 
       - name: 이력 커밋
-        if: always()
+        if: always() && steps.turn.outputs.go == 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

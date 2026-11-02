@@ -1369,8 +1369,31 @@ def test_workflows() -> None:
         text = (wf / name).read_text(encoding="utf-8")
         check(f"{name}: 요약 카드 업로드 토큰·글꼴", "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in text
               and "NotoSansKR" in text and "contents: write" in text)
-    check("refresh.yml: 공식 자료 조사용 API 키·같은 그룹", "ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}"
-          in (wf / "refresh.yml").read_text(encoding="utf-8") and "group: fleet" in (wf / "refresh.yml").read_text(encoding="utf-8"))
+    check("refresh.yml: 공식 자료 조사용 API 키", "ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}"
+          in (wf / "refresh.yml").read_text(encoding="utf-8"))
+    # 2026-11-01: 네 워크플로가 그룹 하나를 같이 써서, 대기하던 관리·사실 갱신이 뒤에 온 실행에 밀려 취소됐습니다.
+    import re
+
+    from scripts import wait_turn as wt
+    groups = {}
+    for name in wt.WATCH:
+        text = (wf / name).read_text(encoding="utf-8")
+        groups[name] = re.search(r"concurrency:\s*\n\s*group:\s*(\S+)", text).group(1)
+        check(f"{name}: 차례 기다리기 (앞선 함대 실행 확인)", "scripts/wait_turn.py" in text and "actions: read" in text
+              and text.index("scripts/wait_turn.py") < text.index("pip install"))
+    check("함대 워크플로마다 concurrency 그룹이 따로", len(set(groups.values())) == len(groups), str(groups))
+    fleet_wf = (wf / "fleet.yml").read_text(encoding="utf-8")
+    check("fleet.yml: 차례가 안 오면 건너뜀 (always 단계도)", "--on-timeout skip" in fleet_wf
+          and "if: always()\n" not in fleet_wf.replace("\r\n", "\n"))
+    runs = [{"id": 5, "path": ".github/workflows/retrofit.yml", "status": "in_progress", "name": "r"},
+            {"id": 6, "path": ".github/workflows/fleet.yml@refs/heads/main", "status": "queued", "name": "f"},
+            {"id": 6, "path": ".github/workflows/fleet.yml", "status": "queued", "name": "f"},
+            {"id": 7, "path": ".github/workflows/weekly_report.yml", "status": "in_progress", "name": "w"},
+            {"id": 9, "path": ".github/workflows/fleet.yml", "status": "queued", "name": "f"},
+            {"id": 4, "path": ".github/workflows/manager.yml", "status": "completed", "name": "m"}]
+    check("차례 기다리기: 먼저 온 함대 실행만 (주간 보고·뒤에 온 실행·끝난 실행 제외)",
+          [r["id"] for r in wt.blockers(runs, 8)] == [5, 6], str(wt.blockers(runs, 8)))
+    check("차례 기다리기: 맨 앞 실행은 기다리지 않음", wt.blockers(runs, 5) == [])
     check("retrofit.yml: 카드 글 뽑기용 API 키", "ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}"
           in (wf / "retrofit.yml").read_text(encoding="utf-8"))
     check("fleet.yml: 실행기에 없는 --count 입력을 두지 않음",
