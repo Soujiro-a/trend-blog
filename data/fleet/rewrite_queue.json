@@ -899,5 +899,47 @@
   "url": "https://gaganamissue.blogspot.com/2026/10/atm.html",
   "night": "2026-11-01",
   "done_at": "2026-11-02T05:31:34+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_19.html",
+  "night": "2026-11-02 낮(수동)",
+  "done_at": "2026-11-02T19:09:08+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/7101.html",
+  "night": "2026-11-02 낮(수동)",
+  "done_at": "2026-11-02T19:11:22+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/3_02044664666.html",
+  "night": "2026-11-02 낮(수동)",
+  "done_at": "2026-11-02T19:13:36+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_08.html",
+  "night": "2026-11-02 낮(수동)",
+  "done_at": "2026-11-02T19:15:51+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/30.html",
+  "night": "2026-11-02 낮(수동)",
+  "done_at": "2026-11-02T19:18:05+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/330.html",
+  "night": "2026-11-02 낮(수동)",
+  "done_at": "2026-11-02T19:20:19+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/7_02117023222.html",
+  "night": "2026-11-02 낮(수동)",
+  "done_at": "2026-11-02T19:22:33+09:00"
  }
 ]
