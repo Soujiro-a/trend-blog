@@ -1916,6 +1916,14 @@ def test_adsense_readiness() -> None:
     check("판정: 모두 통과면 신청, 아니면 분류별 보류",
           ac.verdict([(True, "[연결] a")]).startswith("✅")
           and "가치부족" in ac.verdict([(False, "[가치부족] 색인 0/20"), (True, "[연결] a")]))
+    # 2026-11-02: GitHub 러너에서 공개 화면을 못 읽은 것이 '소개·메뉴·첫 화면 없음'처럼 보고됐습니다.
+    ac._UNREAD.clear()
+    ac._UNREAD["https://g.blogspot.com/"] = "HTTP 429"
+    check("못 읽은 화면은 항목에 사유를 붙임", "HTTP 429" in ac.unread_note("https://g.blogspot.com/")
+          and ac.unread_note("https://g.blogspot.com/p/about.html") == "")
+    ac._UNREAD.clear()
+    check("https 리디렉션 판정", ac.https_redirects(301, "https://g.blogspot.com/")
+          and not ac.https_redirects(200, "") and not ac.https_redirects(302, "http://59.18.34.181/"))
     src = "신청 대상은 공고일 현재 무주택세대구성원으로서 해당 지역에 거주하는 만 19세 이상인 사람이며 소득과 자산 기준을 모두 충족해야 합니다. " \
           "제출 서류는 주민등록등본과 가족관계증명서이며 온라인으로 신청하면 간편인증으로 본인 확인을 거칩니다. "
     ctx = "참고 자료: " + src * 1 + "다른 문장 " + src.replace("신청 대상은", "지원 대상은") + "끝. " + src.replace("만 19세", "만 20세")

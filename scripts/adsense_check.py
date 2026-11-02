@@ -21,6 +21,7 @@ import argparse
 import html as html_mod
 import re
 import sys
+import time
 import urllib.parse
 from collections import Counter
 from datetime import datetime, timedelta
@@ -41,12 +42,60 @@ MIN_DAYS = 28           # 첫 글 뒤 최소 이만큼은 운영한 뒤 신청
 KOREA_OFFSET = "+09:00"
 
 
+# 못 읽은 공개 화면 {주소: 사유}. 2026-11-02 주간 보고(GitHub 러너)에서 블로그마다 다른 화면을 못 읽어, 실제로는
+# 통과하는 소개·개인정보처리방침·메뉴·첫 화면 항목이 무더기로 ❌ 가 됐습니다. 다시 시도하고, 그래도 못 읽으면 항목에 적습니다.
+_UNREAD: dict[str, str] = {}
+RETRY_WAITS = (5, 20)   # 다시 시도 전 기다리는 초
+
+
 def _public(url: str) -> str:
-    try:
-        r = requests.get(url, timeout=30, headers={"User-Agent": net.USER_AGENT})
-        return r.text if r.status_code == 200 else ""
-    except requests.RequestException:
-        return ""
+    why = ""
+    for wait in (0, *RETRY_WAITS):
+        time.sleep(wait)
+        try:
+            r = requests.get(url, timeout=30, headers={"User-Agent": net.USER_AGENT})
+        except requests.RequestException as exc:
+            why = type(exc).__name__
+            continue
+        if r.status_code == 200:
+            _UNREAD.pop(url, None)
+            return r.text
+        why = f"HTTP {r.status_code}"
+        if r.status_code not in (429, 500, 502, 503, 504):
+            break
+    _UNREAD[url] = why
+    return ""
+
+
+def unread_note(*urls: str) -> str:
+    """항목 뒤에 붙일 '화면을 못 읽음' 표시. 못 읽은 화면이 없으면 ''."""
+    whys = [_UNREAD[u] for u in urls if u in _UNREAD]
+    return f" — 화면을 못 읽어 확인 못 함 ({whys[0]}), 다시 점검하세요" if whys else ""
+
+
+def https_redirects(r_status: int, location: str) -> bool:
+    return r_status in (301, 302, 307, 308) and location.startswith("https://")
+
+
+def _https_check(url: str) -> tuple[bool, str]:
+    """(http 가 https 로 넘어가는지, 못 봤을 때 사유). 브라우저 UA 로는 통신사가 http 응답에 안내 화면을 끼워 넣어
+    200 이 오는 망이 있어(2026-11-02 로컬 KT 망 실측) 브라우저가 아닌 UA 로도 봅니다. 하나라도 넘어가면 통과."""
+    why = ""
+    for ua in (net.USER_AGENT, "adsense-check/1.0"):
+        for wait in (0, *RETRY_WAITS):
+            time.sleep(wait)
+            try:
+                r = requests.get(url.replace("https://", "http://", 1) + "/", timeout=30, allow_redirects=False,
+                                 headers={"User-Agent": ua})
+            except requests.RequestException as exc:
+                why = type(exc).__name__
+                continue
+            if https_redirects(r.status_code, r.headers.get("location", "")):
+                return True, ""
+            why = f"HTTP {r.status_code}"
+            if r.status_code not in (429, 500, 502, 503, 504):
+                break
+    return False, why
 
 
 # ---------------------------------------------------------------- 거절 사유별 판단 (네트워크 없이 시험 가능)
@@ -236,11 +285,11 @@ def check(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, index: bool = True) -> t
     privacy_html = _public(privacy["url"]) if privacy else ""
     if about and privacy:
         path = re.sub(r"^https?://[^/]+", "", privacy["url"])
-        res.append((path in about_html, "[정책] 소개 페이지 → 개인정보처리방침 링크"))
+        res.append((path in about_html, "[정책] 소개 페이지 → 개인정보처리방침 링크" + unread_note(about["url"])))
         res.append(("mailto:" in about_html or re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", text_of(about_html)) is not None,
-                    "[정책] 소개 페이지에 연락처(이메일)"))
+                    "[정책] 소개 페이지에 연락처(이메일)" + unread_note(about["url"])))
         res.append(("쿠키" in privacy_html and "Google" in privacy_html,
-                    "[정책] 개인정보처리방침에 Google 광고 쿠키 고지 (애드센스 필수 고지)"))
+                    "[정책] 개인정보처리방침에 Google 광고 쿠키 고지 (애드센스 필수 고지)" + unread_note(privacy["url"])))
     if not (about or privacy):
         todo.append("페이지 만들기: python scripts/setup_pages.py --blog " + blog.id)
     if affiliate:
@@ -250,8 +299,8 @@ def check(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, index: bool = True) -> t
     # 4) 사이트 탐색 문제 (Site navigation) — 메뉴·깨진 내부 링크·라벨·설명·시간대
     in_menu = [p for p in (about, privacy) if p and re.sub(r"^https?://[^/]+", "", p["url"]) in home]
     ok_menu = bool(about and privacy) and len(in_menu) == 2
-    res.append((ok_menu, "[탐색] 첫 화면에서 소개·개인정보처리방침으로 가는 메뉴"))
-    if not ok_menu:
+    res.append((ok_menu, "[탐색] 첫 화면에서 소개·개인정보처리방침으로 가는 메뉴" + unread_note(url + "/")))
+    if not ok_menu and home:
         todo.append(
             "메뉴에 페이지 넣기: Blogger → 레이아웃 → (상단 또는 사이드바) 가젯 추가 → '페이지' → "
             "'블로그 소개'·'개인정보처리방침' 체크 → 저장"
@@ -278,19 +327,15 @@ def check(fleet: fleet_mod.Fleet, blog: fleet_mod.Blog, index: bool = True) -> t
         todo.append("(선택) 문의 양식: 레이아웃 → 사이드바 가젯 추가 → '문의 양식' — 소개 페이지 이메일과 함께 연락 경로가 둘이 됩니다")
 
     # 5) 사이트 연결 불가 (Site unreachable) — 첫 화면·robots.txt·noindex·https
-    res.append((bool(home) and "blogin.g" not in home, "[연결] 첫 화면이 바로 열림 (비공개·콘텐츠 경고 화면 아님)"))
+    res.append((bool(home) and "blogin.g" not in home,
+                "[연결] 첫 화면이 바로 열림 (비공개·콘텐츠 경고 화면 아님)" + unread_note(url + "/")))
     res.append((not robots_blocks(_public(url + "/robots.txt")), "[연결] robots.txt 가 크롤러를 막지 않음"))
     noindex = re.search(r'<meta[^>]+name=["\']robots["\'][^>]+noindex', home, re.I) is not None
     res.append((not noindex, "[연결] 첫 화면에 noindex 없음"))
     if noindex:
         todo.append("noindex 끄기: Blogger → 설정 → 크롤러 및 색인 생성 → 맞춤 robots 헤더 태그 확인")
-    try:
-        r = requests.get(url.replace("https://", "http://", 1) + "/", timeout=30, allow_redirects=False,
-                         headers={"User-Agent": net.USER_AGENT})
-        https_ok = r.status_code in (301, 302, 307, 308) and r.headers.get("location", "").startswith("https://")
-    except requests.RequestException:
-        https_ok = False
-    res.append((https_ok, "[연결] http → https 리디렉션"))
+    https_ok, why = _https_check(url)
+    res.append((https_ok, "[연결] http → https 리디렉션" + (f" (응답 {why})" if why else "")))
     if not https_ok:
         todo.append("HTTPS: Blogger → 설정 → HTTPS 리디렉션 켜기")
 
