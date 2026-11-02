@@ -2013,6 +2013,24 @@ def test_weekly_report(cfg: dict) -> None:
     check("설정 요약에 켜진 블로그·계정 상한", "켜진 블로그 2개" in summary and "acc 4/8건" in summary, summary)
     check("설정 요약에 없는 설정값(None) 없음", "None" not in summary, summary)
 
+    # 애드센스 API 오류는 JSON 원문 대신 한 줄 메시지로 (2026-11-02 보고에 원문이 찍혀 목록이 깨짐)
+    import json as _json
+
+    class _Resp:
+        def __init__(self, body, text=None):
+            self._body = body
+            self.text = text if text is not None else _json.dumps(body, indent=2)
+
+        def json(self):
+            if self._body is None:
+                raise ValueError("not json")
+            return self._body
+
+    err = _Resp({"error": {"code": 403, "message": "The caller does not have permission"}})
+    check("주간 보고: API 오류는 한 줄 메시지만", wr._error_message(err) == "The caller does not have permission", wr._error_message(err))
+    plain = wr._error_message(_Resp(None, "bad\n  gateway"))
+    check("주간 보고: JSON 아닌 오류도 한 줄", plain == "bad gateway", plain)
+
     import tempfile
     from pathlib import Path
     with tempfile.TemporaryDirectory() as tmp:

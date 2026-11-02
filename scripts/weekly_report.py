@@ -229,6 +229,14 @@ def section_search_console(token: str, site: str, days: int, heading: str = "## 
     return lines
 
 
+def _error_message(resp) -> str:
+    """API 오류 응답에서 한 줄 메시지만 꺼냅니다 (JSON 원문이 보고서 목록을 깨뜨리지 않게)."""
+    try:
+        return str(resp.json()["error"]["message"])[:200]
+    except Exception:
+        return " ".join(resp.text.split())[:200]
+
+
 def section_adsense(token: str, days: int, heading: str = "## 광고 수익 (애드센스)") -> list[str]:
     lines = [heading, ""]
     headers = {"Authorization": f"Bearer {token}"}
@@ -259,6 +267,9 @@ def section_adsense(token: str, days: int, heading: str = "## 광고 수익 (애
                 lines.append(f"  - {s.get('domain')}: {s.get('state')}")
     except Exception:
         pass
+    if state == "CLOSED":
+        # 닫힌 계정은 보고서 API 가 403 을 돌려줍니다 (2026-11-02 주간 보고에 응답 원문이 그대로 찍힘).
+        return lines + ["- 닫힌 계정이라 수익 보고서가 없습니다. 이 계정 블로그의 애드센스 신청은 다른 계정으로 합니다.", ""]
     end = datetime.now(KST).date()
     start = end - timedelta(days=days)
     params = [
@@ -267,8 +278,10 @@ def section_adsense(token: str, days: int, heading: str = "## 광고 수익 (애
         ("endDate.year", end.year), ("endDate.month", end.month), ("endDate.day", end.day),
     ]
     resp = net.session().get(f"{ADSENSE_API}/{account}/reports:generate", params=params, headers=headers, timeout=30)
+    if resp.status_code == 403:
+        return lines + ["- 수익 보고서 권한 없음 (계정이 아직 승인 전이거나 토큰에 애드센스 권한이 없음)", ""]
     if resp.status_code != 200:
-        return lines + [f"- 보고서 조회 실패 ({resp.status_code}): {resp.text[:200]}", ""]
+        return lines + [f"- 보고서 조회 실패 ({resp.status_code}): {_error_message(resp)}", ""]
     data = resp.json()
     totals = (data.get("totals") or {}).get("cells", [])
     vals = [c.get("value", "0") for c in totals]
