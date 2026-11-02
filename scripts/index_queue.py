@@ -15,6 +15,7 @@
 
     python scripts/index_queue.py next [--limit 10]     # 지금 요청할 주소 (JSON 한 줄씩)
     python scripts/index_queue.py next --fresh          # 매시간 작업용: 최근 72시간 새 글 + 하루 한 번 밀린 주소 3건
+    python scripts/index_queue.py next --blog gaganams1 --limit 7   # 한 블로그의 밀린 주소만 (색인 0% 블로그 따라잡기)
     python scripts/index_queue.py mark <URL> requested  # 요청 완료 기록 (requested | quota | failed)
     python scripts/index_queue.py status                # 블로그별 색인·요청 현황
     python scripts/index_queue.py login-alert gsc default   # 로그인 풀림 기록. NOTIFY 면 알림, ALREADY 면 오늘 이미 알림
@@ -186,7 +187,7 @@ def cmd_next(args, fleet) -> int:
     now = datetime.now(KST)
     entries = load_log()
     blocked = quota_hit_accounts(entries, now)
-    items = [it for it in queue(fleet) if it["account"] not in blocked]
+    items = [it for it in queue(fleet) if it["account"] not in blocked and (not args.blog or it["blog"] == args.blog)]
     if not items and blocked:
         print("# 오늘은 할당량을 다 썼습니다. 내일 다시 합니다.")
         return 0
@@ -279,6 +280,8 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("next")
     p.add_argument("--limit", type=int, default=10)
     p.add_argument("--fresh", action="store_true", help="새로 올라온 글 먼저(검사 없이 빠름), 밀린 주소는 하루 한 번만")
+    # 2026-11-02: 밤 작업은 새 글 위주라 색인 0/20 인 gaganams1 의 옛 글이 요청된 적이 없었습니다.
+    p.add_argument("--blog", default="", help="이 블로그 주소만 (밀린 주소 따라잡기)")
     p = sub.add_parser("mark")
     p.add_argument("url")
     p.add_argument("result", choices=["requested", "quota", "failed"])
