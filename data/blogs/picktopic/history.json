@@ -122,13 +122,15 @@
     "title": "청년도약계좌 납입 유예, 실직해 소득 끊겨도 계좌 유지되는지와 대처 순서",
     "post_id": "963063811285580125",
     "url": "https://picktopic1.blogspot.com/2026/10/blog-post_17.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.3488,
     "review_score": 90,
     "extras": [],
     "description": "청년도약계좌는 가입 후 실직해 소득이 끊겨도 가입이 취소되지 않고, 납입을 쉬어도 계좌가 유지됩니다. 금액 조정, 급할 때 쓸 수 있는 적금담보부대출, 해지 전 확인할 점을 정리했습니다.",
-    "posted_at": "2026-10-17T07:54:19+09:00"
+    "posted_at": "2026-10-17T07:54:19+09:00",
+    "merged_into": "https://picktopic1.blogspot.com/2026/10/blog-post_10.html",
+    "reverted_at": "2026-11-04T07:49:43+09:00"
   },
   {
     "keyword": "첫만남이용권 신청 기한 놓쳤을 때 늦게 받을 수 있는지",

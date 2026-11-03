@@ -1615,6 +1615,10 @@ def test_retrofit(cfg: dict) -> None:
                         {"/2026/10/x.html": "https://g/2026/10/hub.html"})
     check("임시저장된 글로 가는 링크만 중심 글로", n == 1 and 'href="https://g/2026/10/hub.html"' in body
           and 'href="https://g/2026/10/z.html"' in body, body)
+    body, n = rw.relink('이 경우는 <a href="https://g/2026/10/x.html?m=1">옛 글</a>을 보세요. <a href="https://g/2026/10/z.html">그대로</a>',
+                        {"/2026/10/x.html": "https://g/2026/10/hub.html"}, "https://g/2026/10/hub.html")
+    check("링크 고치기: 중심 글 안의 링크는 자기 링크 대신 글자만 남김",
+          n == 1 and body == '이 경우는 옛 글을 보세요. <a href="https://g/2026/10/z.html">그대로</a>', body)
     fb = rw.fix_block("계산 예시가 없음")
     check("다시 쓰기: 점검 지적은 근거가 아닌 빈칸으로", rw.fix_block("") == ""
           and "사실 근거가 아닙니다" in fb and "계산 예시가 없음" in fb)

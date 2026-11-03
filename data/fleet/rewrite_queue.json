@@ -1019,5 +1019,89 @@
   "url": "https://gaganamc1.blogspot.com/2026/10/3_0202876770.html",
   "night": "2026-11-03",
   "done_at": "2026-11-04T06:13:18+09:00"
+ },
+ {
+  "action": "revert",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post_17.html",
+  "into": "https://picktopic1.blogspot.com/2026/10/blog-post_10.html",
+  "topic": "다시 쓰기 두 번 보류(11/2·11/4) — 사용자 승인으로 임시저장 (11/4)",
+  "done_at": "2026-11-04T07:49:43+09:00",
+  "night": "2026-11-04 아침(수동)"
+ },
+ {
+  "action": "revert",
+  "url": "https://fastopic1.blogspot.com/2026/10/irp-55.html",
+  "into": "https://fastopic1.blogspot.com/2026/10/blog-post.html",
+  "topic": "다시 쓰기 보류(11/4), 자료에 사유별 세율 없음 — 사용자 승인으로 임시저장 (11/4)",
+  "done_at": "2026-11-04T07:51:57+09:00",
+  "night": "2026-11-04 아침(수동)"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganam1.blogspot.com/2026/09/blog-post_22.html",
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_16.html",
+  "topic": "다시 쓰기 보류(11/4), 근거가 2020년 보도자료뿐 — 사용자 승인으로 임시저장 (11/4)",
+  "done_at": "2026-11-04T07:54:11+09:00",
+  "night": "2026-11-04 아침(수동)"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post_26.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T07:56:24+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post_24.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T07:58:37+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post_23.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T08:00:51+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post_21.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T08:03:04+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/30.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T08:05:18+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post_10.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T08:07:32+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/1.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T08:14:09+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/2-1-7.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T08:16:24+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_706.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T08:18:38+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/09/blog-post_29.html",
+  "night": "2026-11-04 아침(수동)",
+  "done_at": "2026-11-04T08:20:52+09:00"
  }
 ]

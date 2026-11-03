@@ -307,9 +307,22 @@ def note_failure(it: dict) -> None:
         f.write(f"- {it['action']} {it['url']}\n  - {it.get('reason', '')}\n")
 
 
-def relink(content: str, moved: dict[str, str]) -> tuple[str, int]:
-    """임시저장된 글(경로 → 합친 중심 글 주소)로 가는 링크를 중심 글로 바꿉니다. (새 본문, 바꾼 수)"""
+def relink(content: str, moved: dict[str, str], self_url: str = "") -> tuple[str, int]:
+    """임시저장된 글(경로 → 합친 중심 글 주소)로 가는 링크를 중심 글로 바꿉니다. (새 본문, 바꾼 수)
+    고치는 글이 바로 그 중심 글이면 자기 자신을 가리키게 되므로 링크를 풀고 글자만 남깁니다
+    (2026-11-04 picktopic1 blog-post_10 에 자기 링크 2곳이 생김)."""
     count = 0
+    own = path_of(self_url) if self_url else ""
+
+    def unwrap(m: re.Match) -> str:
+        nonlocal count
+        target = moved.get(path_of(m.group(1)))
+        if not (own and target and path_of(target) == own):
+            return m.group(0)
+        count += 1
+        return m.group(2)
+
+    content = re.sub(r'<a\s[^>]*?href="(https?://[^"]+)"[^>]*>(.*?)</a>', unwrap, content, flags=re.S)
 
     def sub(m: re.Match) -> str:
         nonlocal count
@@ -340,7 +353,7 @@ def relink_one(fleet: fleet_mod.Fleet, q: list[dict], host: str) -> str:
         for post in data.get("items", []):
             if path_of(post["url"]) in moved:
                 continue
-            new, n = relink(post.get("content", ""), moved)
+            new, n = relink(post.get("content", ""), moved, post["url"])
             if n:
                 _patch(blog, post["id"], {"content": new})
                 print(f"링크 고침: {post['url']} ({n}곳 → 중심 글)")
