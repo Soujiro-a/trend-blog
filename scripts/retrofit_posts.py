@@ -44,12 +44,22 @@ from src.state import KST  # noqa: E402
 
 STATE_PATH = fleet_mod.FLEET_DATA / "retrofit.json"
 QUIET_HOURS = {22, 23, 0, 1, 2, 3, 4, 5}   # KST. 마지막 슬롯 상한 21:00, 첫 슬롯 06:20.
+# GitHub 예약이 밤새 통째로 밀려 아침에야 도는 날이 있습니다(2026-11-02 밤 19:41~05:16 실행 0건, 정리 하룻밤 건너뜀).
+# 그 밤 몫을 아직 하나도 못 했으면 10시 전까지는 이어서 합니다. 함대 실행과 겹치지 않는 것은 '차례 기다리기'(scripts/wait_turn.py)가,
+# 같은 계정 발행 직후를 피하는 것은 ACCOUNT_GAP 이 맡습니다.
+CATCHUP_HOURS = {6, 7, 8, 9}
 ACCOUNT_GAP = timedelta(minutes=60)       # 같은 계정의 발행 직후에는 수정 요청을 보내지 않습니다.
 
 
 def night_of(now: datetime) -> str:
-    """하루 한 편의 '하루'. 밤 22시~새벽 6시를 한 밤으로 묶어, 22시와 01시에 두 번 고치지 않게 합니다."""
-    return (now - timedelta(hours=7)).strftime("%Y-%m-%d")
+    """하루 한 편의 '하루'. 밤 22시~다음 날 아침(따라잡기 10시 전)을 한 밤으로 묶어, 22시와 01시·07시에 두 번 고치지 않게 합니다.
+    정오에 날이 바뀝니다 (scripts/rewrite_post.py run_queue 의 '밤'과 같은 기준)."""
+    return (now - timedelta(hours=12)).strftime("%Y-%m-%d")
+
+
+def may_work(now: datetime, started_tonight: bool) -> bool:
+    """지금 밤 작업을 해도 되는지. 22~06시는 늘, 06~10시는 그 밤 몫을 아직 시작하지 않았을 때만."""
+    return now.hour in QUIET_HOURS or (now.hour in CATCHUP_HOURS and not started_tonight)
 
 _NAVER_LI = re.compile(r"\s*<li>\s*<a[^>]*search\.naver\.com/search\.naver[^>]*>.*?</a>\s*</li>", re.S)
 # 본문 맨 앞의 요약 카드 블록(src/card.py html). 다듬기 모델에는 카드를 빼고 보냅니다.
@@ -211,8 +221,8 @@ def main(argv: list[str] | None = None) -> int:
             announce(f"⏭️ 건너뜀 — 오늘({today}) 몫은 이미 고쳤습니다: {last.get('url', '')}",
                      [f"남은 글 {state.get('remaining', '?')}편"])
             return 0
-        if now.hour not in QUIET_HOURS:
-            announce(f"⏭️ 건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 22~06시에만 고칩니다.")
+        if not may_work(now, started_tonight=False):   # 위에서 오늘 밤 몫을 이미 했으면 끝났으므로 여기선 아직 안 한 밤
+            announce(f"⏭️ 건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 22~06시(못 한 밤은 10시 전까지)에만 고칩니다.")
             return 0
 
     fleet = fleet_mod.load_fleet()

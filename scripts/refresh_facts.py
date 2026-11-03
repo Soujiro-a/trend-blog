@@ -274,8 +274,8 @@ def main(argv: list[str] | None = None) -> int:
         if st.get("last_date") == today:
             rp.announce(f"⏭️ 건너뜀 — 오늘({today}) 몫은 이미 확인했습니다: {st.get('last_result', '')}")
             return 0
-        if now.hour not in rp.QUIET_HOURS:
-            rp.announce(f"⏭️ 건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 22~06시에만 고칩니다.")
+        if not rp.may_work(now, started_tonight=False):
+            rp.announce(f"⏭️ 건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 22~06시(못 한 밤은 10시 전까지)에만 고칩니다.")
             return 0
 
     fleet = fleet_mod.load_fleet()

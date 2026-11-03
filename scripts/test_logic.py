@@ -1498,6 +1498,15 @@ def test_retrofit(cfg: dict) -> None:
     check("고치는 시간대는 22~06시", 22 in rp.QUIET_HOURS and 5 in rp.QUIET_HOURS and 6 not in rp.QUIET_HOURS
           and 21 not in rp.QUIET_HOURS)
     check("새벽(KST 00~06시)에만 고침", 5 in rp.QUIET_HOURS and 6 not in rp.QUIET_HOURS)
+    # 예약이 밀려 아침에야 돌면 그 밤 몫을 아직 안 했을 때만 10시 전까지 따라잡습니다 (2026-11-03)
+    check("22:35 와 다음 날 아침 07:25 는 같은 밤 (따라잡아도 두 번 고치지 않음)",
+          rp.night_of(_dt(2026, 11, 2, 22, 35, tzinfo=_KST)) == rp.night_of(_dt(2026, 11, 3, 7, 25, tzinfo=_KST)) == "2026-11-02")
+    check("다음 날 22시는 다른 밤", rp.night_of(_dt(2026, 11, 3, 22, 0, tzinfo=_KST)) == "2026-11-03")
+    check("못 한 밤은 아침 07시에 따라잡음", rp.may_work(_dt(2026, 11, 3, 7, 25, tzinfo=_KST), started_tonight=False))
+    check("시작한 밤은 아침에 이어서 하지 않음", not rp.may_work(_dt(2026, 11, 3, 7, 25, tzinfo=_KST), started_tonight=True))
+    check("10시부터는 따라잡지 않음", not rp.may_work(_dt(2026, 11, 3, 10, 0, tzinfo=_KST), started_tonight=False))
+    check("밤에는 늘 함", rp.may_work(_dt(2026, 11, 3, 2, 0, tzinfo=_KST), started_tonight=True))
+    check("rewrite_post 의 '밤'도 같은 기준", "rp.may_work(now, started)" in Path("scripts/rewrite_post.py").read_text(encoding="utf-8"))
 
     # 실행 결과가 Actions 화면(요약 칸)과 관리 보고서에 보임
     import json

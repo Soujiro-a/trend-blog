@@ -44,7 +44,6 @@ from src.trends import Candidate, Variant  # noqa: E402
 PREVIEW_DIR = OUT_DIR / "rewrite"
 QUEUE_PATH = DATA_DIR / "fleet" / "rewrite_queue.json"
 FAIL_REPORT = OUT_DIR / "rewrite_failures.md"   # 있으면 워크플로가 이슈를 열어 메일로 알립니다
-QUIET_HOURS = range(22, 24), range(0, 6)
 RELINK_PER_NIGHT = 2   # 블로그마다 하룻밤 링크 고치기 편수 (2026-10-31: 1편이면 임시저장 속도를 못 따라가 깨진 링크가 쌓임)
 HUB_LENGTH = (4000, 5500)      # 묶음을 합친 중심 글은 상황이 많아 기본(2,500~3,000)보다 길게
 MAX_OFFICIAL_PAGES = 10
@@ -367,8 +366,11 @@ def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
     if not steps and not quota:
         print("다시 쓰기 대기열: 오늘 할 일 없음")
         return 0
-    if not dry_run and not any(now.hour in r for r in QUIET_HOURS):
-        print(f"건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 22~06시에만 고칩니다.")
+    # 시간대는 기존 글 정리와 같은 규칙: 22~06시, 그 밤에 한 걸음도 못 했으면 10시 전까지 (scripts/retrofit_posts.py)
+    from scripts import retrofit_posts as rp
+    started = any(it.get("night") == night for it in q)
+    if not dry_run and not rp.may_work(now, started):
+        print(f"건너뜀 — 지금은 {now:%H:%M} KST. 글 작성 시간대와 겹치지 않게 22~06시(못 한 밤은 10시 전까지)에만 고칩니다.")
         return 0
     wrote = False
     for it in steps:

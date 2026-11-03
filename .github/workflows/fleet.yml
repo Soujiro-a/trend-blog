@@ -39,20 +39,21 @@ jobs:
     # ubuntu-latest 는 2026-10-19 부터 Ubuntu 26 으로 바뀝니다. 이미지가 바뀌는 날 자동화가 깨지지 않게 고정합니다.
     runs-on: ubuntu-24.04
     # 밀린 슬롯을 처리할 때 같은 계정 글 사이를 30~40분씩 벌리므로 길게 둡니다.
-    # fleet/blogs.yaml 의 run_budget_minutes(150) + 차례 기다리기(30)보다 커야 합니다. 공개 저장소라 Actions 시간은 무료입니다.
-    timeout-minutes: 230   # + 차례 기다리기 30분
+    # fleet/blogs.yaml 의 run_budget_minutes(150) + 차례 기다리기(90)보다 커야 합니다. 공개 저장소라 Actions 시간은 무료입니다.
+    timeout-minutes: 290   # + 차례 기다리기 90분
 
     steps:
       - uses: actions/checkout@v5
 
-      # 관리·정리 작업이 먼저 와 있으면 30분까지 기다리고, 그래도 안 끝났으면 이번 실행은 건너뜁니다.
-      # 밀린 슬롯은 다음 실행이 따라잡습니다.
+      # 관리·정리 작업이 먼저 와 있으면 90분까지 기다리고, 그래도 안 끝났으면 이번 실행은 건너뜁니다.
+      # 밀린 슬롯은 다음 실행이 따라잡습니다. 90분: 못 한 밤 정리를 아침에 따라잡는 실행(약 80분)이 끝날 때까지
+      # (2026-11-03, 함대 실행은 하루 4~5번뿐이라 한 번 건너뛰면 아침 글이 몇 시간 밀립니다).
       - name: 차례 기다리기
         id: turn
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 scripts/wait_turn.py --max-wait 30 --on-timeout skip
+          python3 scripts/wait_turn.py --max-wait 90 --on-timeout skip
           # 기다리는 동안 앞선 실행이 커밋한 이력을 받아 둡니다.
           git pull -q --rebase --autostash origin "${GITHUB_REF_NAME}" || true
 

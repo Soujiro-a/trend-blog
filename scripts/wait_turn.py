@@ -10,7 +10,7 @@ GitHub 은 그룹마다 '대기 중' 실행을 하나만 두고, 새 실행이 �
 먼저 온 순서대로 돌기 때문에 서로 기다리다 멈추는 일은 없습니다.
 
   python3 scripts/wait_turn.py --max-wait 200 --on-timeout go     # 관리·정리: 늦더라도 돕니다
-  python3 scripts/wait_turn.py --max-wait 30 --on-timeout skip    # 함대 실행: 이번엔 건너뜀 (밀린 슬롯은 다음 실행이 따라잡음)
+  python3 scripts/wait_turn.py --max-wait 90 --on-timeout skip    # 함대 실행: 이번엔 건너뜀 (밀린 슬롯은 다음 실행이 따라잡음)
 
 결과는 GITHUB_OUTPUT 의 go=true|false 로 남깁니다. GitHub API 를 못 읽으면 예전처럼 그냥 돕니다(go=true).
 setup-python 전에 돌므로 표준 라이브러리만 씁니다.
