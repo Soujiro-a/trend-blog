@@ -62,7 +62,10 @@
  {
   "action": "rewrite",
   "url": "https://gaganam1.blogspot.com/2026/09/75-3.html",
-  "absorb": []
+  "absorb": [],
+  "night": "2026-11-04",
+  "new_description": "고령운전자는 65세부터 5년, 75세부터 3년마다 면허를 갱신합니다. 적성검사 대상, 생일 기준 기한, 75세 교육과 준비물, 과태료를 정리했습니다.",
+  "done_at": "2026-11-05T05:33:42+09:00"
  },
  {
   "action": "rewrite",
@@ -123,7 +126,9 @@
  {
   "action": "revert",
   "url": "https://gaganam1.blogspot.com/2026/10/blog-post_26.html",
-  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html"
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T05:35:43+09:00"
  },
  {
   "action": "revert",
@@ -221,7 +226,10 @@
   "topic": "신혼부부 특별공급 자격, 소득기준과 혼인기간",
   "absorb": [
    "https://nowissue1.blogspot.com/2026/10/7.html"
-  ]
+  ],
+  "night": "2026-11-04",
+  "failed_at": "2026-11-05T05:31:28+09:00",
+  "reason": "검수 hold 72점: 근거 약한 서술: 마지막 문단에서 \"청약홈, 마이홈, LH 세 곳 모두 혼인기간 기준을 '7년 이내 또는 6세 이하 자녀'로 적고 있습니다\"라고 했지만, 자료상 청약홈의 '7년 이내 또는 6세 이하 자녀' 문구는 공공주택 항목에만 있습니다. 같은 글 앞부분의 민영주택 설명과 충돌해 독자가 혼동할 수 있습니다. 또 LH 자료에는 혼인기간 기준 문구가 없는데 LH도 그렇게 적는다고 단정했습니다.; 공식 확인 없이 단정: 공공분양 우선공급 '100% 이하, 맞벌이 120% 이하'와 일반공급 '130% 이하, 맞벌이 140% 이하' 표는 LH 자료에 근거가 있습니다. 그러나 같은 글의 생활법령정보 130%·맞벌이 200% 기준과 병기되어 구조가 복잡하고, 글이 이를 충분히 풀어 주지 못합니다. 민영과 공공의 일반공급 차이 설명도 비율 비교에 그칩니다.; 신생아 특별공급 문단은 조세일보 제목만 근거로 기사 내용을 설명합니다. 7년 이상 가구의 신청 여부는 '청약홈에서 따로 확인하세요'로 넘겨, 제목이 묻는 핵심(7년 지났을 때 가능한 경우)에 대한 민영주택 답이 불완전합니다."
  },
  {
   "action": "revert",
@@ -248,7 +256,9 @@
  {
   "action": "revert",
   "url": "https://nowissue1.blogspot.com/2026/10/3.html",
-  "into": "https://nowissue1.blogspot.com/2026/10/2_0677389600.html"
+  "into": "https://nowissue1.blogspot.com/2026/10/2_0677389600.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T05:46:34+09:00"
  },
  {
   "action": "revert",
@@ -325,7 +335,10 @@
   "topic": "택배 파손·분실 환불, 배송 사고 때 요구하는 법",
   "absorb": [
    "https://gaganamc1.blogspot.com/2026/10/30.html"
-  ]
+  ],
+  "night": "2026-11-04",
+  "new_description": "택배 분실 시 택배요금 환급과 운송장 가액 기준 배상을 요구할 수 있고, 쇼핑몰 물건은 판매자에게 요구합니다. 일부 분실 14일 통지, 50만 원 한도, 상담 순서를 정리했습니다.",
+  "done_at": "2026-11-05T05:52:31+09:00"
  },
  {
   "action": "rewrite",
@@ -405,7 +418,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_14.html",
-  "into": "https://gaganamc1.blogspot.com/2026/10/3.html"
+  "into": "https://gaganamc1.blogspot.com/2026/10/3.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T05:54:32+09:00"
  },
  {
   "action": "revert",
@@ -516,7 +531,10 @@
   "absorb": [
    "https://gaganamissue.blogspot.com/2026/10/vs.html",
    "https://gaganamissue.blogspot.com/2026/10/blog-post_13.html"
-  ]
+  ],
+  "night": "2026-11-04",
+  "new_description": "항공권 영문 이름은 여권 로마자 성명과 철자까지 같아야 하며, 틀리면 항공권을 여권에 맞춥니다. 여행사 구매 무료 취소 시점, 재구매 손실 계산, 여권 영문성명 변경 요건을 정리했습니다.",
+  "done_at": "2026-11-05T06:03:38+09:00"
  },
  {
   "action": "rewrite",
@@ -581,7 +599,9 @@
  {
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/esta.html",
-  "into": "https://gaganamissue.blogspot.com/2026/09/esta.html"
+  "into": "https://gaganamissue.blogspot.com/2026/09/esta.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:05:39+09:00"
  },
  {
   "action": "revert",
@@ -690,7 +710,10 @@
   "action": "rewrite",
   "url": "https://picktopic1.blogspot.com/2026/10/055.html",
   "fix": "제목은 '0~55% 기준 정리'인데 직종 취업률 구간, 국민취업지원제도 유형, 특정계층별로 실제 몇 %가 적용되는지는 '공식 안내에 나와 있지 않습니다'로 넘기고 '자비 부담액 보기를 누르라'는 답에 그침. 비율 기준표와 수강료 예시 계산(예: 200만 원 과정 × 비율)을 갖춘 글로 다시 써야 함.",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-04",
+  "failed_at": "2026-11-05T05:31:28+09:00",
+  "reason": "검수 hold 68점: 가치 부족: 제목과 수정 지침이 요구한 '비율 기준표'가 없음. 직종평균 취업률 구간, 근로장려금 수급 여부, 국민취업지원제도 유형별로 실제 몇 %가 적용되는지는 자료에 없어 쓰지 못했고, 세 기준은 이름만 나열하고 결론은 '자비 부담액 보기'를 누르라는 안내로 돌아감. 독자가 자기 비율이 얼마인지 본문만으로는 알 수 없음.; 200만 원 예시는 15%와 55% 양 끝값만 계산한 것이라 독자 상황별 판단 정보가 되지 못함. 계산 자체는 맞음.; '자비 부담액 보기' 버튼과 확인 순서를 도입부, 2단계, 정리, 마무리에서 거듭 반복해 반복 비중이 큼."
  },
  {
   "action": "rewrite",
@@ -736,13 +759,18 @@
   "action": "revert",
   "url": "https://issuecatch1.blogspot.com/2026/10/5.html",
   "into": "https://issuecatch1.blogspot.com/2026/10/5_01520119221.html",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:18:16+09:00"
  },
  {
   "action": "rewrite",
   "url": "https://issuecatch1.blogspot.com/2026/10/33.html",
   "fix": "제목의 질문(기한 놓치면 못 받나)에 '기한 내 미신고 시 환급 안 됨'과 '126·세무서에 문의'로만 답하고, 무신고자는 경정청구가 아니라 기한후신고(5년 내)로 환급받는다는 핵심 절차와 예시 계산이 빠져 있다.",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-04",
+  "new_description": "프리랜서 3.3% 종합소득세 환급은 2026년 6월 1일 기한을 놓쳤어도 홈택스 기한후신고로 받을 수 있습니다. 국세청 사례 계산, 신고 순서, 입금 시기를 정리했습니다.",
+  "done_at": "2026-11-05T06:16:15+09:00"
  },
  {
   "action": "rewrite",
@@ -836,7 +864,10 @@
   "action": "rewrite",
   "url": "https://issuepick1.blogspot.com/2026/10/blog-post_27.html",
   "fix": "제목의 핵심인 자녀 명의 재산 반영 여부를 '공식 자료에 없으니 기관에 물어라'로 넘기고 보도 인용으로 채워 저품질 기준에 해당하므로, 자녀 소유 주택 거주 시 무료임차소득·증여/처분 재산의 기타산정재산·지역별 기본재산액·금융재산 공제를 넣은 계산 예시로 다시 쓸 것(GSC 크롤링됨-색인 안 됨).",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-04",
+  "failed_at": "2026-11-05T05:31:28+09:00",
+  "reason": "검수 hold 66점: 가치 부족: 재작성 지침이 요구한 '자녀 소유 주택 거주 시 무료임차소득', '증여·처분 재산의 기타산정재산'이 본문에 전혀 없고 제목에서도 빠졌음. 자료로 확인되지 않으면 범위에서 빼라는 지침을 따랐더라도, 계산 예시는 단순 일반재산·금융재산·근로소득 한 가지뿐이라 독자 상황별 판단표나 예외 정리가 부족함.; 계산 예시가 2022년 기준 연 4% 환산율에 의존함. 2026년 소득환산율은 자료에 없다고 본문에서 밝혔지만, 핵심 계산 결과가 자료로 확인되지 않은 가정에 기대고 있어 독자가 실제 금액을 얻지 못하고 국민연금공단 문의로 넘기는 구조임.; '같은 재산으로 농어촌에 산다면 환산 대상 금액이 더 커진다'고만 쓰고 농어촌·중소도시 수치를 계산해 비교하지 않아 지역별 공제 차이가 소득인정액에 얼마나 영향을 주는지 보여주지 못함."
  },
  {
   "action": "rewrite",
@@ -1103,5 +1134,53 @@
   "url": "https://gaganam1.blogspot.com/2026/09/blog-post_29.html",
   "night": "2026-11-04 아침(수동)",
   "done_at": "2026-11-04T08:20:52+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://nowissue1.blogspot.com/2026/10/blog-post_20.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:29:21+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://nowissue1.blogspot.com/2026/10/2.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:31:22+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_21.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:33:23+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/3_01199758873.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:35:24+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_11.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:37:25+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_06.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:39:26+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_26.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:43:27+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_21.html",
+  "night": "2026-11-04",
+  "done_at": "2026-11-05T06:45:28+09:00"
  }
 ]

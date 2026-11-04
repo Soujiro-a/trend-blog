@@ -39,15 +39,17 @@
   },
   {
     "keyword": "고령운전자 적성검사 대상 연령과 갱신 절차",
-    "title": "고령운전자 적성검사 대상 연령과 갱신 절차, 75세 이상 3년 주기·생일 기준 정리",
+    "title": "고령운전자 적성검사 대상 연령, 75세 교육과 갱신 순서",
     "post_id": "776287054943961558",
     "url": "https://gaganam1.blogspot.com/2026/09/75-3.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.386,
-    "review_score": 85,
+    "review_score": 86,
     "extras": [],
-    "posted_at": "2026-09-24T09:09:21+09:00"
+    "posted_at": "2026-09-24T09:09:21+09:00",
+    "description": "고령운전자는 65세부터 5년, 75세부터 3년마다 면허를 갱신합니다. 적성검사 대상, 생일 기준 기한, 75세 교육과 준비물, 과태료를 정리했습니다.",
+    "rewritten_at": "2026-11-05T05:33:42+09:00"
   },
   {
     "keyword": "중고차 명의이전 필요서류와 신청 기간",
@@ -514,13 +516,15 @@
     "title": "적성검사 신분증 대체, 지문 대조와 사본 제출 기준",
     "post_id": "3969788127135379264",
     "url": "https://gaganam1.blogspot.com/2026/10/blog-post_26.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.6204,
     "review_score": 88,
     "extras": [],
     "description": "운전면허 적성검사 때 면허증으로 신분 확인이 안 되면 기타 신분증을 내고, 원하면 지문정보 대조로 본인 확인을 받을 수 있습니다. 해외 체류 시 사본 제출과 준비물, 대리접수 조건을 정리했습니다.",
-    "posted_at": "2026-10-26T09:44:13+09:00"
+    "posted_at": "2026-10-26T09:44:13+09:00",
+    "merged_into": "https://gaganam1.blogspot.com/2026/10/blog-post_27.html",
+    "reverted_at": "2026-11-05T05:35:43+09:00"
   },
   {
     "keyword": "운전면허 갱신 온라인 신청 가능한 경우와 안 되는 경우",

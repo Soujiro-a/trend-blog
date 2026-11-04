@@ -29,15 +29,17 @@
   },
   {
     "keyword": "배송 중 파손된 제품 환불 및 교환 요청 방법",
-    "title": "배송 중 파손된 제품 환불 및 교환 요청 방법, 증거 확보부터 판매자 문구까지",
+    "title": "택배 분실 환불, 배송완료인데 못 받았을 때 요구법",
     "post_id": "4279148563471258144",
     "url": "https://gaganamc1.blogspot.com/2026/09/blog-post_23.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.4315,
-    "review_score": 85,
+    "review_score": 88,
     "extras": [],
-    "posted_at": "2026-09-24T13:57:17+09:00"
+    "posted_at": "2026-09-24T13:57:17+09:00",
+    "description": "택배 분실 시 택배요금 환급과 운송장 가액 기준 배상을 요구할 수 있고, 쇼핑몰 물건은 판매자에게 요구합니다. 일부 분실 14일 통지, 50만 원 한도, 상담 순서를 정리했습니다.",
+    "rewritten_at": "2026-11-05T05:52:31+09:00"
   },
   {
     "keyword": "정기구독 서비스 해지했는데 위약금 청구받았을 때 대처법",
@@ -293,13 +295,15 @@
     "title": "의류 택 제거 청약철회 기준, 택 뗐다고 환불 거부당했을 때 대처법",
     "post_id": "8854488825565154492",
     "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_14.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.3854,
     "review_score": 86,
     "extras": [],
     "description": "택을 뗐다는 사실만으로는 청약철회를 막기 어렵다는 한국소비자원 결정례와 소비자24 안내를 바탕으로, 되는 경우와 안 되는 경우를 나눴습니다. 통상 7일 기한, 판매자에게 보낼 문구, 1372 상담과 분쟁조정 순서까지 담았습니다.",
-    "posted_at": "2026-10-14T12:30:38+09:00"
+    "posted_at": "2026-10-14T12:30:38+09:00",
+    "merged_into": "https://gaganamc1.blogspot.com/2026/10/3.html",
+    "reverted_at": "2026-11-05T05:54:32+09:00"
   },
   {
     "keyword": "중고거래 물품 받고 하자 발견했을 때 환불 요구 가능한 기준",
