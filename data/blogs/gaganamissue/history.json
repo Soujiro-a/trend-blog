@@ -224,16 +224,17 @@
   },
   {
     "keyword": "항공권 환불 불가 운임인데 질병으로 탑승 못 할 때 진단서로 환불받는 방법",
-    "title": "항공권 환불 불가 운임, 질병으로 못 탈 때 진단서로 위약금 면제받는 법",
+    "title": "환불불가 항공권 환불, 질병·비자 거절 때 신청 순서",
     "post_id": "8732718923977737519",
     "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_12.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.4195,
-    "review_score": 90,
+    "review_score": 84,
     "extras": [],
-    "description": "환불 불가 운임이라도 항공사에 질병 면제 약관이 있으면 '탑승 불가' 내용이 담긴 진단서로 취소수수료를 면제받을 수 있습니다. 취소 전에 확인할 것, 필요 서류, 환불 신청기한을 순서대로 정리했습니다.",
-    "posted_at": "2026-10-12T11:12:46+09:00"
+    "description": "환불불가 항공권도 약관에 질병 조항이 있으면 수수료 면제나 유효기간 연장이 될 수 있어 취소 전에 문의해야 합니다. 비자 거절·여행사 구매 때 신청 순서를 정리했습니다.",
+    "posted_at": "2026-10-12T11:12:46+09:00",
+    "rewritten_at": "2026-11-06T06:06:55+09:00"
   },
   {
     "keyword": "신혼여행 전 여권 이름 변경했는데 항공권 이름이 다를 때 대처법",
@@ -332,13 +333,15 @@
     "title": "여권 갱신 후 ESTA 연결 안 될 때, 재신청과 확인 순서",
     "post_id": "3348084148067691659",
     "url": "https://gaganamissue.blogspot.com/2026/10/esta_01074215971.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.6887,
     "review_score": 88,
     "extras": [],
     "description": "여권을 갱신하면 여권번호가 바뀌고, 기존 ESTA 승인은 새 여권으로 옮겨지지 않아 새로 신청해야 합니다. 재신청 순서와 분실·비자·거절 상황별 대처를 정리했습니다.",
-    "posted_at": "2026-10-21T14:20:26+09:00"
+    "posted_at": "2026-10-21T14:20:26+09:00",
+    "merged_into": "https://gaganamissue.blogspot.com/2026/09/esta.html",
+    "reverted_at": "2026-11-06T06:08:56+09:00"
   },
   {
     "keyword": "환승 항공편 첫 구간 지연으로 두 번째 비행기 놓쳤을 때 항공사 책임과 재발권 방법",

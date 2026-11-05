@@ -67,15 +67,17 @@
   },
   {
     "keyword": "엔진오일 교체 주기와 종류별 차이",
-    "title": "엔진오일 교체 주기와 종류별 차이, 5W30 뜻과 내 차 주기 확인하는 방법",
+    "title": "엔진오일 교체 주기 5천~1만km, 변속기·브레이크 오일과 차이",
     "post_id": "5399212068458309479",
     "url": "https://gaganam1.blogspot.com/2026/09/5w30.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.3351,
-    "review_score": 88,
+    "review_score": 86,
     "extras": [],
-    "posted_at": "2026-09-26T09:56:21+09:00"
+    "posted_at": "2026-09-26T09:56:21+09:00",
+    "description": "엔진오일은 보통 1만km 내외, 고속·장거리가 잦으면 7천km 내외에 갈고, 주행이 적어도 1년 안에 교체합니다. 오일 상태 확인법과 변속기·브레이크 오일 주기도 정리했습니다.",
+    "rewritten_at": "2026-11-06T05:49:26+09:00"
   },
   {
     "keyword": "자동차 과태료 이의신청 방법과 처리 기간",
@@ -264,13 +266,15 @@
     "title": "면허정지 중 운전 처벌, 무면허운전으로 1년 이하 징역·300만원 이하 벌금",
     "post_id": "1221305094175698791",
     "url": "https://gaganam1.blogspot.com/2026/10/1-300.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.5071,
     "review_score": 86,
     "extras": [],
     "description": "운전면허 정지 기간에 운전하다 적발되면 무면허운전으로 처리되어 1년 이하 징역 또는 300만원 이하 벌금을 받습니다. 면허 재취득 제한, 3회 이상 위반 시 2년 취득 금지, 정지 기간 확인 방법까지 정리했습니다.",
-    "posted_at": "2026-10-11T09:55:44+09:00"
+    "posted_at": "2026-10-11T09:55:44+09:00",
+    "merged_into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html",
+    "reverted_at": "2026-11-06T05:51:28+09:00"
   },
   {
     "keyword": "자동차보험 대인 합의 전에 상대방이 치료비 계속 요구할 때 처리 절차",

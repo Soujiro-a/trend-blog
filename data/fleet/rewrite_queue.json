@@ -70,7 +70,10 @@
  {
   "action": "rewrite",
   "url": "https://gaganam1.blogspot.com/2026/09/5w30.html",
-  "absorb": []
+  "absorb": [],
+  "night": "2026-11-05",
+  "new_description": "엔진오일은 보통 1만km 내외, 고속·장거리가 잦으면 7천km 내외에 갈고, 주행이 적어도 1년 안에 교체합니다. 오일 상태 확인법과 변속기·브레이크 오일 주기도 정리했습니다.",
+  "done_at": "2026-11-06T05:49:26+09:00"
  },
  {
   "action": "rewrite",
@@ -133,7 +136,9 @@
  {
   "action": "revert",
   "url": "https://gaganam1.blogspot.com/2026/10/1-300.html",
-  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html"
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T05:51:28+09:00"
  },
  {
   "action": "revert",
@@ -263,7 +268,9 @@
  {
   "action": "revert",
   "url": "https://nowissue1.blogspot.com/2026/10/30.html",
-  "into": "https://nowissue1.blogspot.com/2026/10/2_0677389600.html"
+  "into": "https://nowissue1.blogspot.com/2026/10/2_0677389600.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T05:53:30+09:00"
  },
  {
   "action": "rewrite",
@@ -341,7 +348,10 @@
   "topic": "중고거래 하자 환불 기준, 3일·10일 안에 요구할 것",
   "absorb": [
    "https://gaganamc1.blogspot.com/2026/10/310_0126228298.html"
-  ]
+  ],
+  "night": "2026-11-05",
+  "new_description": "중고거래 물건을 받고 3일 안에 미고지 중대 하자가 생기면 전액 환불·수리비 배상, 10일 안이면 50% 환불이 권고됩니다. 판매자에게 보낼 문구와 거절 시 신청처를 정리했습니다.",
+  "done_at": "2026-11-06T05:59:54+09:00"
  },
  {
   "action": "rewrite",
@@ -420,7 +430,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/10/7_02117023222.html",
-  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post_24.html"
+  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post_24.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T06:01:56+09:00"
  },
  {
   "action": "revert",
@@ -537,7 +549,10 @@
   "topic": "환불불가 항공권 환불, 질병·비자 거절 때 신청",
   "absorb": [
    "https://gaganamissue.blogspot.com/2026/10/blog-post_20.html"
-  ]
+  ],
+  "night": "2026-11-05",
+  "new_description": "환불불가 항공권도 약관에 질병 조항이 있으면 수수료 면제나 유효기간 연장이 될 수 있어 취소 전에 문의해야 합니다. 비자 거절·여행사 구매 때 신청 순서를 정리했습니다.",
+  "done_at": "2026-11-06T06:06:55+09:00"
  },
  {
   "action": "rewrite",
@@ -601,7 +616,9 @@
  {
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/esta_01074215971.html",
-  "into": "https://gaganamissue.blogspot.com/2026/09/esta.html"
+  "into": "https://gaganamissue.blogspot.com/2026/09/esta.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T06:08:56+09:00"
  },
  {
   "action": "revert",
@@ -714,7 +731,10 @@
   "action": "rewrite",
   "url": "https://picktopic1.blogspot.com/2026/10/blog-post.html",
   "fix": "해지 유형별 비교표가 있는 해지 묶음의 중심 글이지만 금융위 Q&A를 거의 옮긴 수준이므로, 같은 납입액으로 일반해지·3년 후 해지·특별해지 때 받는 돈을 비교하는 계산 예시를 넣고, 낡은 미래적금 단락은 [16] 링크로 바꾸고, 특별중도해지 사유 목록을 [3]과 맞춰야 함.",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-05",
+  "failed_at": "2026-11-06T05:47:25+09:00",
+  "reason": "검수 hold 66점: 가치 부족: 수정 지시에서 요구한 '같은 납입액으로 일반해지·3년 후 해지·특별해지 때 받는 돈 비교'가 빠져 있습니다. 가정 예시는 12개월 기준 일반해지와 특별해지만 다루고, 3년 후 해지(60%)는 계산 기준이 없다는 이유로 금액 비교에서 뺐습니다. 핵심인 유형별 금액 비교가 사실상 없고 금융위 Q&A를 재구성한 수준에 머뭅니다.; 가치 부족: 특별해지 예시에서 '정부기여금이 지급되고 비과세도 적용된다'고만 쓰고 받는 금액은 적지 않았습니다. 독자가 알고 싶은 '얼마나 받는가'를 답하지 못합니다.; 혼인·출산 해지 섹션은 2024년 중 법령 개정 추진 예정이라는 오래된 안내를 옮기고 '개정 여부는 따로 확인하라'고 넘깁니다. 2026-11 기준 글에서 핵심 질문의 답을 확인으로 넘긴 셈입니다. 요약 카드의 '2024년 중 개정 추진 예정 발표'도 같은 이유로 낡아 보입니다."
  },
  {
   "action": "rewrite",
@@ -771,7 +791,10 @@
   "action": "rewrite",
   "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_24.html",
   "fix": "자동차보험이라는 제목과 달리 본문은 일반 간소화 조회 안내이고, 자동차보험료가 보장성보험료 공제 대상인지, 공제율 12%·연 100만원 한도, 차량·계약자·피보험자 명의 요건을 모두 '126에서 확인하세요'로 넘겨 다시 검색해야 한다.",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-05",
+  "failed_at": "2026-11-06T05:47:25+09:00",
+  "reason": "검수 hold 62점: 가치 부족: 기존 점검에서 지적된 핵심(자동차보험료가 보장성보험료 공제 대상인지, 공제율·한도, 차량·계약자·피보험자 명의 요건)을 여전히 다루지 않습니다. 제목에서 자동차보험을 빼고 일반 안내로 바꿨지만 자료로 답할 수 있는 구체 내용이 부족합니다.; 가치 부족: 본문이 국세청·정부24 안내 세 곳을 순서와 표현만 바꿔 옮긴 수준입니다. 상황별 표와 4단계 순서도 '발급기관에서 직접 받아 회사에 제출'이라는 같은 답을 되풀이합니다.; '발급기관에서 직접 발급'이라고만 하고 어떤 서류를 어디서 어떻게 받는지 구체적 안내가 없어, 독자가 다시 검색해야 합니다."
  },
  {
   "action": "rewrite",
@@ -868,7 +891,10 @@
   "action": "rewrite",
   "url": "https://issuepick1.blogspot.com/2026/10/blog-post_19.html",
   "fix": "안내문 경로·직접 조회·가족 계좌 서류까지 실용적이나 상한액이 '89만~1,074만 원'으로만 나와 내가 대상인지 판단이 안 되므로 소득구간별 상한액 표와 환급 계산 예시를 넣고 '10월 8일 시행 예정' 시제를 고칠 것.",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-05",
+  "failed_at": "2026-11-06T05:47:25+09:00",
+  "reason": "검수 hold 62점: 가치 부족: 재작성 지시사항(소득구간별 상한액 표와 환급 계산 예시 추가)이 반영되지 않았습니다. 상한액이 '89만~1,074만 원'으로만 나와 독자가 자신이 대상인지 판단할 수 없고, 가정 예시 계산도 없습니다. 자료에 소득구간별 상한액이 없으므로 이를 표로 만들 수 없다면 '조회 화면에서 확인하라'로 넘기지 말고 범위를 조정해야 합니다.; 본문이 공단 안내 페이지와 복지부 보도자료의 내용을 순서만 바꿔 옮긴 수준입니다. 상황별 신청 경로 표 외에 이 글만의 정리(예: 가정 예시 계산, 기한 경과·소멸시효 사례)가 부족합니다.; '공단이 돌려주는 초과금은 1년 치 본인일부부담금 총액에서 개인별 상한액을 뺀 금액입니다'와 '조회 화면에 나오지 않으면 받을 돈이 없는 것입니다'는 자료에 직접 나오지 않는 단정에 가깝습니다. 제도 정의에서 유추한 서술입니다."
  },
  {
   "action": "rewrite",
@@ -1243,5 +1269,41 @@
   "url": "https://issuepick1.blogspot.com/2026/11/60.html",
   "night": "2026-11-05 아침(수동)",
   "done_at": "2026-11-05T08:57:25+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/15000.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T06:27:53+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://nowissue1.blogspot.com/2026/11/blog-post_04.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T06:31:56+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/3_0202876770.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T06:35:58+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_19.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T06:38:00+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/11/eta-16-2.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T06:40:02+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_15.html",
+  "night": "2026-11-05",
+  "done_at": "2026-11-06T06:46:05+09:00"
  }
 ]
