@@ -216,13 +216,15 @@
     "title": "연말정산 자동차보험료 간소화에 안 뜰 때 확인·제출법",
     "post_id": "7949149199537527603",
     "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_24.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.8072,
     "review_score": 88,
     "extras": [],
     "description": "자동차보험료가 간소화 자료에 안 뜨면 영수증 발급기관에서 증명서류를 받아 회사에 직접 내면 됩니다. 안 뜨는 원인별 확인 순서와 준비물, 예외 상황을 정리했습니다.",
-    "posted_at": "2026-10-24T10:49:41+09:00"
+    "posted_at": "2026-10-24T10:49:41+09:00",
+    "merged_into": "https://issuecatch1.blogspot.com/2026/10/blog-post_15.html",
+    "reverted_at": "2026-11-06T08:22:27+09:00"
   },
   {
     "keyword": "연말정산 간소화 자료 의료비 산후조리원 비용 공제 한도 조건",
@@ -239,16 +241,17 @@
   },
   {
     "keyword": "연말정산 연금저축 세액공제 한도 초과 납입했을 때 초과분 처리 방법",
-    "title": "연금저축 세액공제 한도 초과분 처리와 다음 해 공제 확인",
+    "title": "연금저축 세액공제 한도 초과분, 다음 해 공제와 계산 예시",
     "post_id": "4459713753980064793",
     "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_26.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.7245,
-    "review_score": 86,
+    "review_score": 84,
     "extras": [],
-    "description": "연금저축 세액공제 한도를 넘긴 납입액은 그해 공제되지 않고 인출할 때까지 과세가 미뤄집니다. 다음 해 공제 안내가 기관마다 다른 부분과 중도해지 주의점을 정리했습니다.",
-    "posted_at": "2026-10-26T09:48:14+09:00"
+    "description": "연금저축 한도를 넘겨 공제받지 못한 납입액은 다음 해 연말정산 때 공제받을 수 있습니다. 한도와 공제율, 초과분 계산 예시, 인출·해지 때 과세를 정리했습니다.",
+    "posted_at": "2026-10-26T09:48:14+09:00",
+    "rewritten_at": "2026-11-06T08:46:03+09:00"
   },
   {
     "keyword": "연말정산 배우자 소득금액 100만원 초과했을 때 기본공제 못 받는 경우와 확인 방법",

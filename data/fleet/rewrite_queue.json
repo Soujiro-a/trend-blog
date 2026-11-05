@@ -800,7 +800,11 @@
   "action": "rewrite",
   "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_26.html",
   "fix": "제목의 질문(초과분을 다음 해에 공제받는 법)을 '자료마다 다르니 126에서 확인'으로 남기고, 폐지된 1.2억·50세·400/300/700만원 한도를 현행 600/900만원과 나란히 두어 독자가 판단할 수 없으며 다음 해 납입분 전환 절차와 계산 예시가 없다.",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-06 아침(수동)",
+  "done_at": "2026-11-06T08:46:03+09:00",
+  "new_description": "연금저축 한도를 넘겨 공제받지 못한 납입액은 다음 해 연말정산 때 공제받을 수 있습니다. 한도와 공제율, 초과분 계산 예시, 인출·해지 때 과세를 정리했습니다.",
+  "note": "새 지시(자료 범위 안에서만) 시험 미리보기 84점 통과 — 그대로 반영"
  },
  {
   "action": "rewrite",
@@ -1305,5 +1309,65 @@
   "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_15.html",
   "night": "2026-11-05",
   "done_at": "2026-11-06T06:46:05+09:00"
+ },
+ {
+  "action": "revert",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post.html",
+  "into": "https://picktopic1.blogspot.com/2026/10/2-401.html",
+  "topic": "다시 쓰기 보류(11/5), 유형별 금액 비교 자료 없음 — 사용자 승인으로 임시저장 (11/6)",
+  "done_at": "2026-11-06T08:20:13+09:00",
+  "night": "2026-11-06 아침(수동)"
+ },
+ {
+  "action": "revert",
+  "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_24.html",
+  "into": "https://issuecatch1.blogspot.com/2026/10/blog-post_15.html",
+  "topic": "다시 쓰기 보류(11/5), 자동차보험료 공제 요건 자료 없음 — 사용자 승인으로 임시저장 (11/6)",
+  "done_at": "2026-11-06T08:22:27+09:00",
+  "night": "2026-11-06 아침(수동)"
+ },
+ {
+  "action": "revert",
+  "url": "https://issuepick1.blogspot.com/2026/10/blog-post_19.html",
+  "into": "https://issuepick1.blogspot.com/2026/10/blog-post_31.html",
+  "topic": "다시 쓰기 보류(11/5), 소득구간별 상한액 자료 없음 — 사용자 승인으로 임시저장 (11/6)",
+  "done_at": "2026-11-06T08:24:40+09:00",
+  "night": "2026-11-06 아침(수동)"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/2-401.html",
+  "night": "2026-11-06 아침(수동)",
+  "done_at": "2026-11-06T08:26:54+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuecatch1.blogspot.com/2026/11/5.html",
+  "night": "2026-11-06 아침(수동)",
+  "done_at": "2026-11-06T08:31:20+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuecatch1.blogspot.com/2026/10/40.html",
+  "night": "2026-11-06 아침(수동)",
+  "done_at": "2026-11-06T08:33:34+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuepick1.blogspot.com/2026/10/blog-post_31.html",
+  "night": "2026-11-06 아침(수동)",
+  "done_at": "2026-11-06T08:38:00+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuepick1.blogspot.com/2026/10/blog-post_29.html",
+  "night": "2026-11-06 아침(수동)",
+  "done_at": "2026-11-06T08:40:14+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuepick1.blogspot.com/2026/10/90_01802013517.html",
+  "night": "2026-11-06 아침(수동)",
+  "done_at": "2026-11-06T08:42:28+09:00"
  }
 ]

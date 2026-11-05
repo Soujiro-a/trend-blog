@@ -1621,7 +1621,9 @@ def test_retrofit(cfg: dict) -> None:
           n == 1 and body == '이 경우는 옛 글을 보세요. <a href="https://g/2026/10/z.html">그대로</a>', body)
     fb = rw.fix_block("계산 예시가 없음")
     check("다시 쓰기: 점검 지적은 근거가 아닌 빈칸으로", rw.fix_block("") == ""
-          and "사실 근거가 아닙니다" in fb and "계산 예시가 없음" in fb)
+          and "사실 근거도" in fb and "계산 예시가 없음" in fb)
+    check("다시 쓰기: 자료로 답 못 하는 지적은 빼고, 검수도 빠진 것을 결함으로 보지 않음",
+          "제목·요약·본문에서 아예 뺍니다" in fb and "빠진 것은 결함이 아닙니다" in fb)
     check("핵심 답을 문의처로 넘기지 않기 (작성·검수)", "문의하세요\"로 넘기지" in writer.SYSTEM
           and "126·1355·1350" in reviewer.SYSTEM and "댓글로 남겨 주세요\" 같은 매번" in writer.SYSTEM)
     from src import planner as _planner
