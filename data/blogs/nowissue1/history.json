@@ -19,13 +19,15 @@
     "title": "맞벌이 신혼부부 특별공급 소득기준 초과했을 때, 추첨제로 청약하는 법",
     "post_id": "2338189872152867516",
     "url": "https://nowissue1.blogspot.com/2026/10/blog-post_09.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.666,
     "review_score": 86,
     "extras": [],
     "description": "맞벌이 신혼부부가 특별공급 소득기준을 넘어도 민영주택은 세대원 부동산가액 3억 3,100만원 이하면 추첨제로, 공공주택 일반형은 맞벌이 200% 이하까지 추첨공급으로 청약할 수 있습니다. 소득 구간별 공급 유형을 표로 정리했습니다.",
-    "posted_at": "2026-10-09T13:08:05+09:00"
+    "posted_at": "2026-10-09T13:08:05+09:00",
+    "merged_into": "https://nowissue1.blogspot.com/2026/10/7.html",
+    "reverted_at": "2026-11-05T08:33:01+09:00"
   },
   {
     "keyword": "청약 가점 계산할 때 부양가족 수에 부모님 포함되는 조건 (주민등록 3년 기준)",

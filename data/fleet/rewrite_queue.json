@@ -266,11 +266,6 @@
   "into": "https://nowissue1.blogspot.com/2026/10/2_0677389600.html"
  },
  {
-  "action": "revert",
-  "url": "https://nowissue1.blogspot.com/2026/10/7.html",
-  "into": "https://nowissue1.blogspot.com/2026/10/blog-post_09.html"
- },
- {
   "action": "rewrite",
   "url": "https://gaganamc1.blogspot.com/2026/09/7.html",
   "topic": "온라인 쇼핑 청약철회 7일 기준과 환불 거부 대처",
@@ -1182,5 +1177,71 @@
   "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_21.html",
   "night": "2026-11-04",
   "done_at": "2026-11-05T06:45:28+09:00"
+ },
+ {
+  "action": "revert",
+  "url": "https://nowissue1.blogspot.com/2026/10/blog-post_09.html",
+  "into": "https://nowissue1.blogspot.com/2026/10/7.html",
+  "topic": "다시 쓰기 보류(11/4), 공공·민영 기준 혼동 — 사용자 승인으로 임시저장, 7.html 을 남김 (11/5)",
+  "done_at": "2026-11-05T08:33:01+09:00",
+  "night": "2026-11-05 아침(수동)"
+ },
+ {
+  "action": "revert",
+  "url": "https://picktopic1.blogspot.com/2026/10/055.html",
+  "into": "https://picktopic1.blogspot.com/2026/10/blog-post_09.html",
+  "topic": "다시 쓰기 보류(11/4), 자료에 비율 기준표 없음 — 사용자 승인으로 임시저장 (11/5)",
+  "done_at": "2026-11-05T08:35:14+09:00",
+  "night": "2026-11-05 아침(수동)"
+ },
+ {
+  "action": "revert",
+  "url": "https://issuepick1.blogspot.com/2026/10/blog-post_27.html",
+  "into": "https://issuepick1.blogspot.com/2026/10/90.html",
+  "topic": "다시 쓰기 보류(11/4), 자녀 재산 반영 자료 없음 — 사용자 승인으로 임시저장 (11/5)",
+  "done_at": "2026-11-05T08:37:26+09:00",
+  "night": "2026-11-05 아침(수동)"
+ },
+ {
+  "action": "relink",
+  "url": "https://nowissue1.blogspot.com/2026/10/5.html",
+  "night": "2026-11-05 아침(수동)",
+  "done_at": "2026-11-05T08:39:39+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/11/blog-post_03.html",
+  "night": "2026-11-05 아침(수동)",
+  "done_at": "2026-11-05T08:44:04+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/2.html",
+  "night": "2026-11-05 아침(수동)",
+  "done_at": "2026-11-05T08:46:18+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post_26.html",
+  "night": "2026-11-05 아침(수동)",
+  "done_at": "2026-11-05T08:48:31+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://picktopic1.blogspot.com/2026/10/blog-post_24.html",
+  "night": "2026-11-05 아침(수동)",
+  "done_at": "2026-11-05T08:50:45+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuepick1.blogspot.com/2026/11/blog-post_04.html",
+  "night": "2026-11-05 아침(수동)",
+  "done_at": "2026-11-05T08:55:11+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuepick1.blogspot.com/2026/11/60.html",
+  "night": "2026-11-05 아침(수동)",
+  "done_at": "2026-11-05T08:57:25+09:00"
  }
 ]
