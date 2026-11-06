@@ -78,7 +78,10 @@
  {
   "action": "rewrite",
   "url": "https://gaganam1.blogspot.com/2026/09/blog-post_27.html",
-  "absorb": []
+  "absorb": [],
+  "night": "2026-11-06",
+  "new_description": "자동차 과태료 이의신청은 고지서를 받은 날부터 60일 이내에 부과 기관에 서면으로 냅니다. 의견진술과의 차이, 제출 서류, 법원 처리 기간을 정리했습니다.",
+  "done_at": "2026-11-07T05:05:06+09:00"
  },
  {
   "action": "rewrite",
@@ -143,7 +146,9 @@
  {
   "action": "revert",
   "url": "https://gaganam1.blogspot.com/2026/10/1.html",
-  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html"
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html",
+  "night": "2026-11-06",
+  "done_at": "2026-11-07T05:07:06+09:00"
  },
  {
   "action": "revert",
@@ -359,7 +364,10 @@
   "topic": "중고거래 사기 신고, 경찰 신고와 지급정지 순서",
   "absorb": [
    "https://gaganamc1.blogspot.com/2026/10/blog-post_29.html"
-  ]
+  ],
+  "night": "2026-11-06",
+  "new_description": "중고거래 사기는 송금 직후 112나 은행에 지급정지를 요청하고, 사이버범죄 신고시스템 접수 뒤 평일 경찰서에서 정식 접수합니다. 빈 박스·하자별 신고 가능 여부와 준비 서류를 정리했습니다.",
+  "done_at": "2026-11-07T05:13:15+09:00"
  },
  {
   "action": "rewrite",
@@ -437,7 +445,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/10/6-200.html",
-  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post.html"
+  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post.html",
+  "night": "2026-11-06",
+  "done_at": "2026-11-07T05:15:15+09:00"
  },
  {
   "action": "revert",
@@ -560,7 +570,10 @@
   "topic": "위탁수하물 파손·분실 보상 신청과 기한",
   "absorb": [
    "https://gaganamissue.blogspot.com/2026/10/721.html"
-  ]
+  ],
+  "night": "2026-11-06",
+  "new_description": "위탁수하물 파손·내용물 분실은 받은 날부터 7일, 가방 지연·분실은 위탁한 날부터 21일 안에 항공사에 신고합니다. 공항 신고 순서와 보상 기준, 챙길 서류를 정리했습니다.",
+  "done_at": "2026-11-07T05:20:04+09:00"
  },
  {
   "action": "rewrite",
@@ -623,7 +636,9 @@
  {
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/vs.html",
-  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_04.html"
+  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_04.html",
+  "night": "2026-11-06",
+  "done_at": "2026-11-07T05:22:04+09:00"
  },
  {
   "action": "revert",
@@ -810,7 +825,10 @@
   "action": "rewrite",
   "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_20.html",
   "fix": "제목의 핵심인 '소득 차이 날 때 기준'을 2014~2015년 기사에 기대며 그 연도를 다섯 번 반복하고, 현행 세율 구간으로 부부 중 누가 받으면 얼마 차이 나는지 보여 주는 계산이 없어 결론이 약하다.",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-06",
+  "failed_at": "2026-11-07T05:03:11+09:00",
+  "reason": "검수 hold 72점: 가치 부족: 기존 점검에서 지적된 '소득 차이 날 때 누가 받으면 얼마 차이 나는지'(현행 세율 구간별 계산)가 여전히 빠져 있음. 세율이 다른 경우는 '세율 높은 쪽이 유리'라는 원칙 서술에 그치고, 제목이 묻는 '누가 받나'의 핵심 판단(소득 차이가 있을 때 결론)을 수치로 보여 주지 않음. 자료에 세율표가 없어 계산이 어렵다면 해당 소제목·약속을 줄이거나 제목을 3명 몰아받기 계산 중심으로 좁힐 필요가 있음.; 본문 뼈대가 국세청 정책브리핑 한 페이지 내용을 표와 문장으로 재배열한 수준이고, 독자 상황별 판단표나 예외 정리 등 이 글만의 정리가 얇음. 유일한 독자적 계산은 50만원 vs 45만원 단순 합산뿐임.; '자녀가 3명 이상이고 세율이 같으면 몰아 받는 편이 유리'를 5만원 차이로 계산한 부분은 자료의 공제액으로 맞게 계산됐으나, 세율이 다를 때 소득 높은 쪽에 몰아주는 것과 비교한 결과가 없어 결론이 약함."
  },
  {
   "action": "rewrite",
@@ -904,7 +922,10 @@
   "action": "rewrite",
   "url": "https://issuepick1.blogspot.com/2026/10/blog-post_12.html",
   "fix": "신청 경로와 임의·임의계속 비교표는 있으나 탈퇴 뒤 가입기간·낸 보험료가 어떻게 되는지(재가입, 10년 미만 시 반환일시금) 판단 정보가 없고, 임의계속가입 링크가 건강보험 글 [4]로 잘못 걸려 있음.",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-06",
+  "failed_at": "2026-11-07T05:03:11+09:00",
+  "reason": "검수 hold 66점: 가치 부족: 기존 점검에서 지적된 '탈퇴 뒤 가입기간·낸 보험료가 어떻게 되는지'(10년 미만 시 반환일시금, 재가입 시 기간 합산 등)에 대한 판단 정보가 본문에 없음. 자료로 확인되지 않아 뺀 것은 결함이 아니지만, 그 결과 본문 대부분이 공식 안내 페이지 4곳의 내용을 순서만 바꿔 옮긴 수준임.; 같은 내용을 여러 번 반복함: 임의계속가입자의 탈퇴 방법이 비교표, '임의계속가입자가 탈퇴하는 방법', '홈페이지에서 탈퇴가 안 될 때', 정리에서 되풀이되고, 처리 기간·수수료·대리 서류도 여러 섹션에서 반복돼 본문의 상당 부분이 중복임.; 요약 카드의 '임의계속 | 별도 신청서로 지사 방문·팩스·우편'과 본문의 임의계속가입자 안내가 자료와 어긋남. 자료(정부24)는 임의계속도 인터넷·전화로 신청할 수 있다고 하는데, 본문은 홈페이지 메뉴를 쓸 수 없다고 단정하고 방문·팩스·우편으로만 안내함. 자료는 '탈퇴할 수 없을 수 있음'이라고만 적었음."
  },
  {
   "action": "relink",
@@ -1369,5 +1390,35 @@
   "url": "https://issuepick1.blogspot.com/2026/10/90_01802013517.html",
   "night": "2026-11-06 아침(수동)",
   "done_at": "2026-11-06T08:42:28+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_28.html",
+  "night": "2026-11-06",
+  "done_at": "2026-11-07T05:38:14+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_26.html",
+  "night": "2026-11-06",
+  "done_at": "2026-11-07T05:44:16+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/10.html",
+  "night": "2026-11-06",
+  "done_at": "2026-11-07T05:46:17+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_20.html",
+  "night": "2026-11-06",
+  "done_at": "2026-11-07T05:48:17+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_13.html",
+  "night": "2026-11-06",
+  "done_at": "2026-11-07T05:50:18+09:00"
  }
 ]
