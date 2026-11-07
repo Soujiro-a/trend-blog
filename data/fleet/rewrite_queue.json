@@ -244,17 +244,26 @@
  {
   "action": "revert",
   "url": "https://nowissue1.blogspot.com/2026/10/5.html",
-  "into": "https://nowissue1.blogspot.com/2026/10/1.html"
+  "into": "https://nowissue1.blogspot.com/2026/10/1.html",
+  "done_at": "2026-11-07T09:16:22+09:00",
+  "night": "2026-11-07 아침(수동)",
+  "note": "중심 글 1.html 다시 쓰기 실패(11/4) — 1.html 을 그대로 두고 임시저장 (사용자 승인 11/7)"
  },
  {
   "action": "revert",
   "url": "https://nowissue1.blogspot.com/2026/10/blog-post_22.html",
-  "into": "https://nowissue1.blogspot.com/2026/10/1.html"
+  "into": "https://nowissue1.blogspot.com/2026/10/1.html",
+  "done_at": "2026-11-07T09:18:35+09:00",
+  "night": "2026-11-07 아침(수동)",
+  "note": "중심 글 1.html 다시 쓰기 실패(11/4) — 1.html 을 그대로 두고 임시저장 (사용자 승인 11/7)"
  },
  {
   "action": "revert",
   "url": "https://nowissue1.blogspot.com/2026/10/blog-post_23.html",
-  "into": "https://nowissue1.blogspot.com/2026/10/1.html"
+  "into": "https://nowissue1.blogspot.com/2026/10/1.html",
+  "done_at": "2026-11-07T09:20:48+09:00",
+  "night": "2026-11-07 아침(수동)",
+  "note": "중심 글 1.html 다시 쓰기 실패(11/4) — 1.html 을 그대로 두고 임시저장 (사용자 승인 11/7)"
  },
  {
   "action": "revert",
@@ -1420,5 +1429,63 @@
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_13.html",
   "night": "2026-11-06",
   "done_at": "2026-11-07T05:50:18+09:00"
+ },
+ {
+  "action": "revert",
+  "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_20.html",
+  "into": "https://issuecatch1.blogspot.com/2026/10/100.html",
+  "topic": "다시 쓰기 보류(11/6), 소득 구간별 세율 계산 자료 없음 — 사용자 승인으로 임시저장 (11/7)",
+  "done_at": "2026-11-07T09:11:56+09:00",
+  "night": "2026-11-07 아침(수동)"
+ },
+ {
+  "action": "revert",
+  "url": "https://issuepick1.blogspot.com/2026/10/blog-post_12.html",
+  "into": "https://issuepick1.blogspot.com/2026/10/60_0485781290.html",
+  "topic": "다시 쓰기 보류(11/6), 공식 안내 재배열 수준 — 사용자 승인으로 임시저장 (11/7)",
+  "done_at": "2026-11-07T09:14:09+09:00",
+  "night": "2026-11-07 아침(수동)"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_31.html",
+  "night": "2026-11-07 아침(수동)",
+  "done_at": "2026-11-07T09:23:02+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuecatch1.blogspot.com/2026/10/100_01916905872.html",
+  "night": "2026-11-07 아침(수동)",
+  "done_at": "2026-11-07T09:25:16+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuecatch1.blogspot.com/2026/10/200.html",
+  "night": "2026-11-07 아침(수동)",
+  "done_at": "2026-11-07T09:27:30+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_23.html",
+  "night": "2026-11-07 아침(수동)",
+  "done_at": "2026-11-07T09:29:44+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://issuepick1.blogspot.com/2026/10/60_0485781290.html",
+  "night": "2026-11-07 아침(수동)",
+  "done_at": "2026-11-07T09:34:10+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://nowissue1.blogspot.com/2026/11/blog-post_04.html",
+  "night": "2026-11-07 아침(수동)",
+  "done_at": "2026-11-07T09:38:37+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://nowissue1.blogspot.com/2026/10/7.html",
+  "night": "2026-11-07 아침(수동)",
+  "done_at": "2026-11-07T09:40:51+09:00"
  }
 ]

@@ -88,13 +88,15 @@
     "title": "청약통장 미성년 가입기간 인정 5년, 성인 된 뒤 가점 계산하는 법",
     "post_id": "1114130318459621652",
     "url": "https://nowissue1.blogspot.com/2026/10/5.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.5226,
     "review_score": 88,
     "extras": [],
     "description": "미성년자 때 만든 청약통장은 2023년까지의 기간은 최대 2년, 2024년 이후분을 더하면 최대 5년까지 가입기간으로 인정됩니다. 성인이 된 뒤 입주자모집공고일을 기준으로 가입기간과 가점을 계산하는 순서를 정리했습니다.",
-    "posted_at": "2026-10-14T12:33:03+09:00"
+    "posted_at": "2026-10-14T12:33:03+09:00",
+    "merged_into": "https://nowissue1.blogspot.com/2026/10/1.html",
+    "reverted_at": "2026-11-07T09:16:22+09:00"
   },
   {
     "keyword": "청약통장 1순위 조건 수도권 투기과열지구 가입기간 납입횟수 확인 방법",
@@ -180,26 +182,30 @@
     "title": "청약통장 은행 변경 가입기간 유지, 전환 기한 끝난 뒤 확인법",
     "post_id": "1040163091227002521",
     "url": "https://nowissue1.blogspot.com/2026/10/blog-post_22.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.6509,
     "review_score": 86,
     "extras": [],
     "description": "청약예·부금을 종합저축으로 바꾸며 다른 은행을 고를 수 있던 전환 기한은 2026년 9월 30일에 끝났습니다. 가입기간이 인정되는 범위와 지금 확인할 순서를 정리했습니다.",
-    "posted_at": "2026-10-22T15:47:14+09:00"
+    "posted_at": "2026-10-22T15:47:14+09:00",
+    "merged_into": "https://nowissue1.blogspot.com/2026/10/1.html",
+    "reverted_at": "2026-11-07T09:18:35+09:00"
   },
   {
     "keyword": "청약통장 해지하고 다시 만들면 가입기간 처음부터인지 해지 후 재가입 가점 영향",
     "title": "청약통장 해지 재가입 가입기간, 처음부터인지와 가점 영향",
     "post_id": "1571173187535139820",
     "url": "https://nowissue1.blogspot.com/2026/10/blog-post_23.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.4686,
     "review_score": 84,
     "extras": [],
     "description": "청약통장 가입기간은 전환·예치금액 변경·명의변경 때 최초 가입일로 유지됩니다. 해지 전 확인 순서와 가점·1순위에 미치는 영향을 정리했습니다.",
-    "posted_at": "2026-10-23T15:39:16+09:00"
+    "posted_at": "2026-10-23T15:39:16+09:00",
+    "merged_into": "https://nowissue1.blogspot.com/2026/10/1.html",
+    "reverted_at": "2026-11-07T09:20:48+09:00"
   },
   {
     "keyword": "청약통장 신혼부부 특별공급 혼인신고 7년 지났을 때 신청 가능한지",

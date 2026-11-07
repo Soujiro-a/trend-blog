@@ -164,13 +164,15 @@
     "title": "연말정산 자녀공제 맞벌이 누가 받나, 소득 차이 날 때 기준",
     "post_id": "8457289512312321038",
     "url": "https://issuecatch1.blogspot.com/2026/10/blog-post_20.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 1.0123,
     "review_score": 84,
     "extras": [],
     "description": "맞벌이 부부의 자녀 공제는 한 명만 받을 수 있고, 중복공제하면 5월에 정정해야 합니다. 국세청 안내의 판단 기준과 자녀세액공제 금액을 정리했습니다.",
-    "posted_at": "2026-10-20T09:53:59+09:00"
+    "posted_at": "2026-10-20T09:53:59+09:00",
+    "merged_into": "https://issuecatch1.blogspot.com/2026/10/100.html",
+    "reverted_at": "2026-11-07T09:11:56+09:00"
   },
   {
     "keyword": "연말정산 중도 입사 전 직장 근로소득원천징수영수증 못 받았을 때 합산 제출 방법",
