@@ -1599,6 +1599,43 @@ def test_retrofit(cfg: dict) -> None:
           {"action": "revert", "url": "https://g/2026/10/d.html", "into": "https://g/2026/09/done.html", "done_at": "x"}]
     check("대기열 글은 다듬기·사실 갱신에서 뺌 (실패로 멈춘 임시저장·끝난 글은 그대로)",
           rw.busy_urls(bq) == {"g/2026/10/hub.html", "g/2026/10/a.html", "g/2026/10/b.html"}, str(rw.busy_urls(bq)))
+    # 2026-11-07: 검수 보류 뒤 자동 정리
+    hq = [{"action": "rewrite", "url": "https://g/2026/10/hub.html", "failed_at": "x"},
+          {"action": "revert", "url": "https://g/2026/10/a.html", "into": "https://g/2026/10/hub.html"}]
+    msg = rw.settle_failure({}, None, hq, hq[0], "2026-11-07")
+    check("다시 쓰기 실패: 묶인 글이 있으면 중심 글은 두고 묶인 글을 그 글로 내림",
+          hq[1].get("hub_as_is") and [s["url"] for s in rw.next_steps(hq, "2026-11-08")] == ["https://g/2026/10/a.html"]
+          and "g/2026/10/a.html" in rw.busy_urls(hq) and "공개로 두고" in msg, msg)
+    cq = [{"action": "rewrite", "url": "https://g/2026/10/bad.html", "failed_at": "x"},
+          {"action": "rewrite", "url": "https://g/2026/10/soon.html"},
+          {"action": "revert", "url": "https://g/2026/10/gone.html", "into": "https://g/2026/10/k.html", "done_at": "x"}]
+    posts = [{"url": u, "title": t} for u, t in [("https://g/2026/10/bad.html", "나쁜 글"), ("https://g/2026/10/soon.html", "곧 바뀜"),
+                                                ("https://g/2026/10/ok.html", "가까운 글"), ("https://g/2026/10/k.html", "다른 글")]]
+    check("다시 쓰기 실패: 합칠 곳 후보에서 자기 자신·다시 쓸 글 제외",
+          [p["url"] for p in rw.hub_candidates(cq, posts, cq[0]["url"])] == ["https://g/2026/10/ok.html", "https://g/2026/10/k.html"])
+    import types
+    fake_fleet = types.SimpleNamespace(blogs=[types.SimpleNamespace(domain="g", id="g")])
+    reverted = []
+    orig_env = rw.fleet_mod.apply_env
+    rw.fleet_mod.apply_env = lambda *a: None
+    try:
+        msg = rw.settle_failure({}, fake_fleet, cq, cq[0], "2026-11-07",
+                                pick=lambda cfg, title, cands: (cands[0]["url"], f"{title} 와 같은 제도", 0.0),
+                                revert=lambda f, u, h: reverted.append((u, h)), live_posts=lambda b: posts)
+        nomsg = rw.settle_failure({}, fake_fleet, cq[:2], cq[0], "2026-11-07",
+                                  pick=lambda cfg, title, cands: ("", "맞는 글 없음", 0.0),
+                                  revert=lambda f, u, h: reverted.append((u, h)), live_posts=lambda b: posts)
+    finally:
+        rw.fleet_mod.apply_env = orig_env
+    check("다시 쓰기 실패: 묶인 글이 없으면 고른 글로 합쳐 임시저장·대기열에 기록, 없으면 공개로 둠",
+          reverted == [("https://g/2026/10/bad.html", "https://g/2026/10/ok.html")] and cq[-1].get("auto")
+          and cq[-1]["into"] == "https://g/2026/10/ok.html" and cq[-1].get("done_at") and "나쁜 글" in msg
+          and "공개로 둡니다" in nomsg, msg + " / " + nomsg)
+    check("링크 고치기: 합친 글도 나중에 내려가면 끝까지 따라감",
+          rw.resolve_moves({"/a.html": "https://g/x.html", "/x.html": "https://g/h.html", "/h.html": "https://g/a.html"})
+          ["/a.html"] in ("https://g/h.html", "https://g/a.html")
+          and rw.resolve_moves({"/y.html": "https://g/2026/10/x.html", "/2026/10/x.html": "https://g/2026/10/h.html"})
+          ["/y.html"] == "https://g/2026/10/h.html")
     rf = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "retrofit.yml").read_text(encoding="utf-8")
     check("다시 쓰기 실패는 이슈로 알림", "issues: write" in rf and "rewrite_failures.md" in rf
           and str(rw.FAIL_REPORT).replace("\\", "/").endswith("out/rewrite_failures.md"))

@@ -111,11 +111,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           {
-            echo "밤 다시 쓰기 대기열에서 실패한 항목입니다. 원래 글은 그대로 공개돼 있고, 이 글에 묶인 임시저장도 멈춰 있습니다."
+            echo "밤 다시 쓰기 대기열에서 실패한 항목입니다. 검수 보류면 각 항목의 '정리' 줄대로 자동 정리했습니다(임시저장하고 링크를 가까운 글로, 또는 묶인 글만 이 글로). 되돌리려면 Blogger 에서 다시 공개하세요."
             echo
             cat out/rewrite_failures.md
             echo
-            echo "기록: data/fleet/rewrite_queue.json (failed_at·reason). 다시 하려면 지적을 fix 에 넣은 재시도 항목을 대기열에 추가하세요."
+            echo "기록: data/fleet/rewrite_queue.json (failed_at·reason·after). '공개로 둡니다' 항목만 사람이 정하면 됩니다."
           } > failure_issue.md
           gh issue create --title "⚠️ 다시 쓰기 실패 $(date -u -d '+9 hours' +'%Y-%m-%d %H:%M') KST" --body-file failure_issue.md
 

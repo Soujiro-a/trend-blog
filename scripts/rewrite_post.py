@@ -15,6 +15,8 @@ retrofit_posts.py 는 문장만 다듬어서 이런 글을 고칠 수 없습니�
 
 쓰기 요청은 한 번에 몰지 않습니다(2026-09-20 짧은 시간 여러 건으로 계정 쓰기가 막힘). run-queue 는 하루 밤에
 블로그마다 다시 쓰기 1건 + 임시저장 1건 + 링크 고치기 2건까지만 하고, 임시저장은 그 글을 합친 중심 글이 반영된 뒤에만 합니다.
+검수가 다시 쓰기를 보류하면 그 밤에 바로 정리합니다(settle_failure): 묶인 글이 기다리면 그 글들만 이 글로 내리고,
+아니면 가장 가까운 공개 글로 합친 것으로 하고 임시저장합니다.
 """
 
 from __future__ import annotations
@@ -293,7 +295,8 @@ def next_steps(q: list[dict], night: str) -> list[dict]:
         if "rewrite" not in done_tonight:
             out += [it for it in pending if it["action"] == "rewrite"][:1]
         if "revert" not in done_tonight:
-            out += [it for it in pending if it["action"] == "revert" and key_of(it["into"]) in applied][:1]
+            out += [it for it in pending if it["action"] == "revert"
+                    and (key_of(it["into"]) in applied or it.get("hub_as_is"))][:1]
     return out
 
 
@@ -305,7 +308,7 @@ def busy_urls(q: list[dict]) -> set[str]:
     applied = {key_of(it["url"]) for it in rewrites if it.get("done_at")}
     coming = {key_of(it["url"]) for it in rewrites if not it.get("done_at") and not it.get("failed_at")}
     reverts = {key_of(it["url"]) for it in q if it["action"] == "revert" and not it.get("done_at")
-               and not it.get("failed_at") and key_of(it["into"]) in applied | coming}
+               and not it.get("failed_at") and (key_of(it["into"]) in applied | coming or it.get("hub_as_is"))}
     return coming | reverts
 
 
@@ -315,6 +318,8 @@ def note_failure(it: dict) -> None:
     FAIL_REPORT.parent.mkdir(parents=True, exist_ok=True)
     with FAIL_REPORT.open("a", encoding="utf-8") as f:
         f.write(f"- {it['action']} {it['url']}\n  - {it.get('reason', '')}\n")
+        if it.get("after"):
+            f.write(f"  - 정리: {it['after']}\n")
 
 
 def relink(content: str, moved: dict[str, str], self_url: str = "") -> tuple[str, int]:
@@ -345,13 +350,114 @@ def relink(content: str, moved: dict[str, str], self_url: str = "") -> tuple[str
     return re.sub(r'(href=")(https?://[^"]+)"', sub, content), count
 
 
+def resolve_moves(moved: dict[str, str]) -> dict[str, str]:
+    """{경로: 합친 글 주소} 에서 합친 글도 나중에 임시저장됐으면 끝까지 따라갑니다(Y→X 뒤 X→H 면 Y→H).
+    다시 쓰기에 실패한 중심 글을 자동으로 내리면서 생깁니다(2026-11-07)."""
+    out = {}
+    for src, dst in moved.items():
+        seen = {src}
+        while path_of(dst) in moved and path_of(dst) not in seen:
+            seen.add(path_of(dst))
+            dst = moved[path_of(dst)]
+        out[src] = dst
+    return out
+
+
+# ---------------------------------------------------------------- 다시 쓰기 실패 뒤 자동 정리 (2026-11-07)
+# 검수가 보류하면 그 글은 '가치 부족' 판정을 받은 채 공개로 남습니다. 11/4~11/6 에는 매일 아침 사람이 지시해
+# 임시저장하고 링크를 옮겼습니다(소유지로 계정 다시 쓰기 27편 중 18편 실패). 이제 실패한 밤에 바로 정리합니다.
+# - 이 글에 묶인 임시저장이 기다리고 있으면: 이 글은 그대로 두고(묶음의 대표 글) 묶인 글만 이 글로 내립니다.
+# - 아니면: 같은 블로그에서 독자에게 가장 가까운 공개 글을 골라 그 글로 합친 것으로 하고 임시저장합니다.
+#   맞는 글이 없으면 공개로 두고 이슈에 적습니다.
+
+HUB_PICK_SYSTEM = """당신은 한국어 생활정보 블로그의 편집자입니다. 품질 문제로 내리는 글 하나와, 같은 블로그의 공개 글 목록을 받습니다.
+내리는 글로 들어오던 독자(링크·검색)를 대신 보낼 글을 하나 고릅니다.
+
+- 같은 제도·같은 절차를 다루고, 내리는 글의 독자가 찾던 답에 가장 가까운 글을 고릅니다.
+- 낱말이 겹치는 것만으로 고르지 않습니다. 다른 제도라면 고르지 않습니다.
+- 맞는 글이 없으면 0 을 고릅니다.
+
+JSON 한 덩어리만 출력합니다: {"pick": 번호(없으면 0), "why": "한 줄"}"""
+
+
+def _live_posts(blog: fleet_mod.Blog) -> list[dict]:
+    out, page = [], None
+    while True:
+        params = {"status": "live", "maxResults": 100, "fetchBodies": "false"}
+        if page:
+            params["pageToken"] = page
+        data = net.get(f"{blogger.API_BASE}/blogs/{blog.blog_id}/posts", params=params, headers=_headers()).json()
+        out += [{"url": p["url"], "title": p.get("title", "")} for p in data.get("items", [])]
+        page = data.get("nextPageToken")
+        if not page:
+            return out
+
+
+def hub_candidates(q: list[dict], posts: list[dict], url: str) -> list[dict]:
+    """합칠 곳 후보: 같은 블로그 공개 글 중 자기 자신, 아직 안 끝났거나 실패한 다시 쓰기 대상(곧 바뀌거나 내려갈 수 있음),
+    임시저장 대상·이미 내린 글을 뺀 것."""
+    unsettled = {key_of(it["url"]) for it in q if it["action"] == "rewrite" and not it.get("done_at")} - \
+                {key_of(it["url"]) for it in q if it["action"] == "rewrite" and it.get("done_at")}
+    leaving = {key_of(it["url"]) for it in q if it["action"] == "revert" and not it.get("failed_at")}
+    skip = unsettled | leaving | {key_of(url)}
+    return [p for p in posts if key_of(p["url"]) not in skip and p.get("title")]
+
+
+def pick_hub(cfg: dict, title: str, candidates: list[dict], client=None) -> tuple[str, str, float]:
+    """(고른 글 주소 또는 '', 이유, 비용). 검수 모델로 고릅니다(목록 수십 줄이라 $0.01 안팎)."""
+    if not candidates:
+        return "", "후보 없음", 0.0
+    from src import llm
+
+    r = cfg["review"]
+    client = client or llm.client()
+    listing = "\n".join(f"{i}. {p['title']}" for i, p in enumerate(candidates, 1))
+    response = client.messages.create(
+        model=r["model"], max_tokens=3000, system=llm.cached(HUB_PICK_SYSTEM), output_config={"effort": "low"},
+        messages=[{"role": "user", "content": f"## 내리는 글\n{title}\n\n## 공개 글 목록\n{listing}"}],
+    )
+    cost = llm.cost_of(response.usage, r["model"], (3.00, 15.00))
+    m = re.search(r"\{.*\}", llm.text_of(response, "합칠 글 고르기"), re.S)
+    try:
+        ans = json.loads(m.group(0)) if m else {}
+        n = int(ans.get("pick") or 0)
+    except (ValueError, TypeError):
+        return "", "응답 해석 실패", cost
+    if not 1 <= n <= len(candidates):
+        return "", str(ans.get("why", "맞는 글 없음"))[:120], cost
+    return candidates[n - 1]["url"], str(ans.get("why", ""))[:120], cost
+
+
+def settle_failure(cfg: dict, fleet: fleet_mod.Fleet, q: list[dict], it: dict, night: str,
+                   pick=pick_hub, revert=None, live_posts=None) -> str:
+    """검수 보류로 실패한 다시 쓰기를 정리하고, 한 일을 한 줄로 돌려줍니다(이슈에 적음)."""
+    deps = [r for r in q if r["action"] == "revert" and not r.get("done_at") and not r.get("failed_at")
+            and key_of(r["into"]) == key_of(it["url"])]
+    if deps:
+        for r in deps:
+            r["hub_as_is"] = True
+        return f"이 글은 공개로 두고, 묶여 있던 {len(deps)}편을 밤마다 한 편씩 이 글로 합쳐 임시저장합니다"
+    blog = blog_of(fleet, it["url"])
+    fleet_mod.apply_env(fleet, blog)
+    posts = (live_posts or _live_posts)(blog)
+    title = next((p["title"] for p in posts if key_of(p["url"]) == key_of(it["url"])), it.get("topic", ""))
+    hub, why, _cost = pick(cfg, title, hub_candidates(q, posts, it["url"]))
+    if not hub:
+        return f"합칠 만한 글이 없어 공개로 둡니다 ({why}) — 사람이 정해 주세요"
+    (revert or do_revert)(fleet, it["url"], hub)
+    q.append({"action": "revert", "url": it["url"], "into": hub, "night": night, "auto": True,
+              "topic": f"다시 쓰기 보류로 자동 임시저장 ({why})",
+              "done_at": datetime.now(KST).isoformat(timespec="seconds")})
+    return f"임시저장하고 링크는 {hub} 로 옮깁니다 ({why})"
+
+
 def relink_one(fleet: fleet_mod.Fleet, q: list[dict], host: str) -> str:
     """그 블로그에서 임시저장된 글로 링크하는 공개 글 하나를 찾아 링크를 고칩니다(블로그마다 하룻밤 한 편).
     고친 글 주소, 없으면 ''."""
     done = [it for it in q if it["action"] == "revert" and it.get("done_at") and host_of(it["url"]) == host]
     if not done:
         return ""
-    moved = {path_of(it["url"]): it["into"].split("?")[0] for it in done}
+    moved = resolve_moves({path_of(it["url"]): it["into"].split("?")[0] for it in done})
     blog = blog_of(fleet, done[0]["url"])
     fleet_mod.apply_env(fleet, blog)
     page = None
@@ -410,6 +516,17 @@ def run_queue(cfg: dict, fleet: fleet_mod.Fleet, dry_run: bool) -> int:
                     it.update(failed_at=now.isoformat(timespec="seconds"),
                               reason=f"검수 {data['review']['verdict']} {data['review']['score']}점: "
                                      + "; ".join(data["review"]["issues"][:3]))
+                    retry = any(o is not it and o["action"] == "rewrite" and key_of(o["url"]) == key_of(it["url"])
+                                and not o.get("done_at") and not o.get("failed_at") for o in q)
+                    if not retry:
+                        try:
+                            time.sleep(120)   # 다시 쓰기 미리보기 뒤 쓰기 요청 간격
+                            it["after"] = settle_failure(cfg, fleet, q, it, night)
+                            wrote = True
+                        except blogger.BloggerForbidden:
+                            raise
+                        except Exception as exc:  # noqa: BLE001 — 정리 실패는 공개로 남기고 이슈에 적습니다
+                            it["after"] = f"자동 정리 실패, 공개로 둡니다: {str(exc)[:150]}"
                     note_failure(it)
                     save_queue(q)
                     continue
