@@ -109,15 +109,17 @@
   },
   {
     "keyword": "자동차보험 갱신 시 할증 기준 조회하는 방법",
-    "title": "자동차보험 갱신 시 할증 기준 조회하는 방법, 할인·할증 사유 확인 순서 정리",
+    "title": "자동차보험 갱신 할증 조회, 예상보험료·보험다모아 확인 순서",
     "post_id": "5597383419837200966",
     "url": "https://gaganam1.blogspot.com/2026/09/blog-post_29.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.3575,
-    "review_score": 85,
+    "review_score": 86,
     "extras": [],
-    "posted_at": "2026-09-29T08:50:07+09:00"
+    "posted_at": "2026-09-29T08:50:07+09:00",
+    "description": "자동차보험 갱신 할증은 보통 과거 3년 사고 건수·금액 등으로 정해지며, 정확한 갱신보험료는 만기 30일 이내 보험다모아에서 조회합니다. 사고 직후 예상보험료 확인부터 등급 재조정까지 정리했습니다.",
+    "rewritten_at": "2026-11-08T03:16:34+09:00"
   },
   {
     "keyword": "타이어 교체 주기와 마모 확인하는 방법",
@@ -553,13 +555,15 @@
     "title": "운전면허 정지 기간 계산법, 면허증 반납과 감경 기준",
     "post_id": "5474353538078236071",
     "url": "https://gaganam1.blogspot.com/2026/10/blog-post_28.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.6492,
     "review_score": 88,
     "extras": [],
     "description": "운전면허 정지 기간은 벌점 1점당 1일로 계산하고, 정지처분을 받으면 면허증을 반납해야 합니다. 교육·모범운전자 감경과 임시운전증명서 기간을 정리했습니다.",
-    "posted_at": "2026-10-28T10:33:33+09:00"
+    "posted_at": "2026-10-28T10:33:33+09:00",
+    "merged_into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html",
+    "reverted_at": "2026-11-08T03:18:36+09:00"
   },
   {
     "keyword": "브레이크액 교체 주기와 교체 안 하면 생기는 문제",

@@ -86,7 +86,10 @@
  {
   "action": "rewrite",
   "url": "https://gaganam1.blogspot.com/2026/09/blog-post_29.html",
-  "absorb": []
+  "absorb": [],
+  "night": "2026-11-07",
+  "new_description": "자동차보험 갱신 할증은 보통 과거 3년 사고 건수·금액 등으로 정해지며, 정확한 갱신보험료는 만기 30일 이내 보험다모아에서 조회합니다. 사고 직후 예상보험료 확인부터 등급 재조정까지 정리했습니다.",
+  "done_at": "2026-11-08T03:16:34+09:00"
  },
  {
   "action": "rewrite",
@@ -153,7 +156,9 @@
  {
   "action": "revert",
   "url": "https://gaganam1.blogspot.com/2026/10/blog-post_28.html",
-  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html"
+  "into": "https://gaganam1.blogspot.com/2026/10/blog-post_18.html",
+  "night": "2026-11-07",
+  "done_at": "2026-11-08T03:18:36+09:00"
  },
  {
   "action": "revert",
@@ -384,7 +389,10 @@
   "topic": "할부항변권 신청, 쇼핑몰 폐업·환불 지연 때 할부금 거절",
   "absorb": [
    "https://gaganamc1.blogspot.com/2026/10/blog-post_12.html"
-  ]
+  ],
+  "night": "2026-11-07",
+  "new_description": "20만원 이상을 2개월·3회 이상 카드 할부로 샀다면 쇼핑몰 폐업이나 미배송 때 남은 할부금을 카드사에 거절할 수 있습니다. 행사 조건, 내용증명 문구, 상황별 할 일을 정리했습니다.",
+  "done_at": "2026-11-08T03:24:01+09:00"
  },
  {
   "action": "rewrite",
@@ -461,7 +469,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/09/150.html",
-  "into": "https://gaganamc1.blogspot.com/2026/10/200.html"
+  "into": "https://gaganamc1.blogspot.com/2026/10/200.html",
+  "night": "2026-11-07",
+  "done_at": "2026-11-08T03:26:03+09:00"
  },
  {
   "action": "revert",
@@ -590,7 +600,10 @@
   "topic": "해외결제 원화결제(DCC) 수수료와 차단 방법",
   "absorb": [
    "https://gaganamissue.blogspot.com/2026/10/blog-post_15.html"
-  ]
+  ],
+  "night": "2026-11-07",
+  "new_description": "해외에서 원화로 결제하면 수수료 3~8%와 환전수수료 1~2%가 더 붙습니다. 카드사 앱 등에서 미리 차단하는 방법과 현지 대처를 정리했습니다.",
+  "done_at": "2026-11-08T03:31:04+09:00"
  },
  {
   "action": "rewrite",
@@ -652,7 +665,9 @@
  {
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_13.html",
-  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_04.html"
+  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_04.html",
+  "night": "2026-11-07",
+  "done_at": "2026-11-08T03:33:06+09:00"
  },
  {
   "action": "revert",
@@ -843,7 +858,10 @@
   "action": "rewrite",
   "url": "https://issuecatch1.blogspot.com/2026/10/100_01916905872.html",
   "fix": "소득 종류별 판단표와 예시는 좋으나 금융소득 기준을 현행 2천만원과 옛 4천만원 사이에서 '판단할 수 없다'로 남기고, 이미 잘못 공제받은 경우의 정정 방법을 [10] 대신 126 문의로 넘기며 [1]과 같은 '함께 막히는 공제' 블록을 반복한다.",
-  "plan": "lowvalue-2026-10-30"
+  "plan": "lowvalue-2026-10-30",
+  "night": "2026-11-07",
+  "new_description": "배우자의 연간 소득금액이 100만원 이하면 기본공제를 받을 수 있고, 근로소득만 있으면 총급여 500만원까지 인정됩니다. 소득 종류별 판단표와 계산 예시를 정리했습니다.",
+  "done_at": "2026-11-08T03:37:18+09:00"
  },
  {
   "action": "rewrite",
@@ -1487,5 +1505,17 @@
   "url": "https://nowissue1.blogspot.com/2026/10/7.html",
   "night": "2026-11-07 아침(수동)",
   "done_at": "2026-11-07T09:40:51+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/7_01947873490.html",
+  "night": "2026-11-07",
+  "done_at": "2026-11-08T03:43:22+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_23.html",
+  "night": "2026-11-07",
+  "done_at": "2026-11-08T03:47:25+09:00"
  }
 ]

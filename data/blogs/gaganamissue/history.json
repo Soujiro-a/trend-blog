@@ -201,16 +201,17 @@
   },
   {
     "keyword": "해외 결제 시 현지통화 결제 DCC 선택했을 때 수수료 얼마나 더 나오는지",
-    "title": "해외결제 DCC 원화결제 수수료, 현지통화보다 얼마나 더 나올까",
+    "title": "해외결제 원화결제(DCC) 수수료, 차단 신청과 현지 대처",
     "post_id": "5099282921475983537",
     "url": "https://gaganamissue.blogspot.com/2026/10/dcc.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.3082,
-    "review_score": 90,
+    "review_score": 86,
     "extras": [],
-    "description": "해외에서 카드를 원화(DCC)로 결제하면 현지통화 결제보다 서비스 수수료 3~8%가 더 붙고 환전수수료도 한 번 더 붙습니다. 공식 예시로 본 청구액 차이, 출국 전 DCC 차단 신청처, 이미 원화로 결제했을 때 할 일을 정리했습니다.",
-    "posted_at": "2026-10-10T10:56:11+09:00"
+    "description": "해외에서 원화로 결제하면 수수료 3~8%와 환전수수료 1~2%가 더 붙습니다. 카드사 앱 등에서 미리 차단하는 방법과 현지 대처를 정리했습니다.",
+    "posted_at": "2026-10-10T10:56:11+09:00",
+    "rewritten_at": "2026-11-08T03:31:04+09:00"
   },
   {
     "keyword": "여권 갱신 후 구여권 비자 남아 있을 때 신여권으로 옮기는 방법",
@@ -244,13 +245,15 @@
     "title": "여권 이름 변경 후 항공권 이름이 다를 때, 신혼여행 전 대처 순서",
     "post_id": "9152898129317743550",
     "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_13.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.641,
     "review_score": 86,
     "extras": [],
     "description": "새 여권과 항공권의 영문 이름이 다르면 먼저 항공권을 산 예매처에 정정할 수 있는지 문의하세요. 여권 영문 이름을 다시 바꿀 때의 조건과 재발급 서류도 함께 정리했습니다.",
-    "posted_at": "2026-10-13T15:44:45+09:00"
+    "posted_at": "2026-10-13T15:44:45+09:00",
+    "merged_into": "https://gaganamissue.blogspot.com/2026/10/blog-post_04.html",
+    "reverted_at": "2026-11-08T03:33:06+09:00"
   },
   {
     "keyword": "위탁수하물 분실 신고 후 항공사가 보상 안 해줄 때 필요한 서류와 기한",
