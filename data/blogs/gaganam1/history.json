@@ -16,12 +16,14 @@
     "title": "자동차 정기검사 유효기간 확인하는 방법, 사이버검사소·등록증으로 만료일 보기",
     "post_id": "979159017517615694",
     "url": "https://gaganam1.blogspot.com/2026/09/blog-post.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.3088,
     "review_score": 85,
     "extras": [],
-    "posted_at": "2026-09-22T09:53:48+09:00"
+    "posted_at": "2026-09-22T09:53:48+09:00",
+    "merged_into": "https://gaganam1.blogspot.com/2026/10/30-43-2.html",
+    "reverted_at": "2026-11-09T03:31:36+09:00"
   },
   {
     "keyword": "자동차보험 자기부담금 기준과 계산 방법",
@@ -391,16 +393,17 @@
   },
   {
     "keyword": "에어컨 필터 교체 주기와 셀프 교체 비용 비교",
-    "title": "에어컨 필터 교체 주기, 자동차 6개월·가정용 2주 세척",
+    "title": "자동차 에어컨 필터 교체 주기 6개월, 셀프 교체 순서",
     "post_id": "5683692086915873632",
     "url": "https://gaganam1.blogspot.com/2026/10/6-2.html",
     "status": "live",
     "mode": "planned",
     "cost_usd": 0.9996,
-    "review_score": 88,
+    "review_score": 86,
     "extras": [],
-    "description": "자동차 에어컨 필터는 6개월에 한 번 교체가 권장되고, 가정용은 2주에 한 번 세척이 안내됩니다. 차량용 주행거리 기준과 가정용 세척 방법, 전기 사용량 차이를 정리했습니다.",
-    "posted_at": "2026-10-19T17:53:28+09:00"
+    "description": "자동차 에어컨 필터는 6개월에 한 번, 주행거리로는 1만~1만 5,000km 사이에 교체하도록 공공기관이 안내합니다. 기관별 주기 차이와 글로브 박스를 여는 셀프 교체 순서를 정리했습니다.",
+    "posted_at": "2026-10-19T17:53:28+09:00",
+    "rewritten_at": "2026-11-09T03:29:34+09:00"
   },
   {
     "keyword": "자동차보험 사고 후 상대방 과실 비율 억울할 때 과실비율 분쟁심의 신청 방법",

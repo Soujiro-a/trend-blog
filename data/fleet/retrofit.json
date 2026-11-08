@@ -1,5 +1,5 @@
 {
- "last_date": "2026-11-07",
+ "last_date": "2026-11-08",
  "done": [
   {
    "at": "2026-09-30T05:39:29+09:00",
@@ -310,12 +310,21 @@
     "문장 다듬기"
    ],
    "cost_usd": 0.1996
+  },
+  {
+   "at": "2026-11-09T03:26:17+09:00",
+   "blog": "gaganam1",
+   "url": "https://gaganam1.blogspot.com/2026/09/blog-post_29.html",
+   "changes": [
+    "문장 다듬기"
+   ],
+   "cost_usd": 0.1804
   }
  ],
  "no_card": [],
- "remaining": 54,
- "checked_at": "2026-11-08T03:12+09:00",
- "last_result": "2026-11-07 고침 — gaganam1 https://gaganam1.blogspot.com/2026/09/blog-post_27.html",
+ "remaining": 56,
+ "checked_at": "2026-11-09T03:26+09:00",
+ "last_result": "2026-11-08 고침 — gaganam1 https://gaganam1.blogspot.com/2026/09/blog-post_29.html",
  "polish_skip": [],
  "polished": [
   "https://gaganamc1.blogspot.com/2026/09/blog-post.html",
@@ -338,6 +347,7 @@
   "https://gaganams1.blogspot.com/2026/09/blog-post_29.html",
   "https://gaganam1.blogspot.com/2026/09/100-16mm.html",
   "https://gaganamissue.blogspot.com/2026/09/6.html",
-  "https://gaganam1.blogspot.com/2026/09/blog-post_27.html"
+  "https://gaganam1.blogspot.com/2026/09/blog-post_27.html",
+  "https://gaganam1.blogspot.com/2026/09/blog-post_29.html"
  ]
 }

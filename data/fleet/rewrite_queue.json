@@ -95,7 +95,10 @@
   "action": "rewrite",
   "url": "https://gaganam1.blogspot.com/2026/10/6-2.html",
   "topic": "자동차 에어컨 필터 교체 주기와 셀프 교체 방법",
-  "absorb": []
+  "absorb": [],
+  "night": "2026-11-08",
+  "new_description": "자동차 에어컨 필터는 6개월에 한 번, 주행거리로는 1만~1만 5,000km 사이에 교체하도록 공공기관이 안내합니다. 기관별 주기 차이와 글로브 박스를 여는 셀프 교체 순서를 정리했습니다.",
+  "done_at": "2026-11-09T03:29:34+09:00"
  },
  {
   "action": "revert",
@@ -163,7 +166,9 @@
  {
   "action": "revert",
   "url": "https://gaganam1.blogspot.com/2026/09/blog-post.html",
-  "into": "https://gaganam1.blogspot.com/2026/10/30-43-2.html"
+  "into": "https://gaganam1.blogspot.com/2026/10/30-43-2.html",
+  "night": "2026-11-08",
+  "done_at": "2026-11-09T03:31:36+09:00"
  },
  {
   "action": "revert",
@@ -400,7 +405,10 @@
   "topic": "해외직구 반품 배송비 부담 기준과 오배송 대응",
   "absorb": [
    "https://gaganamc1.blogspot.com/2026/10/blog-post_19.html"
-  ]
+  ],
+  "night": "2026-11-08",
+  "new_description": "해외구매대행에서 오배송·파손으로 청약철회하면 반품비는 사업자가 냅니다. 구매 방식별 기준, 반품비 청구서 확인 순서, 차지백 120일 기한을 정리했습니다.",
+  "done_at": "2026-11-09T03:36:37+09:00"
  },
  {
   "action": "rewrite",
@@ -476,7 +484,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/10/30.html",
-  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post_23.html"
+  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post_23.html",
+  "night": "2026-11-08",
+  "done_at": "2026-11-09T03:38:39+09:00"
  },
  {
   "action": "revert",
@@ -608,7 +618,11 @@
  {
   "action": "rewrite",
   "url": "https://gaganamissue.blogspot.com/2026/09/blog-post_27.html",
-  "absorb": []
+  "absorb": [],
+  "night": "2026-11-08",
+  "failed_at": "2026-11-09T03:27:14+09:00",
+  "reason": "검수 hold 66점: 가치 부족: 제목과 검색어가 '항공사별 비교'인데 항공사별 수수료율 비교표가 없습니다. 본문은 \"항공사마다 다르다\", \"예약한 항공사의 환불 규정에서 찾으라\"고만 하고 핵심 질문의 답을 독자에게 넘깁니다. 자료에 있는 0.5%(90~61일 전)~29%(10일 전~당일) 범위 외에 구간별 정보가 없어 독자가 다시 검색해야 합니다.; 가치 부족: 본문 대부분이 공정위·부산시·소비자원 안내 네 곳을 순서와 표현만 바꿔 옮긴 수준입니다. 가정 예시 계산이나 상황별 판단표 같은 이 글만의 정리가 부족하고, 취소 전 확인 순서도 앞 내용의 반복에 가깝습니다.; '금요일 저녁 예매 후 토요일 취소 시 여행사가 취소를 못 받을 수 있다'는 시나리오와 이를 소비자원 유의 사항의 이유로 설명한 부분은 자료에 없는 추론입니다. 여행사 수수료가 91일 전 취소에도 남는다는 서술도 자료의 '시점과 무관한 정액'에서 끌어낸 해석입니다.",
+  "after": "임시저장하고 링크는 https://gaganamissue.blogspot.com/2026/10/blog-post_12.html 로 옮깁니다 (내리는 글은 항공권 예약 취소 시 수수료와 환불 확인이 핵심이므로, 같은 취소·환불 절차를 다루는 18번이 가장 가깝다. 13번은 변경 수수료라 다른 절차이다.)"
  },
  {
   "action": "rewrite",
@@ -672,7 +686,9 @@
  {
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_20.html",
-  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_12.html"
+  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_12.html",
+  "night": "2026-11-08",
+  "done_at": "2026-11-09T03:49:42+09:00"
  },
  {
   "action": "revert",
@@ -1517,5 +1533,38 @@
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_23.html",
   "night": "2026-11-07",
   "done_at": "2026-11-08T03:47:25+09:00"
+ },
+ {
+  "action": "revert",
+  "url": "https://gaganamissue.blogspot.com/2026/09/blog-post_27.html",
+  "into": "https://gaganamissue.blogspot.com/2026/10/blog-post_12.html",
+  "night": "2026-11-08",
+  "auto": true,
+  "topic": "다시 쓰기 보류로 자동 임시저장 (내리는 글은 항공권 예약 취소 시 수수료와 환불 확인이 핵심이므로, 같은 취소·환불 절차를 다루는 18번이 가장 가깝다. 13번은 변경 수수료라 다른 절차이다.)",
+  "done_at": "2026-11-09T03:47:40+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/4km.html",
+  "night": "2026-11-08",
+  "done_at": "2026-11-09T03:51:45+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/60.html",
+  "night": "2026-11-08",
+  "done_at": "2026-11-09T03:53:47+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/11/blog-post_02.html",
+  "night": "2026-11-08",
+  "done_at": "2026-11-09T03:59:51+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_23.html",
+  "night": "2026-11-08",
+  "done_at": "2026-11-09T04:01:53+09:00"
  }
 ]
