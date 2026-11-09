@@ -173,7 +173,9 @@
  {
   "action": "revert",
   "url": "https://gaganam1.blogspot.com/2026/10/blog-post_706.html",
-  "into": "https://gaganam1.blogspot.com/2026/09/blog-post_24.html"
+  "into": "https://gaganam1.blogspot.com/2026/09/blog-post_24.html",
+  "night": "2026-11-09",
+  "done_at": "2026-11-10T08:07:53+09:00"
  },
  {
   "action": "rewrite",
@@ -416,7 +418,10 @@
   "topic": "광고와 다른 제품·불량품 환불, 3개월·30일 기한",
   "absorb": [
    "https://gaganamc1.blogspot.com/2026/10/3_02044664666.html"
-  ]
+  ],
+  "night": "2026-11-09",
+  "new_description": "광고·계약과 다른 제품은 받은 날부터 3개월, 안 날부터 30일 안에 청약철회할 수 있고 반품비는 판매자 부담입니다. 기한 계산과 수거 지연 때 할 일을 정리했습니다.",
+  "done_at": "2026-11-10T08:14:12+09:00"
  },
  {
   "action": "revert",
@@ -491,7 +496,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/10/310_0126228298.html",
-  "into": "https://gaganamc1.blogspot.com/2026/10/310.html"
+  "into": "https://gaganamc1.blogspot.com/2026/10/310.html",
+  "night": "2026-11-09",
+  "done_at": "2026-11-10T08:16:13+09:00"
  },
  {
   "action": "revert",
@@ -627,7 +634,10 @@
  {
   "action": "rewrite",
   "url": "https://gaganamissue.blogspot.com/2026/09/blog-post_28.html",
-  "absorb": []
+  "absorb": [],
+  "night": "2026-11-09",
+  "new_description": "여행자보험은 여행 중 치료비·약제비, 휴대품 파손·도난, 항공기 지연 체류비 등을 보상합니다. 보상 안 되는 경우와 청구 서류, 접수 순서를 상황별로 정리했습니다.",
+  "done_at": "2026-11-10T08:21:52+09:00"
  },
  {
   "action": "rewrite",
@@ -693,7 +703,9 @@
  {
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/721.html",
-  "into": "https://gaganamissue.blogspot.com/2026/10/7.html"
+  "into": "https://gaganamissue.blogspot.com/2026/10/7.html",
+  "night": "2026-11-09",
+  "done_at": "2026-11-10T08:23:54+09:00"
  },
  {
   "action": "revert",
@@ -1566,5 +1578,41 @@
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_23.html",
   "night": "2026-11-08",
   "done_at": "2026-11-09T04:01:53+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/10_033844993.html",
+  "night": "2026-11-09",
+  "done_at": "2026-11-10T08:25:56+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/3.html",
+  "night": "2026-11-09",
+  "done_at": "2026-11-10T08:27:58+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/11/3.html",
+  "night": "2026-11-09",
+  "done_at": "2026-11-10T08:32:01+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/11/blog-post.html",
+  "night": "2026-11-09",
+  "done_at": "2026-11-10T08:34:03+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_24.html",
+  "night": "2026-11-09",
+  "done_at": "2026-11-10T08:36:05+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_22.html",
+  "night": "2026-11-09",
+  "done_at": "2026-11-10T08:38:07+09:00"
  }
 ]
