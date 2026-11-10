@@ -503,7 +503,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_29.html",
-  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html"
+  "into": "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html",
+  "night": "2026-11-10",
+  "done_at": "2026-11-11T05:34:07+09:00"
  },
  {
   "action": "revert",
@@ -642,7 +644,10 @@
  {
   "action": "rewrite",
   "url": "https://gaganamissue.blogspot.com/2026/09/2028.html",
-  "absorb": []
+  "absorb": [],
+  "night": "2026-11-10",
+  "new_description": "일본은 관광 등 일시 방문이면 비자 없이 입국일부터 90일까지 머물 수 있습니다. 비자가 필요한 목적, 입국심사 질문, 입국 거부·금지 기준을 정리했습니다.",
+  "done_at": "2026-11-11T05:38:17+09:00"
  },
  {
   "action": "revert",
@@ -710,7 +715,9 @@
  {
   "action": "revert",
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_15.html",
-  "into": "https://gaganamissue.blogspot.com/2026/10/dcc.html"
+  "into": "https://gaganamissue.blogspot.com/2026/10/dcc.html",
+  "night": "2026-11-10",
+  "done_at": "2026-11-11T05:40:17+09:00"
  },
  {
   "action": "relink",
@@ -1614,5 +1621,41 @@
   "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_22.html",
   "night": "2026-11-09",
   "done_at": "2026-11-10T08:38:07+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_22.html",
+  "night": "2026-11-10",
+  "done_at": "2026-11-11T05:42:18+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganam1.blogspot.com/2026/10/blog-post_21.html",
+  "night": "2026-11-10",
+  "done_at": "2026-11-11T05:44:19+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/11/3.html",
+  "night": "2026-11-10",
+  "done_at": "2026-11-11T05:48:20+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/11/blog-post_03.html",
+  "night": "2026-11-10",
+  "done_at": "2026-11-11T05:50:22+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/blog-post_28.html",
+  "night": "2026-11-10",
+  "done_at": "2026-11-11T05:52:22+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamissue.blogspot.com/2026/10/atm.html",
+  "night": "2026-11-10",
+  "done_at": "2026-11-11T05:54:23+09:00"
  }
 ]

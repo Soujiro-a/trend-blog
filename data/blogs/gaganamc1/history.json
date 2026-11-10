@@ -551,13 +551,15 @@
     "title": "중고거래 빈 박스 신고, 벽돌 받았을 때 대처 순서",
     "post_id": "7120307928871383107",
     "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_29.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.5131,
     "review_score": 88,
     "extras": [],
     "description": "중고거래 택배로 빈 박스나 벽돌을 받았다면 플랫폼에 신고하고 사이버범죄 신고시스템 접수 후 경찰서를 방문해야 합니다. 상황별 입증 책임과 준비물, 대리 신고 방법을 정리했습니다.",
-    "posted_at": "2026-10-29T12:31:10+09:00"
+    "posted_at": "2026-10-29T12:31:10+09:00",
+    "merged_into": "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html",
+    "reverted_at": "2026-11-11T05:34:07+09:00"
   },
   {
     "keyword": "넷플릭스 유튜브 프리미엄 가격 인상 후 해지 안 하면 동의한 것으로 보나요",
