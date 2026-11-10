@@ -230,6 +230,69 @@ HTML 본문.
 
 주제가 위 4번에 걸려 쓸 수 없다면, 다른 출력 없이 `SKIP: <이유>` 한 줄만 출력하세요."""
 
+# ---- 종합 안내형 (writer.format: hub) ----
+# 2026-11-10 형식 실험. 9곳이 같은 틀(도입 2단락 → h2 4~6 → 함께 읽으면 → FAQ → 정리 → 참고 자료 → 고정 끝 문구 + 요약 카드)로
+# 하루 한 편씩 좁은 상황 글을 쓰는데, 5곳은 구글이 글을 읽고도 색인하지 않았습니다(첫 화면 포함). 실험 블로그는 큰 절차 하나를
+# 처음부터 끝까지 다루는 긴 글을 이틀에 한 편 쓰고, 고정 섹션·요약 카드·고정 끝 문구를 뺍니다. 블로그 overrides 로 켭니다.
+# 사실 원칙(1~7)과 문장 다듬기 기준은 기본 형식과 같습니다. 바뀌는 것은 글의 뼈대뿐입니다.
+
+HUB_BODY = """- 이 블로그는 **종합 안내형** 글을 씁니다. 모든 글에 같은 틀을 찍어 내지 않고, 글감이 다루는 과정의 순서가 곧 글의 뼈대입니다.
+
+### 도입부 (소제목 없이 `<p>` 1~2개)
+이 글이 다루는 과정의 범위와, 독자가 가장 먼저 알아야 할 결론을 줍니다. 본문을 예고하는 문장은 쓰지 않습니다.
+
+### 본문 `<h2>` 5~9개
+- 독자가 실제로 거치는 순서(시간 순서, 또는 판단 순서)대로 `<h2>` 를 놓습니다. 각 `<h2>` 에는 그 단계에서 할 일, 판단 기준, 기한, 필요한 서류, 그 단계의 예외를 함께 담고, 경우가 갈리면 `<h3>` 로 나눕니다. 단계마다 단락 2개 이상.
+- 소제목은 '단계별 절차'·'준비물' 같은 틀 이름이 아니라 그 단계의 내용으로 씁니다.
+- 표는 조건 비교처럼 표가 더 잘 읽히는 곳에만 씁니다(3열 이하, 모바일에서 읽히게). 개수를 맞추려고 만들지 않고, 같은 내용을 표와 문장으로 두 번 쓰지 않습니다. 표의 모든 칸은 자료로 채울 수 있어야 합니다.
+- 흔한 실수와 예외는 따로 모으지 말고 해당 단계 안에 씁니다(자료에 있을 때만).
+- **'자주 묻는 질문', '정리', '함께 읽으면 좋은 글', '한눈에 보기' 같은 고정 섹션은 만들지 않습니다.**
+- 마지막 단계 `<h2>` 끝에 독자가 지금 할 다음 행동을 한두 문장으로 적고 본문을 닫습니다.
+- 맨 마지막은 `<h2>참고한 자료</h2>` 입니다(아래 규칙).
+
+"""
+
+HUB_LINKS = """## 이 블로그의 다른 글 링크 (있을 때만)
+
+자료에 `## 이 블로그의 다른 글` 목록이 주어질 때가 있습니다. 같은 블로그의 이미 공개된 글입니다. 이 블로그는 목록 섹션을 따로 두지 않고 **본문 문장 안에서만** 겁니다.
+
+- 어떤 단계를 더 자세히 다룬 글이 목록에 있으면, 그 단계 설명 안에서 자연스럽게 겁니다. 최대 4개. 이어질 곳이 없으면 하나도 안 넣어도 됩니다.
+  - 좋은 예: `<p>온라인으로 신청하는 순서는 <a href="주소">인터넷 신청 방법</a>에 따로 정리했습니다.</p>`
+  - 나쁜 예: `<h2>관련 글</h2>` 같은 나열 섹션, `여기를 클릭`·`이 글 보기` 처럼 제목을 감춘 링크
+- 링크 글자는 그 글이 무슨 내용인지 드러나게 씁니다. 목록에 적힌 제목을 그대로 쓰거나 자연스럽게 줄여 씁니다.
+- 주소는 목록에 있는 것을 **그대로** 씁니다. 목록에 없는 이 블로그 주소를 만들어 내면 안 됩니다.
+- `참고한 자료` 목록에는 넣지 마세요. 거기는 외부 출처 자리입니다.
+
+"""
+
+
+def _cut(text: str, start: str, end: str, new: str) -> str:
+    """text 에서 start 부터 end 바로 앞까지를 new 로 바꿉니다. 표지가 없으면 바로 실패합니다(지시문이 바뀐 걸 알리려고)."""
+    i, j = text.index(start), text.index(end)
+    assert i < j, (start, end)
+    return text[:i] + new + text[j:]
+
+
+def _swap(text: str, old: str, new: str) -> str:
+    assert old in text, old
+    return text.replace(old, new)
+
+
+def _hub_system() -> str:
+    t = SYSTEM
+    t = _swap(t, "<<<CARD>>>\n글 맨 앞 '한눈에 정리' 이미지에 들어갈 글 (아래 요약 카드 규칙).",
+              "<<<CARD>>>\n(이 블로그는 요약 카드를 쓰지 않습니다. 이 블록은 비워 둡니다.)")
+    t = _cut(t, "## 요약 카드 규칙", "## 본문 작성 규칙", "")
+    t = _cut(t, "- 글은 검색 유입 → 스크롤", "### 분량·검색어", HUB_BODY)
+    t = _cut(t, "## 이 블로그의 다른 글 링크 (있을 때만)", "주제가 위 4번에 걸려", HUB_LINKS)
+    t = _swap(t, "`정리`·`자주 묻는 질문`·`참고한 자료`·맨 끝 문구까지", "`참고한 자료`까지")
+    t = _swap(t, "`<h2>` 2개 이상·정리에", "`<h2>` 2개 이상·마지막 단계에")
+    t = _swap(t, " 예외는 도입부 끝의 '본문 안내' 한 문장뿐입니다(본문 작성 규칙의 도입부 ③).", "")
+    return t
+
+
+HUB_SYSTEM = _hub_system()
+
 USER_TEMPLATE = """오늘은 {date} 입니다. 아래 실시간 인기 키워드로 블로그 글을 써 주세요.
 
 {context}
@@ -340,7 +403,8 @@ def _system(cfg: dict, date_str: str, mode: str, persona: str) -> str:
     else:
         footer_rule = "- 글 끝에 고지·안내 성격의 문장을 따로 붙이지 마세요."
 
-    system = SYSTEM.format(
+    base = HUB_SYSTEM if w.get("format") == "hub" else SYSTEM
+    system = base.format(
         target_length=w["target_length"], max_length=w.get("max_length", w["target_length"] + 500),
         date=date_str, footer_rule=footer_rule,
     )
@@ -368,6 +432,9 @@ COMPLETE_TEMPLATE = """이 글이 끝까지 쓰이지 않았습니다. 빠진 �
 분량 상한은 신경 쓰지 말고, 앞부분은 그대로 둔 채 빠진 부분까지 채워 **같은 5개 블록 형식으로 글 전체를** 다시 출력하세요.
 - 새로 쓰는 부분도 자료에 있는 내용만 씁니다.
 - `정리`·`자주 묻는 질문`·`참고한 자료`·맨 끝 문구 순서를 지킵니다."""
+COMPLETE_TEMPLATE_HUB = COMPLETE_TEMPLATE.replace(
+    "- `정리`·`자주 묻는 질문`·`참고한 자료`·맨 끝 문구 순서를 지킵니다.",
+    "- 남은 단계를 마저 쓰고 `참고한 자료`로 끝냅니다. 고정 섹션(자주 묻는 질문·정리)을 새로 만들지 않습니다.")
 
 _REFS_H2 = re.compile(r"<h2[^>]*>\s*참고한 자료\s*</h2>")
 
@@ -445,7 +512,8 @@ def _call(cfg: dict, client, system: str, messages: list[dict], keyword: str, wh
     if missing:
         log.warning("[%s] %s 글이 끝까지 쓰이지 않음(%s) — 끝까지 채워 다시 씁니다.", keyword, what, ", ".join(missing))
         follow = [first_user, *messages[1:], {"role": "assistant", "content": _render(article)},
-                  {"role": "user", "content": COMPLETE_TEMPLATE.format(missing=", ".join(missing))}]
+                  {"role": "user", "content": (COMPLETE_TEMPLATE_HUB if w.get("format") == "hub"
+                                              else COMPLETE_TEMPLATE).format(missing=", ".join(missing))}]
         try:
             done = _call(cfg, client, system, follow, keyword, "끝까지 완성", footer_tail, complete=False)
         except (llm.Truncated, ValueError) as exc:

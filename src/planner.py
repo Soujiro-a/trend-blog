@@ -70,6 +70,25 @@ SYSTEM = """당신은 한국어 블로그의 콘텐츠 기획자입니다. 주�
 [{"topic": "글 제목이 될 검색어형 주제", "pillar": "하위 축 목록에 적힌 이름을 글자 그대로 하나", "why": "왜 검색될지 한 줄", "search": "참고 기사 검색용 키워드 2~3 단어"}]
 pillar 는 글 분류 라벨이 되므로 목록의 이름을 바꾸거나 줄이지 말고 그대로 복사하세요."""
 
+# 종합 안내형 블로그(planner.format: hub, 2026-11-10 형식 실험)는 좁은 상황 글 대신 큰 절차 하나를 처음부터 끝까지 다루는
+# 글감을 고릅니다. 기본 지시문의 '넓은 검색어보다 구체적인 상황'·'잘게 쪼개지 않기' 두 절만 바꿉니다(writer.HUB_SYSTEM 과 짝).
+HUB_PLAN = """## 종합 안내 글감 (이 블로그의 글 형식)
+이 블로그는 좁은 상황 글을 많이 쓰는 대신, **하위 축 안의 큰 절차 하나를 처음부터 끝까지 다루는 종합 안내**를 이틀에 한 편 씁니다.
+- 글감은 독자가 한 번에 거치는 과정 전체입니다. ("전세 계약 순서, 계약 전 확인부터 잔금·전입신고·확정일자까지" ○ / "확정일자 인터넷 신청 방법" ×)
+- topic 은 그 과정을 찾는 사람이 실제로 치는 표현(예: "전세 계약 절차", "청약 1순위 조건")을 앞에 둡니다. 넓은 검색어여도 됩니다.
+- 이미 쓴 글감 목록의 좁은 글들은 이 종합 안내의 한 단계가 될 수 있습니다(본문에서 그 글로 연결합니다). 다만 **같은 과정 전체**를 이미 다룬 글이 있으면 고르지 않습니다.
+- 하위 축마다 종합 안내 한 편을 먼저 채웁니다. 한 하위 축에 종합 안내를 두 편 이상 몰지 않습니다.
+- 공식 기관 안내로 과정 전체를 뒷받침할 수 있는 주제만 고릅니다. 공식 자료가 한 단계에만 있을 법한 주제는 피합니다.
+
+"""
+
+HUB_SYSTEM = SYSTEM[: SYSTEM.index("## 넓은 검색어보다 구체적인 상황")] + HUB_PLAN + SYSTEM[SYSTEM.index("## 실제 검색 수요가 있으면 그것부터"):]
+
+
+def system_for(cfg: dict) -> str:
+    return HUB_SYSTEM if (cfg.get("planner") or {}).get("format") == "hub" else SYSTEM
+
+
 USER_TEMPLATE = """## 이 블로그
 
 - 주제: {subject}
@@ -181,7 +200,7 @@ def propose(
         model=pl["model"],
         max_tokens=int(pl.get("max_tokens", 8000)),
         output_config={"effort": pl.get("effort", "low")},
-        system=llm.cached(SYSTEM),
+        system=llm.cached(system_for(cfg)),
         messages=[
             {
                 "role": "user",

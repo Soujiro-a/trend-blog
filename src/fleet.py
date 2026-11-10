@@ -64,6 +64,9 @@ class Blog:
     # 이 날짜(YYYY-MM-DD) 전까지 새 글을 쓰지 않습니다. 그날부터 저절로 다시 씁니다. enabled: false 와 달리
     # 기존 글 정리·사실 갱신·색인 요청은 계속 돕니다 (2026-10-29 gaganam1 애드센스 거절 뒤 정리 기간에 처음 씀).
     pause_until: str = ""
+    # 며칠에 한 번 새 글을 쓰는지. 2 면 since 부터 센 날수가 짝수인 날에만 슬롯이 켜집니다(격일).
+    # 2026-11-10 nowissue1 형식 실험(종합 안내형 글을 이틀에 한 편)에서 처음 씀. 기본 1 = 매일.
+    every_days: int = 1
     account: str = "default"
     enabled: bool = True
     # 2026-09-20 사고 이후 기본 운영 방식. planned: 블로그 고유 주제 안에서 글감을 기획(권장).
@@ -241,6 +244,7 @@ def load_fleet(path: Path = FLEET_PATH, manager_state: dict | None = None) -> Fl
             slots=_read_slots(entry, settings),
             since=str(entry.get("since") or ""),
             pause_until=str(entry.get("pause_until") or ""),
+            every_days=int(entry.get("every_days") or 1),
             account=str(entry.get("account", "default")),
             enabled=bool(entry.get("enabled", True)),
             content_mode=str(entry.get("content_mode", "planned")),
@@ -284,6 +288,8 @@ def validate(fleet: Fleet) -> None:
             raise ValueError(f"{b.id}: 계정 '{b.account}' 이(가) accounts 에 없습니다")
         if not b.slots:
             raise ValueError(f"{b.id}: 슬롯이 없습니다")
+        if b.every_days < 1:
+            raise ValueError(f"{b.id}: every_days 는 1 이상이어야 합니다 ({b.every_days})")
         for s in b.slots:
             try:
                 mins = to_minutes(s)
@@ -596,6 +602,16 @@ def paused(blog: Blog, now: datetime) -> bool:
     return bool(blog.pause_until) and now.date().isoformat() < blog.pause_until
 
 
+def off_day(blog: Blog, now: datetime) -> bool:
+    """every_days 가 2 이상이고 오늘이 쓰는 날이 아니면 True. since 부터 센 날수로 정합니다(since 가 없으면 매일)."""
+    if blog.every_days <= 1:
+        return False
+    start = _parse_date(blog.since)
+    if start is None:
+        return False
+    return (now.date() - start).days % blog.every_days != 0
+
+
 def planned_slots(fleet: Fleet, now: datetime | None = None, st: dict | None = None,
                   ready: set[str] | None = None) -> dict[str, list[str]]:
     """오늘 실제로 켜지는 슬롯 {블로그 id: [슬롯, ...]}. 램프업·애드센스 승인·계정 상한·비상정지를 모두 반영합니다."""
@@ -615,7 +631,7 @@ def planned_slots(fleet: Fleet, now: datetime | None = None, st: dict | None = N
             continue
         ages = {b.id: blog_age_days(fleet, b, now, st) for b in blogs}
         active = {
-            b.id: (b.slots[: _stage(blog_ramp, ages[b.id])] if ages[b.id] >= 0 and not paused(b, now) else [])
+            b.id: (b.slots[: _stage(blog_ramp, ages[b.id])] if ages[b.id] >= 0 and not paused(b, now) and not off_day(b, now) else [])
             for b in blogs
         }
         # 4주가 지나도 애드센스 승인 전이면 하루 1건 (2026-10-22 사용자 지시).
@@ -869,6 +885,8 @@ def schedule_table(fleet: Fleet, now: datetime | None = None) -> str:
             status = "⛔ 계정 비상정지"
         elif b.enabled and paused(b, now):
             status = f"새 글 중지 (~{b.pause_until[5:]} 전까지)"
+        elif b.enabled and b.every_days > 1:
+            status = f"{b.every_days}일마다" + (" (오늘 쉼)" if off_day(b, now) else " (오늘 씀)")
         age = f"{blog_age_days(fleet, b, now, st)}일" if b.enabled else "-"
         lines.append(
             f"| {slots} | {b.id} | {b.name} | {b.account} | {status} | {age} | "

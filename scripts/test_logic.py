@@ -492,6 +492,10 @@ def test_scale_safety() -> None:
     p_in, p_out = fm.planned_slots(paused, at("2026-11-11"), empty), fm.planned_slots(paused, at("2026-11-12"), empty)
     check("pause_until 전날까지 새 글 0건, 그날부터 다시",
           p_in["old1"] == [] and len(p_in["old2"]) == 2 and len(p_out["old1"]) == 2, f"{p_in} / {p_out}")
+    alt = fm.Fleet(settings, accounts, [dataclasses.replace(blogs[0], every_days=2)] + blogs[1:])
+    on_days = [d for d in ("2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13") if fm.planned_slots(alt, at(d), empty)["old1"]]
+    check("every_days 2: since 부터 짝수 날에만 슬롯", on_days == ["2026-11-10", "2026-11-12"]   # since 9/21 → 11/10 은 50일째
+          and all(fm.planned_slots(alt, at(d), empty)["old2"] for d in ("2026-11-11", "2026-11-13")), f"{on_days}")
 
     capped = fm.Fleet(settings, {"acc": {"since": "2026-01-01", "max_live_per_day_account": 5}}, blogs)
     p = fm.planned_slots(capped, at("2026-11-16"), empty)
@@ -1764,6 +1768,26 @@ def test_polish(cfg: dict) -> None:
         writer.polish, reviewer.same_meaning = saved
 
 
+def test_hub_format(cfg: dict) -> None:
+    section("종합 안내형 형식 실험 (writer/planner format: hub)")
+    import copy
+    from src import planner as _planner, writer
+    hub = copy.deepcopy(cfg)
+    hub["writer"].update({"format": "hub", "target_length": 4000, "max_length": 6000, "footer_note_guide": ""})
+    t = writer._system(hub, "2026년 11월 11일", "planned", "")
+    std = writer._system(cfg, "2026년 11월 11일", "planned", "")
+    check("hub: 고정 섹션·요약 카드 규칙 빠짐", "자주 묻는 질문</h2>" not in t and "## 요약 카드 규칙" not in t
+          and "함께 읽으면 좋은 글</h2>" not in t and "도입부 ③" not in t)
+    check("hub: 사실 원칙·문장 다듬기·참고 자료 규칙은 그대로", all(k in t for k in (
+        "2-1. **구체적인 숫자는", "7. **이 글만의 정리를", writer.STYLE_RULES.split(chr(10))[0], "## 참고한 자료 작성 규칙", "본문 문장 안에서만")))
+    check("hub: 분량·끝 문구 설정이 반영됨", "4000~6000자" in t and "맨 끝에 다음 문장" not in t)
+    check("기본 형식은 그대로", "자주 묻는 질문</h2>" in std and "## 요약 카드 규칙" in std and "종합 안내형" not in std)
+    body = "<p>a</p><h2>참고한 자료</h2><ul><li>x</li></ul>"
+    check("hub: 끝 문구가 없어도 글 끝 확인 통과", writer.missing_ending(body, writer._footer_tail(hub, "planned")) == [])
+    check("hub 기획: 잘게 쪼개기 절 대신 종합 안내 절", "종합 안내 글감" in _planner.system_for({"planner": {"format": "hub"}})
+          and "잘게 쪼개지 않기" not in _planner.HUB_SYSTEM and _planner.system_for(cfg) == _planner.SYSTEM)
+
+
 def test_card(cfg: dict) -> None:
     """요약 카드: 형식 읽기, 그림 크기, 실패해도 발행을 막지 않음, 기존 글 정리 대상."""
     section("요약 카드")
@@ -2114,6 +2138,7 @@ def main() -> int:
     test_refresh(cfg)
     test_retrofit(cfg)
     test_card(cfg)
+    test_hub_format(cfg)
     test_polish(cfg)
     test_internal_links(cfg)
     test_no_why_searched(cfg)
