@@ -24,18 +24,40 @@ import os
 import sys
 import time
 import urllib.request
+from datetime import datetime, timezone
 
 WATCH = ("fleet.yml", "manager.yml", "refresh.yml", "retrofit.yml")
 OPEN_STATUSES = ("in_progress", "queued", "waiting", "pending", "requested")
 
+# 2026-11-12: GitHub 쪽에서 작업(job)이 한 번도 안 잡힌 채 'queued' 로 굳은 실행 두 건이 생겼습니다.
+# 취소도 거부되고(이미 끝남 / 아직 대기열 전) 몇 시간째 그대로라, 뒤에 온 실행이 모두 그 둘을 기다렸습니다
+# (관리 200분 대기, 함대 실행은 90분 뒤 건너뜀 → 새 글 멈춤). 실행기를 기다리는 정상 'queued' 는 몇 분 안에
+# 시작되므로, 이만큼 넘게 아무 변화 없이 'queued' 인 실행은 유령으로 보고 기다리지 않습니다.
+STALE_QUEUED_MIN = 60
 
-def blockers(runs: list[dict], own_id: int) -> list[dict]:
-    """나보다 먼저 만들어졌고 아직 안 끝난, 함대 워크플로 실행들."""
+
+def _stale_queued(r: dict, now: datetime) -> bool:
+    if r.get("status") != "queued":
+        return False
+    try:
+        t = datetime.fromisoformat(str(r.get("updated_at") or r.get("created_at")).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return (now - t).total_seconds() > STALE_QUEUED_MIN * 60
+
+
+def blockers(runs: list[dict], own_id: int, now: datetime | None = None) -> list[dict]:
+    """나보다 먼저 만들어졌고 아직 안 끝난, 함대 워크플로 실행들 (굳어 버린 유령 'queued' 실행은 뺌)."""
+    now = now or datetime.now(timezone.utc)
     seen, out = set(), []
     for r in runs:
         name = str(r.get("path", "")).split("@")[0].rsplit("/", 1)[-1]
         rid = int(r.get("id", 0))
         if name in WATCH and rid < own_id and r.get("status") != "completed" and rid not in seen:
+            if _stale_queued(r, now):
+                print(f"::warning::{STALE_QUEUED_MIN}분 넘게 'queued' 로 굳은 실행은 기다리지 않습니다: {r.get('name')}#{rid}")
+                seen.add(rid)
+                continue
             seen.add(rid)
             out.append(r)
     return out

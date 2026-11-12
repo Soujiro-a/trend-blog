@@ -1398,6 +1398,16 @@ def test_workflows() -> None:
     check("차례 기다리기: 먼저 온 함대 실행만 (주간 보고·뒤에 온 실행·끝난 실행 제외)",
           [r["id"] for r in wt.blockers(runs, 8)] == [5, 6], str(wt.blockers(runs, 8)))
     check("차례 기다리기: 맨 앞 실행은 기다리지 않음", wt.blockers(runs, 5) == [])
+    from datetime import datetime, timezone
+    now = datetime(2026, 11, 12, 1, 0, tzinfo=timezone.utc)
+    ghost = [{"id": 3, "path": ".github/workflows/refresh.yml", "status": "queued", "name": "g",
+              "created_at": "2026-11-11T20:43:41Z", "updated_at": "2026-11-11T20:43:41Z"},
+             {"id": 4, "path": ".github/workflows/fleet.yml", "status": "queued", "name": "q",
+              "created_at": "2026-11-12T00:40:00Z", "updated_at": "2026-11-12T00:40:00Z"},
+             {"id": 5, "path": ".github/workflows/retrofit.yml", "status": "in_progress", "name": "r",
+              "created_at": "2026-11-11T20:00:00Z", "updated_at": "2026-11-11T20:00:00Z"}]
+    check("차례 기다리기: 60분 넘게 굳은 queued 실행은 무시 (방금 들어온 queued·오래 도는 실행은 기다림)",
+          [r["id"] for r in wt.blockers(ghost, 8, now)] == [4, 5], str(wt.blockers(ghost, 8, now)))
     check("retrofit.yml: 카드 글 뽑기용 API 키", "ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}"
           in (wf / "retrofit.yml").read_text(encoding="utf-8"))
     check("fleet.yml: 실행기에 없는 --count 입력을 두지 않음",
