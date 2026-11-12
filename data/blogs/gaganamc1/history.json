@@ -281,13 +281,15 @@
     "title": "신용카드 할부 환불 지연, 할부항변권으로 남은 할부금 거절하는 법",
     "post_id": "1972817427934534379",
     "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_12.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.3496,
     "review_score": 88,
     "extras": [],
     "description": "신용카드 할부로 산 물건의 환불이 늦어지면 할부항변권으로 카드사에 남은 할부금 지급을 거절할 수 있습니다. 행사 조건과 내용증명 보내는 순서, 카드사가 거부할 때 대처법을 정리했습니다.",
-    "posted_at": "2026-10-12T17:05:04+09:00"
+    "posted_at": "2026-10-12T17:05:04+09:00",
+    "merged_into": "https://gaganamc1.blogspot.com/2026/10/blog-post_11.html",
+    "reverted_at": "2026-11-13T06:01:10+09:00"
   },
   {
     "keyword": "전자제품 개봉 후 초기 불량 의심될 때 7일 이내 교환 환불 기준",
