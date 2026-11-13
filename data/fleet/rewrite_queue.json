@@ -517,7 +517,9 @@
  {
   "action": "revert",
   "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_19.html",
-  "into": "https://gaganamc1.blogspot.com/2026/10/blog-post.html"
+  "into": "https://gaganamc1.blogspot.com/2026/10/blog-post.html",
+  "night": "2026-11-13",
+  "done_at": "2026-11-14T05:37:55+09:00"
  },
  {
   "action": "revert",
@@ -1677,5 +1679,17 @@
   "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_21.html",
   "night": "2026-11-12",
   "done_at": "2026-11-13T06:11:13+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/120.html",
+  "night": "2026-11-13",
+  "done_at": "2026-11-14T05:43:57+09:00"
+ },
+ {
+  "action": "relink",
+  "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_20.html",
+  "night": "2026-11-13",
+  "done_at": "2026-11-14T05:45:58+09:00"
  }
 ]

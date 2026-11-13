@@ -365,13 +365,15 @@
     "title": "해외직구 오배송 반품비, 판매자 요구 시 대응법과 기한",
     "post_id": "5838173343601694674",
     "url": "https://gaganamc1.blogspot.com/2026/10/blog-post_19.html",
-    "status": "live",
+    "status": "draft",
     "mode": "planned",
     "cost_usd": 0.5175,
     "review_score": 88,
     "extras": [],
     "description": "구매대행으로 산 해외직구 상품이 오배송됐다면 반환 비용은 판매자가 부담합니다. 구매 방식별 대응, 판매자에게 보낼 문구, 해결이 안 될 때 가는 곳을 정리했습니다.",
-    "posted_at": "2026-10-19T12:06:10+09:00"
+    "posted_at": "2026-10-19T12:06:10+09:00",
+    "merged_into": "https://gaganamc1.blogspot.com/2026/10/blog-post.html",
+    "reverted_at": "2026-11-14T05:37:55+09:00"
   },
   {
     "keyword": "쿠폰 적용해서 산 상품 일부만 반품할 때 환불 금액 계산 방법",
