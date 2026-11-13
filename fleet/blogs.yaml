@@ -154,6 +154,8 @@ blogs:
     blog_id: "5778861407948563703"
     account: default
     since: 2026-10-08
+    # 2026-11-14 재점검: 색인 10/29(11/10) → 0/33, 첫 화면도 미색인 → 새 글 멈추고 정리만 (사용자 승인, 11/21 부터 자동 재개, 그 전에 재측정)
+    pause_until: 2026-11-21
     slots: ["08:20", "16:00"]
     enabled: true
     content_mode: planned
@@ -302,6 +304,8 @@ blogs:
     blog_id: "7779083081554971282"
     account: default
     since: 2026-10-08
+    # 2026-11-14 재점검: 색인 11/28(11/10) → 0/31, 첫 화면도 미색인 → 새 글 멈추고 정리만 (사용자 승인, 11/21 부터 자동 재개, 그 전에 재측정)
+    pause_until: 2026-11-21
     slots: ["13:20", "20:20"]
     enabled: true
     content_mode: planned
