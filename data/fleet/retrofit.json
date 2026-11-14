@@ -359,9 +359,15 @@
  ],
  "no_card": [],
  "remaining": 58,
- "checked_at": "2026-11-14T05:36+09:00",
- "last_result": "2026-11-13 고침 — gaganams1 https://gaganams1.blogspot.com/2026/09/blog-post_30.html",
- "polish_skip": [],
+ "checked_at": "2026-11-15T03:48+09:00",
+ "last_result": "2026-11-14 고칠 것 없음 (https://gaganam1.blogspot.com/2026/10/60.html, 카드·다듬기 실패 또는 뽑을 값 없음)",
+ "polish_skip": [
+  {
+   "url": "https://gaganam1.blogspot.com/2026/10/60.html",
+   "at": "2026-11-14",
+   "why": "뜻이 달라짐: 영치 상태로는 → 번호판이 영치된 상태로는 (뜻을 명확히 풀어 쓴 표현 변경입니다.)"
+  }
+ ],
  "polished": [
   "https://gaganamc1.blogspot.com/2026/09/blog-post.html",
   "https://gaganam1.blogspot.com/2026/09/75-3.html",
