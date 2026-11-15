@@ -1,5 +1,5 @@
 {
- "last_date": "2026-11-14",
+ "last_date": "2026-11-15",
  "checked": {
   "https://gaganamc1.blogspot.com/2026/09/blog-post_26.html": {
    "at": "2026-10-21T09:20+09:00",
@@ -245,6 +245,16 @@
     "확인 불가: 국민주택 1순위 가입 기간·납입 횟수(투기과열지구 2년·24회, 수도권 외 6개월·6회). 제공된 자료에 청약자격 페이지 내용이 없음.",
     "확인 불가: 민영주택 청약 가능 연령(만 19세 이상 성년자). 제공된 자료에 이 내용이 없음."
    ]
+  },
+  "https://nowissue1.blogspot.com/2026/11/blog-post_13.html": {
+   "at": "2026-11-16T04:40+09:00",
+   "blog": "nowissue1",
+   "result": "자료와 같음",
+   "notes": [
+    "계약일부터 30일 이내 전월세 신고, 신고 방법(주민센터·rtms.molit.go.kr)은 자료 3과 일치합니다.",
+    "확정일자 수수료 600원, 4장 초과 시 4장마다 100원 추가는 자료 4·5와 일치합니다.",
+    "대항력은 전입신고 다음 날부터 생기고, 확정일자 시점별 우선변제 효력 발생일도 자료 4·6과 일치합니다."
+   ]
   }
  },
  "done": [
@@ -381,5 +391,5 @@
    "note": "JSON 파싱 실패"
   }
  ],
- "last_result": "2026-11-14 변경 없음 — gaganamc1 https://gaganamc1.blogspot.com/2026/09/7.html"
+ "last_result": "2026-11-15 변경 없음 — nowissue1 https://nowissue1.blogspot.com/2026/11/blog-post_13.html"
 }
