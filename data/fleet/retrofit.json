@@ -377,13 +377,18 @@
  ],
  "no_card": [],
  "remaining": 56,
- "checked_at": "2026-11-16T04:26+09:00",
- "last_result": "2026-11-15 고침 — gaganamc1 https://gaganamc1.blogspot.com/2026/10/blog-post.html",
+ "checked_at": "2026-11-17T07:59+09:00",
+ "last_result": "2026-11-16 고칠 것 없음 (https://gaganams1.blogspot.com/2026/10/blog-post.html, 카드·다듬기 실패 또는 뽑을 값 없음)",
  "polish_skip": [
   {
    "url": "https://gaganam1.blogspot.com/2026/10/60.html",
    "at": "2026-11-14",
    "why": "뜻이 달라짐: 영치 상태로는 → 번호판이 영치된 상태로는 (뜻을 명확히 풀어 쓴 표현 변경입니다.)"
+  },
+  {
+   "url": "https://gaganams1.blogspot.com/2026/10/blog-post.html",
+   "at": "2026-11-16",
+   "why": "뜻이 달라짐: 이염 단락: '번질 수 있어, 밝은 색 니트나...' → 문장 분리 (문장 나누기뿐입니다.)"
   }
  ],
  "polished": [
